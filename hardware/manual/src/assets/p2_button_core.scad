@@ -1,0 +1,2 @@
+include </Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/p2_relay.scad>
+translate([button_x,button_y,lid_top]){translate([0,0,-button_body_depth])cylinder(d=button_body_d,h=button_body_depth);cylinder(d=button_head_d,h=button_head_h);}

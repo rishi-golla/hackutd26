@@ -1,0 +1,2 @@
+include </Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/p2_relay.scad>
+for(x=[oled_x,oled_x+oled_w-oled_connector_w])translate([x,oled_y+oled_connector_y,oled_z-oled_back_depth])cube([oled_connector_w,oled_connector_l,oled_back_depth]);

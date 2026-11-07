@@ -1,0 +1,2 @@
+include </Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/p3_finger_clip.scad>
+translate([0,0,board_seat_z])difference(){cube([sensor_board,sensor_board,sensor_pcb]);for(x=[sensor_hole_inset,sensor_board-sensor_hole_inset],y=[sensor_hole_inset,sensor_board-sensor_hole_inset])translate([x,y,-eps])cylinder(d=sensor_hole_d,h=sensor_pcb+2*eps);}

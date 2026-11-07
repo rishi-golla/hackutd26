@@ -1,0 +1,2 @@
+include </Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/p2_relay.scad>
+translate([button_x-button_plug_w/2,button_y-button_plug_w/2,lid_top-button_plug_depth])cube([button_plug_w,button_plug_w,button_plug_depth-button_body_depth]);

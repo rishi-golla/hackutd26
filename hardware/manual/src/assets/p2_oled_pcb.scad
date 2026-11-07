@@ -1,0 +1,2 @@
+include </Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/p2_relay.scad>
+translate([oled_x,oled_y,oled_z])difference(){rounded_box([oled_w,oled_l,oled_pcb],oled_corner_r);for(x=oled_hole_x,y=oled_hole_y)translate([x,y,-eps])cylinder(d=oled_hole_d,h=oled_pcb+2*eps);}

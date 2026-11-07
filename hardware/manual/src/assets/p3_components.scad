@@ -1,0 +1,2 @@
+include </Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/p3_finger_clip.scad>
+translate([0,0,board_seat_z+sensor_pcb]){translate([(sensor_board-sensor_w)/2,sensor_y-sensor_l/2,0])cube([sensor_w,sensor_l,sensor_h]);translate([sensor_ic_pos[0],sensor_ic_pos[1],0])cube(sensor_ic_size);}
