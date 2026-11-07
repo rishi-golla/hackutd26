@@ -1,0 +1,93 @@
+[
+  {
+    "text": "EPI slot:\nIR reflective sensor",
+    "xy": [
+      35,
+      55
+    ],
+    "target": [
+      414.81165885925293,
+      470.6194996833801
+    ],
+    "width": 325,
+    "side": "bottom"
+  },
+  {
+    "text": "AMIO slot:\nlight sensor",
+    "xy": [
+      405,
+      35
+    ],
+    "target": [
+      550.156307220459,
+      511.3072097301483
+    ],
+    "width": 300,
+    "side": "bottom"
+  },
+  {
+    "text": "Storage temperature sensor",
+    "xy": [
+      35,
+      825
+    ],
+    "target": [
+      336.3640785217285,
+      510.93462109565735
+    ],
+    "width": 390,
+    "side": "top"
+  },
+  {
+    "text": "Arduino UNO Q (no shield):\njumper pins in Grove cables",
+    "xy": [
+      790,
+      35
+    ],
+    "target": [
+      890.894603729248,
+      391.6616439819336
+    ],
+    "width": 430,
+    "side": "bottom"
+  },
+  {
+    "text": "Countdown display",
+    "xy": [
+      480,
+      885
+    ],
+    "target": [
+      734.3419075012207,
+      551.0320067405701
+    ],
+    "width": 300,
+    "side": "top"
+  },
+  {
+    "text": "Small breadboard:\nshared 3.3 V, GND and I2C",
+    "xy": [
+      835,
+      825
+    ],
+    "target": [
+      1068.071174621582,
+      525.3168642520905
+    ],
+    "width": 380,
+    "side": "top"
+  },
+  {
+    "text": "Power bank",
+    "xy": [
+      1305,
+      730
+    ],
+    "target": [
+      1257.7954292297363,
+      612.1811866760254
+    ],
+    "width": 245,
+    "side": "top"
+  }
+]

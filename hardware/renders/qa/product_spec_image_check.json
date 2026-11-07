@@ -1,0 +1,119 @@
+{
+  "images": [
+    {
+      "file": "renders/relay_lcd.png",
+      "size": [
+        1600,
+        1000
+      ],
+      "bytes": 486169,
+      "sha256": "d58cd258be1585e854c709217fddb83d3cd34a044fe8631e874f64ab354a2367"
+    },
+    {
+      "file": "renders/relay_lcd_labeled.png",
+      "size": [
+        1600,
+        1000
+      ],
+      "bytes": 438315,
+      "sha256": "1d82cf9a9fbfd05418babd58e18e7a3c6636688730d7f1cbb774dd3e524594b7"
+    },
+    {
+      "file": "renders/demo_scene.png",
+      "size": [
+        1600,
+        1000
+      ],
+      "bytes": 711219,
+      "sha256": "b24d2a1f598cc209b0435a67399737c85ead9d8f16e387da5be576f194e510e0"
+    },
+    {
+      "file": "renders/medkit.png",
+      "size": [
+        1600,
+        1000
+      ],
+      "bytes": 511476,
+      "sha256": "a26c2d27021322d4e343a79a2bc31ffa1dad2d3c19e8bff5ec420020376b0f5d"
+    },
+    {
+      "file": "renders/medkit_labeled.png",
+      "size": [
+        1600,
+        1000
+      ],
+      "bytes": 485030,
+      "sha256": "a6227b9850767b428a6700089ea5fe9c730cef4c069ca5760ef70893c6812aa0"
+    }
+  ],
+  "revision": "LCD1602 in existing pod; no tablet or OLED; LCD vent 3, temperature vent 2",
+  "hardware_checks": {
+    "relay_lcd": {
+      "tablet_objects": 0,
+      "oled_objects": 0,
+      "lcd_pod": true,
+      "lcd_vent": 3,
+      "temperature_vent": 2,
+      "object_count": 285
+    },
+    "relay_lcd_labeled": {
+      "tablet_objects": 0,
+      "oled_objects": 0,
+      "lcd_pod": true,
+      "lcd_vent": 3,
+      "temperature_vent": 2,
+      "object_count": 285
+    },
+    "demo_scene": {
+      "tablet_objects": 0,
+      "oled_objects": 0,
+      "lcd_pod": true,
+      "lcd_vent": 3,
+      "temperature_vent": 2,
+      "object_count": 883
+    }
+  },
+  "production_stls_unchanged": 14,
+  "protected_files_unchanged": 2894,
+  "visual_review": "Both LCD views and current full scene inspected; six labels fit; original pod and straps reused.",
+  "cable": {
+    "inside_and_exit_mm": 161.647210413566,
+    "outside_mm": 338.35278439951344,
+    "total_mm": 499.9999948130794
+  },
+  "medkit_revision": {
+    "shield": false,
+    "images": [
+      "medkit.png",
+      "medkit_labeled.png"
+    ],
+    "breadboard_mm": [
+      45,
+      35
+    ],
+    "uno_mm": [
+      68.85,
+      53.34
+    ],
+    "matrix": [
+      8,
+      13
+    ],
+    "direct_signal_connections": {
+      "IR yellow": "D2",
+      "light yellow": "A0"
+    },
+    "unused": [
+      "IR white",
+      "light white"
+    ],
+    "breadboard_buses": {
+      "3.3V": "all four red leads + one UNO feed, five separate holes",
+      "GND": "all four black leads + one UNO feed, five separate holes",
+      "SDA": "two white I2C leads + one UNO SDA jumper",
+      "SCL": "two yellow I2C leads + one UNO SCL jumper"
+    },
+    "visual_review": "Both images inspected; 7 labels fit; bare board, matrix, individual jumpers and breadboard are visible.",
+    "protected_files_unchanged": 2893
+  }
+}

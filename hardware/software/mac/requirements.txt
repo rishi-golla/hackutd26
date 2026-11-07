@@ -1,0 +1,2 @@
+# Mac side of the relay stream test (receiver.py). Python 3.9+.
+websockets>=13

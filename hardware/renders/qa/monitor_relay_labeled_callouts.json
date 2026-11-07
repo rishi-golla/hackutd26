@@ -1,0 +1,80 @@
+[
+  {
+    "text": "Monitor page on a tablet\n(separate, Wi-Fi)",
+    "xy": [
+      45,
+      42
+    ],
+    "target": [
+      261.98978424072266,
+      215.9363031387329
+    ],
+    "width": 370,
+    "side": "bottom"
+  },
+  {
+    "text": "Temperature probe leads\n(vent 3)",
+    "xy": [
+      930,
+      90
+    ],
+    "target": [
+      871.8984603881836,
+      503.45444679260254
+    ],
+    "width": 355,
+    "side": "bottom"
+  },
+  {
+    "text": "OLED, 0.96 in\n(27 mm board)",
+    "xy": [
+      1260,
+      490
+    ],
+    "target": [
+      1005.4319381713867,
+      528.5983383655548
+    ],
+    "width": 290,
+    "side": "left"
+  },
+  {
+    "text": "MARK button",
+    "xy": [
+      1250,
+      300
+    ],
+    "target": [
+      1009.7189903259277,
+      490.7321333885193
+    ],
+    "width": 280,
+    "side": "left"
+  },
+  {
+    "text": "Finger clip cable",
+    "xy": [
+      1150,
+      840
+    ],
+    "target": [
+      914.4445419311523,
+      477.09745168685913
+    ],
+    "width": 340,
+    "side": "top"
+  },
+  {
+    "text": "2 straps",
+    "xy": [
+      600,
+      840
+    ],
+    "target": [
+      758.9875221252441,
+      492.86043643951416
+    ],
+    "width": 240,
+    "side": "top"
+  }
+]
