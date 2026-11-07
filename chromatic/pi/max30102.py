@@ -58,32 +58,36 @@ def bandpass(x):
     return hp.filter_signal(np.asarray(x, float), cutoff=[0.7, 3.5], sample_rate=FS, order=3, filtertype="bandpass")
 
 
-def estimate(ir, finger_dc=30000):
-    """Heart rate from the IR signal since the finger last moved (3-4 s), or None.
-    q = how well the signal repeats at that rate (autocorrelation, 1 = perfect); -1 = finger just placed or moving.
-    Pure noise also gives HeartPy a "rate", so a reading needs q >= 0.6 (real pulses 0.6-0.97 on the recording)."""
+def estimate(ir):
+    """Heart rate from the last 3-4 s of IR (finger on) -> {"hr": bpm or None, "why": reason or None, "ac": swing}.
+    why: saturated (press lighter) | settling (finger placed/moved < 3 s ago) | noisy (no clear pulse).
+    ac = pulse swing (std of the band-passed signal), so the caller can tell "moving" from "too weak" for this person.
+    A rate needs (1) a pulse that clearly stands out: spectral peak >= 9x the median power. This is a ratio, so it
+    holds for any LED current, skin or sensor; firm still fingers measured 9-42x, light/moving fingers and pure noise
+    2-8x (2026-11-07). (2) two independent methods that agree within 15 %: HeartPy's beats and the strongest frequency."""
     ir = np.asarray(ir, float)
-    out = {"hr": None, "q": 0}
-    if len(ir) < 25 or ir[-25:].mean() < finger_dc:
-        return out
+    if len(ir) and ir[-25:].max() > 0.95 * 0x3FFFF:             # 18-bit ADC full scale
+        return {"hr": None, "why": "saturated", "ac": 0.0}
     jump = np.nonzero(np.abs(ir[10:] - ir[:-10]) > 0.01 * ir[-25:].mean())[0]   # > 1 % within 0.1 s
     x = (ir[jump[-1] + 11:] if len(jump) else ir)[-int(FS * 4):]
     if len(x) < FS * 3:
-        out["q"] = -1 if len(jump) else 0
-        return out
+        return {"hr": None, "why": "settling", "ac": 0.0}
     y = bandpass(x)
+    out = {"hr": None, "why": "noisy", "ac": float(y.std())}
+    f = np.fft.rfftfreq(1024, 1 / FS)
+    p = np.abs(np.fft.rfft(y * np.hanning(len(y)), 1024)) ** 2
+    band = (f >= 0.7) & (f <= 3.5)
+    if p[band].max() < 9 * np.median(p[band]):
+        return out
+    peak = f[band][np.argmax(p[band])] * 60
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             bpm = hp.process(hp.scale_data(y), sample_rate=FS)[1]["bpm"]
-    except Exception:                                   # HeartPy raises when it finds no usable beats
+    except Exception:                                            # HeartPy raises when it finds no usable beats
         return out
-    if not 30 <= bpm <= 220:                            # also false for NaN
-        return out
-    lag, z = int(round(60 * FS / bpm)), y - y.mean()
-    out["q"] = round(float(np.dot(z[:-lag], z[lag:]) / np.dot(z, z) * len(z) / (len(z) - lag)), 2)
-    if out["q"] >= 0.6:
-        out["hr"] = int(round(bpm))
+    if 30 <= bpm <= 220 and abs(bpm - peak) <= 0.15 * peak:      # also false for NaN
+        out.update(hr=int(round(bpm)), why=None)
     return out
 
 

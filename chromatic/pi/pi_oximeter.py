@@ -23,7 +23,6 @@ from max30102 import Max30102, estimate, FS          # noqa: E402
 from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # noqa: E402
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
-FINGER_ON, FINGER_OFF = 40000, 25000       # IR DC hysteresis (no finger ~11k, finger 70k-240k)
 LED = 0x24
 WIN = int(FS * 4)                          # analysis window
 HOLD_S = 3.0                               # keep showing the last good HR through short glitches
@@ -113,17 +112,25 @@ def main():
     for p, _ in connected_devices():
         drop(p, "stale link from before restart")
 
-    m = Max30102(led=LED)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)    # MARK button: pin 11 to ground (pin 9)
-    st = {"I": [], "finger": False, "hist": [], "prev": None, "last_ok": 0.0, "hr": 0, "state": None,
-          "linked": False, "btn": False, "marks": 0, "unsub_at": None, "dev_at": 0.0}
+    st = {"m": None, "err": 0, "I": [], "finger": False, "base": 15000.0, "ac_ok": [], "hist": [], "prev": None,
+          "last_ok": 0.0, "hr": 0, "state": None, "linked": False, "btn": False, "marks": 0, "unsub_at": None,
+          "dev_at": 0.0}                       # base: first guess of the no-finger IR level (11-16k measured), then learned
 
     def sample():
         try:
-            st["I"] = (st["I"] + [i for _, i in m.read()])[-WIN:]
-        except OSError as e:
-            say(True, ev="i2c_error", e=str(e))
+            if st["m"] is None:
+                st["m"] = Max30102(led=LED)
+                say(True, ev="sensor_ready")
+            st["I"] = (st["I"] + [i for _, i in st["m"].read()])[-WIN:]
+            st["err"] = 0
+        except OSError as e:                         # unplugged / I2C glitch: report it, retry about once a second
+            st["err"] += 1
+            if st["err"] == 1:
+                say(True, ev="sensor_error", e=str(e))
+            if st["err"] % 25 == 0:
+                st["m"], st["I"] = None, []
         pressed = GPIO.input(17) == 0                     # polled every 40 ms, which also debounces
         if pressed and not st["btn"]:
             st["marks"] += 1
@@ -142,30 +149,44 @@ def main():
         now = time.time()
         I = st["I"]
         dc = sum(I[-10:]) / max(1, len(I[-10:])) if I else 0
-        # finger on/off with hysteresis
-        if not st["finger"] and dc > FINGER_ON:
-            st["finger"], st["hist"], st["prev"], st["last_ok"] = True, [], None, 0.0
-            state("measuring", why="finger_on")
-        elif st["finger"] and dc < FINGER_OFF:
+        # finger on/off: learned from this sensor's own no-finger level (ambient light and sensors differ)
+        if st["err"]:
+            if st["finger"] is not None:
+                st["finger"], st["hist"], st["hr"] = None, [], 0     # None = sensor not readable
+        elif st["finger"] is None:
+            st["finger"] = False
+        elif not st["finger"]:
+            st["base"] = dc if dc < st["base"] else st["base"] + 0.01 * (dc - st["base"])
+            if dc > 2.5 * st["base"]:
+                st["finger"], st["hist"], st["prev"], st["last_ok"] = True, [], None, 0.0
+        elif dc < 1.8 * st["base"]:
             st["finger"], st["hist"], st["hr"] = False, [], 0
-        # estimate
-        if not st["finger"]:
+        # a number only when two ticks in a row agree within 10 %; otherwise say why
+        if st["finger"] is None:
+            state("sensor_error")
+        elif not st["finger"]:
             state("no_finger", dc=int(dc))
         else:
-            e = estimate(st["I"], finger_dc=FINGER_OFF)
+            e = estimate(st["I"])
             agree = e["hr"] and st["prev"] and abs(e["hr"] - st["prev"]) <= 0.1 * st["prev"]
             st["prev"] = e["hr"]
             if agree:
-                st["hist"] = (st["hist"] + [e["hr"]])[-5:]
+                st["hist"] = (st["hist"] + [e["hr"]])[-8:]          # shown value = median of the last 2 s
+                st["ac_ok"] = (st["ac_ok"] + [e["ac"]])[-20:]       # this person's clean pulse swing
                 hr = sorted(st["hist"])[len(st["hist"]) // 2]
                 st["last_ok"] = now
                 state("live")
                 if hr != st["hr"]:
-                    say(True, hr=hr, raw=e["hr"], q=e["q"])
+                    say(True, hr=hr, raw=e["hr"])
                 st["hr"] = hr
-            elif now - st["last_ok"] > HOLD_S:
+            elif now - st["last_ok"] > HOLD_S:              # brief glitches keep the last value up to 3 s
                 st["hr"], st["hist"] = 0, []
-                state("measuring", why="motion" if e["q"] == -1 else "weak_signal")
+                ref = sorted(st["ac_ok"])[len(st["ac_ok"]) // 2] if st["ac_ok"] else None
+                if e["why"] == "noisy" and ref:
+                    why = "moving" if e["ac"] > 3 * ref else "weak"
+                else:
+                    why = e["why"] or "measuring"          # settling / saturated / noisy before any clean pulse
+                state(why)
         # tell the handheld (every tick, whatever the state)
         flags = 0x06 if st["finger"] else 0x04
         bpm = max(0, min(250, int(st["hr"]))) if st["finger"] else 0
@@ -198,7 +219,8 @@ def main():
     try:
         loop.run()
     finally:
-        m.close()
+        if st["m"]:
+            st["m"].close()
 
 
 if __name__ == "__main__":
