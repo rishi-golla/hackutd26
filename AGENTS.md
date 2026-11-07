@@ -4,7 +4,8 @@ Read this first. It is the shared brief for everyone's agent (Claude Code, Codex
 Drop it in your repo root as `AGENTS.md` / `CLAUDE.md` if your tool wants that name.
 
 **Ground truth:** [`docs/context/Handoff Product Spec (Copy).md`](docs/context/Handoff%20Product%20Spec%20(Copy).md)
-(version 1, updated after the team meeting, Sat 2026-11-07 15:36). This file is a working summary of it. If
+(updated version, replaced in the repo on Sat 2026-11-07 evening; the previous version is in git history). This
+file is a working summary of it. If
 they conflict, **the spec wins**, except for the **team decisions in section 0**, which override the spec.
 Fix this file when you notice a conflict. Section numbers like "spec §15" point into the spec.
 
@@ -15,13 +16,13 @@ treat them as settled, and do not silently pick one. Ask the human or add it to 
 
 ## 0. Team decisions that override the spec (2026-11-07)
 
-1. **Video to the hospital is a live WebRTC stream, never snapshots.** No low-frame snapshot mode. (Snapshots
-   for the vision model, if built later, are separate from the video.)
+1. **Video to the hospital is a live WebRTC stream, never snapshots.** No low-frame snapshot mode, even though
+   spec §4 and H2 still mention one. Vision frames (the ID card read, spec §17) are a separate thing from the video.
 2. **Agent workflow W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the
    bodycam lane**, not the hospital lane.
-3. **No ER Acknowledge.** The hospital dashboard's only button is **Generate Handoff**. The pre-arrival alert is
-   display-only; the "ER acknowledged" callout is dropped. No hidden demo controls on `/hospital`; demo controls
-   live on `/monitor` (D1).
+3. **No ER Acknowledge** (overrides H1, H6, E1). The hospital dashboard's only button is **Generate Handoff**.
+   The pre-arrival alert is display-only; the "ER acknowledged" callout is dropped. No demo controls on
+   `/hospital`; they live on the hidden `/controls` page (D1, H8).
 4. **Mock EHR is a FHIR R4 server** (spec X2 as written).
 5. **Keep it simple.** Build the smallest version that meets the "done when" check. Don't overengineer.
 
@@ -30,9 +31,9 @@ treat them as settled, and do not silently pick one. Ask the human or add it to 
 | Lane | Owner | Owns (folders) | Spec IDs |
 | --- | --- | --- | --- |
 | **Hospital node** | Josh | `spacetime/` (module, seed, `tick_rules`), `web/` scaffold + `web/src/db/` (connection + bindings) + `web/src/routes/hospital/`, `ehr/` (mock FHIR R4 server), `agent/` (W1, W4), report route | H1–H5, H7, H9, W1, W4, X2, E1 (no ack), §15 rules, §22 |
-| **Relay** | relay owner | `relay/` (Pi sender, OLED, temp probe), hardware | R1–R8 |
-| **Chest camera** | camera owner | `web/src/routes/bodycam/`, WebRTC sender, W6 | B1–B10, RB1–RB7, X1, X3–X7, W6 |
-| **Unassigned** | team decides | `web/src/routes/monitor/` (M1–M6, D1 demo controls), Devpost/video | — |
+| **Relay** | relay owner | `relay/` (Pi sender, LCD1602, temp probe), hardware | R1–R8, L1–L3 |
+| **Chest camera** | camera owner | `web/src/routes/bodycam/`, WebRTC sender, vision frames, W6 (ID card or spoken name → EHR search) | B1–B10, RB1–RB7, X1, X3–X8, W6 |
+| **Unassigned** | team decides | `/controls` demo-controls page (D1, H8; the code still has it as `web/src/routes/monitor/`, rename pending), Devpost/video | D1, H8 |
 
 - One owner per folder. Stay inside your lane's folders.
 - **Only the hospital lane changes `spacetime/`.** Need a table, column or reducer? Ask Josh.
@@ -44,7 +45,7 @@ Who calls what in SpacetimeDB (details and examples in `spacetime/README.md`):
 | --- | --- | --- |
 | Relay (HTTP) | `push_vitals`, `push_waveform`, `mark`, `toggle_incident` (2 s hold) | `incident` (optional) |
 | Bodycam (TS SDK) | `push_cpr`, `add_transcript`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; for W6: `save_patient_record`, `add_callout`, `log_agent_step` | `callout` (unspoken), `rtc_signal`, `patient_record`, `incident` |
-| Monitor (TS SDK) | `monitor_tap`, `demo_control` | vitals, waveform, cpr_state, timer, patient_record, incident |
+| Controls page (TS SDK) | `demo_control` (`monitor_tap` is gone from the new spec; it still exists in the module) | incident, cpr_state, timer, patient_record |
 | Hospital + agent | `send_rtc_signal`, `set_destination`, `er_message_out`, `log_agent_step`, `request_report`, `save_report` | everything |
 
 WebRTC signaling goes through the `rtc_signal` table: `{sender: "bodycam"|"hospital", kind:
@@ -63,21 +64,23 @@ Three acts, in the order a paramedic works:
 3. **Handoff:** everything flows to the hospital live, and one click produces the sourced MIST report.
 
 What the judges should remember (spec §1):
-- **The judge wears it and it talks to them:** they do CPR on the manikin and hear "Push faster" or
-  "Resume compressions" from their own chest.
+- **The judge wears it and it talks to them:** they mime CPR above a teammate lying on a mat and hear
+  "Push faster" or "Resume compressions" from their own chest.
 - **Say a drug, hear it back:** "Administering one milligram of epi IO" → "Copy. Epinephrine, one milligram, I-O."
   within a second.
-- **The record pulls itself:** the patient ID card's QR code → mock FHIR EHR → allergies, meds, history to the
-  medic and the ER. Then an amiodarone dose triggers an allergy warning in the read-back.
-- **One click, a sourced handoff:** every report line carries its voice line, sensor reading, tap or frame.
-- **Real hardware:** live heart rate and temperature from a volunteer's finger.
+- **The record pulls itself:** the judge shows the patient's ID card to the bodycam; the AI reads the printed
+  name and birth date, finds the patient in the mock FHIR EHR and shows allergies, meds and history to the medic
+  and the ER. Then an amiodarone dose triggers an allergy warning in the read-back.
+- **One click, a sourced handoff:** every report line carries its voice line, sensor reading or camera frame.
+- **Real hardware:** live heart rate and temperature from the patient teammate's finger and wrist.
 
 Three people build in lanes (see **Lanes** above): hospital node, relay, chest camera.
-The demo uses a **CPR manikin** (or a firm cushion). **All medical data is synthetic. Never perform
-compressions on a person.**
+A **teammate lies on a mat as the patient**; the judge **mimes CPR with hands above the chest, never touching
+or pressing**, and the phone measures the rescuer's motion. **All medical data is synthetic.**
 
 **Not building:** smart glasses, mass-casualty mode, compression depth. **Paused:** Photon (after the MVP).
-**Stretch only:** smart med kit, CPR puck, patient cam.
+**Stretch only:** smart med kit, patient cam (a still every second beside the live video). No CPR puck, no
+GY-521, no manikin. Monitor tablet replaced by the `/controls` page plus the relay's LCD.
 
 ## 2. Status snapshot
 
@@ -93,9 +96,9 @@ compressions on a person.**
 
 ```mermaid
 flowchart LR
-  BC["Bodycam /bodycam<br/>Pixel 9 Pro, rear camera, chest harness<br/>camera, mic, speaker, motion, QR reader"]
-  RL["Vitals relay<br/>Pi 4 in printed box<br/>finger clip, temp probe, MARK, lid OLED"]
-  MON["Monitor /monitor<br/>tablet beside the patient"]
+  BC["Bodycam /bodycam<br/>Pixel 9 Pro, rear camera, chest harness<br/>camera, mic, speaker, motion, vision frames"]
+  RL["Vitals relay<br/>Pi 4 in printed box<br/>finger clip, temp probe, MARK, lid LCD1602"]
+  MON["Demo controls /controls<br/>operator's phone (hidden page)"]
   DB[("SpacetimeDB Maincloud<br/>tables, reducers,<br/>tick_rules every 1 s")]
   HOS["Hospital dashboard /hospital<br/>MacBook"]
   AG["Nemotron agent<br/>laptop, NVIDIA API"]
@@ -109,7 +112,7 @@ flowchart LR
   BC -. "WebRTC live video<br/>(handshake via rtc_signal)" .-> HOS
 ```
 
-- **One web app:** Vite + React + TypeScript, three routes (`/bodycam`, `/hospital`, `/monitor`), hosted over
+- **One web app:** Vite + React + TypeScript, three routes (`/bodycam`, `/hospital`, `/controls`), hosted over
   HTTPS. The bodycam is this web page in Chrome on the Pixel, not a native app (Expo vs web page is still
   [OPEN], but the spec recommends the web page). Camera, motion sensor and wake lock need a **secure context**.
 - **SpacetimeDB on Maincloud is the whole backend.** Every device reads and writes one live incident record.
@@ -120,7 +123,10 @@ flowchart LR
 - **Agent** = Nemotron through NVIDIA's API with tool calling, running on the laptop as just another SpacetimeDB
   client. It wakes on triggers, calls tools and writes trace steps.
 - **Mock EHR** = small FHIR R4 server on the laptop with five synthetic patients.
-- **Relay OLED** shows HR, SpO2, temperature and link status locally over I2C, with no network needed.
+- **Vision:** the bodycam sends a frame every ~5 s and at once on "Handoff, look". The vision model reads the ID
+  card (name + birth date), AED pads, airway device, IV/IO and vial labels. Separate from the live video.
+- **Relay LCD1602** (I2C, in a printed pod on the lid) shows HR, SpO2, temperature or status, and link, with no
+  network needed. The 0.96" OLED is the fallback (L3).
 - **Network:** Maincloud needs internet. Hotspot vs venue Wi-Fi is [OPEN]. Every link needs reconnect and buffering.
 
 ## 4. Data contracts
@@ -174,12 +180,12 @@ differences from spec §22 are in [`spacetime/README.md`](spacetime/README.md), 
 
 Tables: `incident`, `device`, `vitals`, `waveform`, `cpr_state`, `transcript`, `rtc_signal`, `event` (timeline,
 typed `sources` + `merged_count` + `status`), `timer`, `callout`, `er_message`, `agent_step`, `hospital`
-(fictional, seeded), `patient_record`, `report`. No `frame`/`snapshot` (section 0). `kit_slot` only if the
-med kit is built.
+(fictional, seeded), `patient_record`, `report`. **No `frame`/`snapshot` yet**: the new spec needs frames for the
+vision ID-card read (see section 10). `kit_slot` only if the med kit is built.
 
 Reducers: `start_incident`, `set_status`, `toggle_incident`, `heartbeat`, `push_vitals`, `push_waveform`,
 `push_cpr`, `add_transcript`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`,
-`monitor_tap`, `demo_control`, `add_callout`, `callout_spoken`, `save_patient_record`, `log_agent_step`,
+`monitor_tap` (dropped from the new spec), `demo_control`, `add_callout`, `callout_spoken`, `save_patient_record`, `log_agent_step`,
 `set_destination`, `er_message_out`, `request_report`, `save_report`. Scheduled (private): `tick_rules`
 every second, which also handles due timers. Same-kind events merge within 60 s, or 20 s with DEMO TIMING on
 (so two demo epi doses 45 s apart stay separate).
@@ -193,59 +199,68 @@ Incident status drives which rules run: `standby → on_scene → arrest ⇄ ros
 | --- | --- |
 | Live video | Bodycam rear camera, WebRTC to `/hospital` |
 | Transcript | Bodycam continuous speech-to-text with auto-restart |
-| Heart rate, pulse waveform | Relay finger clip (MAX30101), real |
+| Heart rate, pulse waveform | Relay finger clip (MAX30101) on the patient teammate, real |
 | SpO2 | Relay, **experimental**. Always label it |
-| Temperature | Relay 18B20 probe, every 2 s |
-| CPR rate, count, pauses | Bodycam motion sensor. **No depth claims**. Demo control override "CPR slow / CPR good" |
+| Temperature | Relay 18B20 probe on the patient teammate's wrist, every 2 s |
+| CPR rate, count, pauses | Bodycam motion sensor, measuring the rescuer's mimed compressions. **No depth claims**. Demo control override "CPR slow / CPR good" on `/controls` |
 | Medication read-back | **On the phone**: local parser + on-device voice, no AI and no server round trip (spec §16) |
+| Medication logging | Voice read-back plus the camera reading the vial label (no tablet taps) |
 | Callouts (CPR, timers, vitals) | `tick_rules` in SpacetimeDB, spoken on the phone; Mac speakers as fallback |
-| Patient identification | QR code on the synthetic ID card; fallbacks: spoken name + birth date, or "Identify patient" demo control |
+| Patient identification | Vision model reads the printed name + birth date off the ID card in a bodycam frame (or the spoken name + birth date from the transcript); the agent decides to search the EHR and asks if several patients match (X8). Last resort: "Identify patient" on `/controls` |
 | Patient record | Bodycam lane's W6 pulls it from the mock FHIR R4 EHR, every field marked "from EHR" |
-| Scene understanding | Vision on a frame every 5 s: AED pads, airway device, IV/IO, vial label. Logged only at confidence ≥ 0.7 |
-| Timeline marks | Relay MARK button, voice "Handoff, mark", monitor MARK tap |
+| Scene understanding | Vision on a frame every 5 s and on "Handoff, look": AED pads, airway device, IV/IO, vial label, ID card. Logged only at confidence ≥ 0.7 |
+| Timeline marks | Relay MARK button, voice "Handoff, mark" |
 | Destination, ETA, pre-arrival alert | Agent W1 (`choose_hospital` from the seeded hospitals) |
 | Handoff report | Agent W4, MIST format; drops any sentence without a source |
 
 ## 5. The demo (spec §7–8)
 
-Hands-on: **a judge wears the harness**. Four teammate roles: narrator, fitter/spotter, demo operator (runs hidden
-demo controls on the tablet), ER host. Versions: full 5 min, standard 3 min, quick 60 s, hands-off.
+Hands-on: **a judge wears the harness** and plays the paramedic; **a teammate lies on a mat as the patient**
+(finger clip, temperature probe on the wrist, ID card in a pocket; can stop the demo any time). Roles: narrator,
+fitter/spotter, demo operator (phone with the hidden `/controls` page), patient, ER host. Versions: full 5 min,
+standard 3 min (explain 0:00–0:25, hands-on 0:25–2:05, hospital screen 2:05–2:40, Q&A 2:40–3:00), quick 60 s,
+hands-off.
 
 1. **Hook:** the handoff problem in one breath; "Today you're the paramedic."
-2. **Suit up:** harness on the judge; live video appears on the hospital screen.
-3. **Your vitals:** judge clips their own finger; their HR shows on the OLED and tablet within ~10 s.
-4. **Who is it?** Judge holds the ID card from the manikin's pocket to the chest camera → "Record found. Jordan
-   Avery, fifty-eight. Allergy: amiodarone. On warfarin." Record panel fills on the tablet and hospital screen.
-5. **Arrest and CPR:** demo operator triggers the simulated arrest → "Push faster" if under 100/min; pre-arrival
-   alert posts to the hospital (Avon Heart Institute, ETA 9).
-6. **Pause:** hands off for 10 s → "Resume compressions."
+2. **Suit up:** patient teammate lies down; harness on the judge; demo operator starts the incident from
+   `/controls`; live video appears on the hospital screen.
+3. **Your vitals:** judge clips the finger sensor on the patient teammate and tapes the probe to their wrist;
+   real HR shows on the relay LCD and the hospital screen within ~10 s.
+4. **Who is it?** Judge shows the ID card from the patient's pocket to the chest camera and says "Handoff, look"
+   (or "Patient is Jordan Avery, born March 14, 1968") → the AI reads it, the agent searches the EHR →
+   "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." Record on the hospital screen
+   within ~8 s of showing the card (~3 s after "Handoff, look").
+5. **Arrest and CPR:** operator triggers the simulated arrest from `/controls`; the judge mimes compressions
+   above the chest, no contact → "Push faster" if under 100/min; pre-arrival alert posts (Avon Heart Institute, ETA 9).
+6. **Pause:** hands still for 10 s → "Resume compressions."
 7. **Drugs:** "Administering one milligram of epi IO" → read-back. "Giving three hundred milligrams of amiodarone"
    → allergy warning, then "Correction".
-8. **Hospital screen:** live video, EHR record, agent trace, alert → judge clicks **Generate Handoff**, reads a
-   report built from their own CPR numbers, scans its QR code to keep it.
+8. **Hospital screen:** live video, EHR record, agent trace, alert → judge clicks **Generate Handoff** and reads a
+   report built from their own CPR numbers and the record's history, with every line's source.
 
 Demo timing is compressed and labelled **DEMO TIMING**: epi every 45 s, CPR cycle 30 s.
 Demo patient: Jordan Avery, 58, born 1968-03-14, ID `pt-0001`, amiodarone allergy, warfarin + metoprolol,
 CAD with MI in 2021, full code. Four more synthetic patients make the search real.
 
-Demo requirements D1–D6 (spec §8): hidden demo controls including **Reset for the next judge** (under 10 s,
-devices stay connected); every callout also shown as big text; the report uses the judge's own run; QR on the report.
+Demo requirements D1–D5 (spec §8): D1 hidden `/controls` page with **Reset for the next judge** (under 10 s,
+devices stay connected); D2 every spoken callout in big text on the hospital screen; D3 the agent identifies the
+patient and pulls the record (~8 s); D4 the report uses the judge's own run; D5 DEMO TIMING tag on every timer.
+The report QR code is gone from the new spec.
 
 ## 6. Build order and schedule (spec §26)
 
 Lanes own the packages (see **Lanes**). Spec work board, in priority order (each package has a "done when"):
 1. **SpacetimeDB module + seed data** (start here)
-2. Bodycam page (snapshots, STT, CPR, read-back, ID-card QR)
+2. Bodycam page (snapshot frames for vision, STT, CPR, read-back)
 3. Live video (WebRTC + handshake + fallbacks)
-4. Monitor page
-5. Hospital dashboard (live view, record panel, alert, report + QR)
-6. Nemotron agent (EHR pull, alert, report)
-7. Mock EHR (no dependencies; can start any time)
-8. Relay software (OLED, temperature probe, SpacetimeDB sender)
-9. Relay hardware (OLED wiring, temp probe, button)
-10. Demo controls and reset
-11. Devpost, demo video, README
-12. Stretch, in order: polish → Photon → med kit → CPR puck or patient cam
+4. Hospital dashboard (live view, record panel, alert, report)
+5. Nemotron agent (spots the patient on a card or by voice, EHR search, alert, report)
+6. Mock EHR (five synthetic FHIR patients; no dependencies)
+7. Relay software (LCD, temperature probe, SpacetimeDB sender)
+8. Relay hardware (LCD pod and wiring, temperature probe, button)
+9. Demo controls page (`/controls`) and reset
+10. Devpost, demo video, README
+11. Stretch, in order: polish → Photon → med kit → patient cam
 
 **Simulated data first.** A working end-to-end path with simulated data beats a half-working path with real data.
 
@@ -260,7 +275,7 @@ hackutd26/                    git repo
   AGENTS.md                   this file
   README.md
   spacetime/                  SpacetimeDB module (hospital lane owns; README = contract)
-  web/                        Vite + React + TS app: /hospital, /bodycam, /monitor (routes owned per Lanes)
+  web/                        Vite + React + TS app: /hospital, /bodycam, /controls (code still says /monitor)
   docs/context/
     Handoff Product Spec (Copy).md   GROUND TRUTH
     2026-10-29-ideation-meeting.md   history only
@@ -271,7 +286,7 @@ The hardware folder (not in this repo yet; ask Alan) has this layout:
 
 ```
 hardware/
-  software/pi/       Pi setup + bring-up scripts, DSP/driver libs (incl. lib/oled.py), pytest suite
+  software/pi/       Pi setup + bring-up scripts, DSP/driver libs (incl. lib/lcd1602.py, lib/oled.py), pytest suite
   software/mac/      receiver.py (WS receiver), serve_phone_test.sh (HTTP/HTTPS for the Pixel)
   software/phone/    phone test page + compression detector + selftest
   software/README.md exact setup steps and expected outputs
@@ -288,6 +303,8 @@ hardware/
 - No compression-depth claims. Demo timers are labelled DEMO TIMING.
 - Never say "clinically accurate", "HIPAA compliant", anything about the FDA, or a number we didn't measure.
 - No faces of the public in saved snapshots. Dummy vials are marked DEMO.
+- **CPR in the demo is mimed:** hands hover above the patient teammate's chest and never touch or press. The
+  teammate can stop the demo at any time.
 
 **Callouts (spec §15):**
 - Time-critical callouts are **plain rules in `tick_rules`**, not AI calls.
@@ -309,11 +326,14 @@ doses; every step goes to `agent_step`; the report self-check drops uncited sent
 - Everything on the Pi runs at **3.3 V**. Nothing in the build uses the 5 V pins.
 - Relay pins: MAX30101 via Qwiic SHIM on header pins 1–6 (I2C **0x57**); MARK switch GPIO17 (pin 11) + GND (pin 9);
   RGB ring common to 3.3 V (pin 17) with 220 Ω to pins 15/16/18, driven **LOW to light**.
-- **OLED** (0.96", GME12864, I2C **0x3C**): VCC → breadboard row 7 (3.3 V), GND → row 5, SDA → row 16 + Pi pin 3,
-  SCL → row 17 + Pi pin 5. Leads through lid vent 1. `i2c_scan.py` should list 0x57 and 0x3C.
+- **LCD1602** (GeeekPi I2C, 4-pin backpack, I2C **0x27** or **0x3F**), in the printed pod on the lid: VCC → breadboard
+  row 7 (**3.3 V, never 5 V**: the backpack pulls SDA/SCL up to its VCC), GND → row 5, SDA → row 16 + Pi pin 3,
+  SCL → row 17 + Pi pin 5. Leads through **lid vent 3**. `i2c_scan.py` should list 0x57 and 0x27 (or 0x3F). Faint at
+  3.3 V → turn the contrast screw; unreadable → swap in the 0.96" OLED (0x3C) on the same four wires (L3).
 - **Temperature probe** (18B20): S → Pi pin 7, + → row 7 (3.3 V), − → row 5. Add `dtoverlay=w1-gpio` to
-  `config.txt`. No `28-` device folder → add a 4.7–5.1 kΩ resistor between S and 3.3 V. Leads through lid vent 3.
-- The LCD1602 stays in the bag; the OLED replaces it. Full breadboard row map and ring colours: spec §11.
+  `config.txt`. No `28-` device folder → add a 4.7–5.1 kΩ resistor between S and 3.3 V. Leads through **lid vent 2**.
+- Patient cam (stretch) ribbon through lid vent 1. The bare 16-pin LCD stays in the bag. Full breadboard row
+  map and ring colours: spec §11.
 - Parts are printed PLA/PETG. Be gentle, there are no spares.
 
 **Software:**
@@ -331,17 +351,18 @@ doses; every step goes to `agent_step`; the report self-check drops uncited sent
 | Wi-Fi drops | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); demo controls force the next beat |
 | Finger clip | Relay simulated mode |
 | CPR from phone motion | Demo control "CPR slow / CPR good" |
-| Speech-to-text | Camera, MARK and monitor taps still log events; demo operator taps EPI |
+| Speech-to-text | The camera (vial label) and MARK still log events; ask the judge to repeat once |
 | Nemotron slow or down | Rules still speak; report falls back to a template filled from the tables |
-| ID card not read | "Identify patient" demo control |
+| AI can't read the ID card | Hold it closer and still, or say the name and birth date; last resort "Identify patient" on `/controls` |
+| No phone free for the demo operator | Open `/controls` on the laptop; the relay LCD still shows the numbers |
 | Mock EHR down | Cached synthetic record, labelled "cached" |
 | Pi dies | Relay simulated mode on the Mac |
 | SpacetimeDB not syncing by 18:00 Sat | Plain Node WebSocket server; drop the Spacetime track |
 
 ## 9. How agents should work here
 
-- **The spec is ground truth.** Build to its requirement IDs (B1–B10, R1–R8, M1–M6, H1–H9, RB1–RB7, X1–X7,
-  E1–E5, D1–D6) and their "done when" checks.
+- **The spec is ground truth.** Build to its requirement IDs (B1–B10, R1–R8, L1–L3, H1–H9, RB1–RB7, X1–X8,
+  E1–E5, D1–D5) and their "done when" checks.
 - **Run the spec check after every feature.** When you finish implementing a feature (before reporting it
   done or committing), run the `spec-checker` subagent (`.claude/agents/spec-checker.md`) on the files you
   changed. Fix its blocking findings, then report the rest to the human. Tools without subagents (Codex,
@@ -368,9 +389,13 @@ doses; every step goes to `agent_step`; the report self-check drops uncited sent
 | Do MLH prizes count toward the 3-track limit | **[OPEN]** ask the help desk. Tracks: Spacetime, NVIDIA Nemotron; Photon paused |
 | Privacy story ("keep it local") | **[OPEN]** pitch line in the spec: open-weight Nemotron + self-hosted SpacetimeDB on the ambulance laptop |
 | EHR demo patient (keep Jordan Avery / amiodarone?) and how to show the ID card (print or spare phone) | **[OPEN]** |
-| Pins 3 and 5 clearance above the SHIM for the OLED jumpers | **[OPEN]** Alan. If too short: second I2C bus on GPIO5/6 |
-| Whose tablet runs `/monitor` | **[OPEN]** |
+| Pins 3 and 5 clearance above the SHIM for the LCD jumpers | **[OPEN]** Alan. If too short: second I2C bus on GPIO5/6 |
+| Is the LCD readable at 3.3 V? If not, swap in the OLED | **[OPEN]** Alan |
 | Which data is live vs simulated in the demo, and how screens show it | **[OPEN]** decide at the end |
+| During the mock arrest the patient teammate's real HR keeps showing a normal pulse (the dashboard hides HR during an arrest today) | **[OPEN]** decide with live vs simulated |
+| **Code vs the new spec:** add a `frame` table + `push_frame` for the vision ID-card read (spec §17, B2, B6) | **[OPEN]** hospital lane (Josh) |
+| **Code vs the new spec:** rename the `/monitor` route to `/controls` and drop `monitor_tap` | **[OPEN]** hospital lane (Josh) |
+| **Code vs the new spec:** spec §22's relay curl example has no `"simulated"` field, but the module requires it. Relay team: use the `spacetime/README.md` example | **[OPEN]** keep it required, or default it to false |
 | UNO Q or ESP32-S3 for the med kit (only if built) | **[OPEN]** after a 45-minute UNO Q try |
 | Where the `hardware/` folder lives and how it joins this repo | **[OPEN]** ask Alan |
 
@@ -389,8 +414,8 @@ cd hardware/software/mac && bash serve_phone_test.sh --https
 # Pi: copy scripts over, then on the Pi
 rsync -av --exclude __pycache__ hardware/software/pi/ handoff@handoff-relay.local:~/handoff-pi/
 source ~/handoff-venv/bin/activate && cd ~/handoff-pi && python3 -m lib.selftest
-python3 i2c_scan.py      # expect 0x57 (finger clip) and 0x3C (OLED)
-python3 test_oled.py
+python3 i2c_scan.py      # expect 0x57 (finger clip) and 0x27 or 0x3F (LCD1602)
+python3 test_lcd.py
 
 # Pi unit tests (run anywhere with the repo)
 cd hardware/software/pi && python3 -m pytest tests -q    # needs pytest installed

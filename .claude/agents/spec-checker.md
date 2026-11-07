@@ -30,8 +30,8 @@ this prompt's summary.
 
 ## What to check
 
-1. **Requirement IDs.** Map the code to the spec's IDs (B1–B10 bodycam, R1–R8 relay, M1–M6 monitor,
-   H1–H9 hospital, RB1–RB7 read-back, X1–X7 EHR, E1–E5 pre-arrival, D1–D6 demo, K1–K7 med kit, W1–W6 agent
+1. **Requirement IDs.** Map the code to the spec's IDs (B1–B10 bodycam, R1–R8 relay, L1–L3 relay LCD,
+   H1–H9 hospital, RB1–RB7 read-back, X1–X8 EHR, E1–E5 pre-arrival, D1–D5 demo, K1–K7 med kit, W1–W6 agent
    workflows). For each one the code touches, check its "Done when" condition. Note which ones you can
    only verify by running on hardware.
 2. **Contracts.** Compare against the spec exactly:
@@ -40,7 +40,7 @@ this prompt's summary.
    - Relay WebSocket format `v: 1` still accepted for bring-up (AGENTS.md §4.2, spec R8).
    - Phone CPR detector output `{rate, count, sinceLast, paused, compressing}` (AGENTS.md §4.3).
    - Incident status values and transitions, and which rules are active in each status (spec §9).
-   - Routes `/bodycam`, `/hospital`, `/monitor`; stack Vite + React + TypeScript (spec §4).
+   - Routes `/bodycam`, `/hospital`, `/controls` (the code still says `/monitor`; known, see AGENTS.md section 10); stack Vite + React + TypeScript (spec §4).
    Flag any silent change to a shared contract as **high** severity.
 3. **Callout rules (spec §15).** Thresholds, hold times, repeat intervals, priorities, the 4 s global spacing,
    P1 never cutting off another P1, no duplicate queued words. Time-critical rules must run in
