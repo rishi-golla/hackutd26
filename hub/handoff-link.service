@@ -1,0 +1,13 @@
+[Unit]
+Description=Handoff public https link (pinggy)
+After=network-online.target handoff-hub.service
+Wants=network-online.target
+
+[Service]
+User=cmx
+ExecStart=/home/cmx/hub/link.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

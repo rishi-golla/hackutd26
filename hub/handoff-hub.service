@@ -1,0 +1,14 @@
+[Unit]
+Description=Handoff hub (phone + sensors + dashboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=cmx
+WorkingDirectory=/home/cmx/hub
+ExecStart=/usr/bin/python3 /home/cmx/hub/hub.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

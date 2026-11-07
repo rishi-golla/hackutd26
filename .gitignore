@@ -1,0 +1,16 @@
+# Only the code that runs on the Pi is tracked. Keys, backups, captures and firmware stay out.
+/*
+!/.gitignore
+!/hub/
+!/chromatic/
+/chromatic/*
+!/chromatic/pi/
+!/chromatic/tools/
+/chromatic/tools/*
+!/chromatic/tools/pi.sh
+*.db
+*.rvf*
+.claude-flow/
+.swarm/
+__pycache__/
+data/
