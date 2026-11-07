@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""MAX30102 finger sensor on the Pi's I2C bus 1 (address 0x57): raw red/IR samples at 100 Hz, plus a simple
-heart-rate (peak intervals on the IR pulse wave) and SpO2 estimate (ratio of ratios, UNCALIBRATED: hobby sensor,
-textbook curve 110 - 25 R). Finger presence = IR DC level. numpy only.
+"""MAX30102 finger sensor on the Pi's I2C bus 1 (address 0x57): raw red/IR samples at 100 Hz, and heart rate from the
+IR pulse wave using HeartPy (github.com/paulvangentcom/heartrate_analysis_python). Finger presence = IR DC level.
+SpO2 is not reported: the sensor is uncalibrated and its ratio-of-ratios swung 85-100 % on one still recording.
 
   python3 max30102.py [seconds]     prints one JSON line per second
 """
-import json, sys, time
+import json, sys, time, warnings
+import heartpy as hp
 import numpy as np
 import smbus
 
@@ -53,83 +54,50 @@ class Max30102:
             pass
 
 
-# Band-pass 0.6-3.3 Hz (2nd-order Butterworth at 100 Hz, coefficients from scipy.signal.butter), zero-phase.
-_B = np.array([0.0064121937, 0.0, -0.0128243875, 0.0, 0.0064121937])
-_A = np.array([1.0, -3.7463240505, 5.2810708561, -3.3213905511, 0.7866981284])
-
-
-def _lfilter(x):
-    y = np.zeros_like(x)
-    for n in range(len(x)):
-        acc = 0.0
-        for k in range(5):
-            if n - k >= 0:
-                acc += _B[k] * x[n - k]
-                if k:
-                    acc -= _A[k] * y[n - k]
-        y[n] = acc
-    return y
-
-
 def bandpass(x):
-    x = np.asarray(x, float)
-    x = x - x.mean()
-    pad = min(len(x) - 2, 150)
-    xp = np.concatenate([2 * x[0] - x[pad:0:-1], x, 2 * x[-1] - x[-2:-pad - 2:-1]])   # odd reflection, like filtfilt
-    y = _lfilter(_lfilter(xp)[::-1])[::-1]
-    return y[pad:pad + len(x)]
+    return hp.filter_signal(np.asarray(x, float), cutoff=[0.7, 3.5], sample_rate=FS, order=3, filtertype="bandpass")
 
 
-def estimate(red, ir, finger_dc=30000):
-    """red, ir: last ~8 s of samples. Heart rate from the autocorrelation of the band-passed IR pulse wave (robust to
-    single missed/extra beats); SpO2 from the ratio of ratios (AC = std of the band-passed signal) on Maxim's curve,
-    UNCALIBRATED. Windows with motion / finger settling (IR swing > 8 % of DC) are rejected."""
-    red = np.asarray(red, float); ir = np.asarray(ir, float)
-    finger = bool(len(ir) >= 50 and ir[-50:].mean() > finger_dc)
-    out = {"finger": finger, "hr": None, "spo2": None, "q": 0}
-    if not finger or len(ir) < FS * 5:
+def estimate(ir, finger_dc=30000):
+    """Heart rate from the IR signal since the finger last moved (3-4 s), or None.
+    q = how well the signal repeats at that rate (autocorrelation, 1 = perfect); -1 = finger just placed or moving.
+    Pure noise also gives HeartPy a "rate", so a reading needs q >= 0.6 (real pulses 0.6-0.97 on the recording)."""
+    ir = np.asarray(ir, float)
+    out = {"hr": None, "q": 0}
+    if len(ir) < 25 or ir[-25:].mean() < finger_dc:
         return out
-    if (ir.max() - ir.min()) > 0.08 * ir.mean():
-        out["q"] = -1                                        # motion / settling
+    jump = np.nonzero(np.abs(ir[10:] - ir[:-10]) > 0.01 * ir[-25:].mean())[0]   # > 1 % within 0.1 s
+    x = (ir[jump[-1] + 11:] if len(jump) else ir)[-int(FS * 4):]
+    if len(x) < FS * 3:
+        out["q"] = -1 if len(jump) else 0
         return out
-    xi, xr = bandpass(ir), bandpass(red)
-    s = xi - xi.mean()
-    ac = np.correlate(s, s, "full")[len(s) - 1:]
-    if ac[0] <= 0:
+    y = bandpass(x)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            bpm = hp.process(hp.scale_data(y), sample_rate=FS)[1]["bpm"]
+    except Exception:                                   # HeartPy raises when it finds no usable beats
         return out
-    ac = ac / ac[0]
-    lo, hi = int(FS * 0.33), int(FS * 1.5)                   # 40-180 bpm
-    seg = ac[lo:hi]
-    peaks = [i for i in range(1, len(seg) - 1) if seg[i] >= seg[i - 1] and seg[i] > seg[i + 1]]
-    if not peaks:
+    if not 30 <= bpm <= 220:                            # also false for NaN
         return out
-    best = max(seg[i] for i in peaks)
-    if best <= 0:
-        return out
-    k =lo + min(i for i in peaks if seg[i] >= 0.85 * best)   # first strong peak = one beat (not two)
-    out["q"] = round(float(ac[k]), 2)
-    if ac[k] >= 0.45:
-        out["hr"] = int(round(60.0 * FS / k))
-        R = (np.std(xr) / red.mean()) / (np.std(xi) / ir.mean())
-        out["spo2"] = int(round(min(100.0, max(70.0, -45.06 * R * R + 30.354 * R + 94.845))))
+    lag, z = int(round(60 * FS / bpm)), y - y.mean()
+    out["q"] = round(float(np.dot(z[:-lag], z[lag:]) / np.dot(z, z) * len(z) / (len(z) - lag)), 2)
+    if out["q"] >= 0.6:
+        out["hr"] = int(round(bpm))
     return out
 
 
 if __name__ == "__main__":
     secs = float(sys.argv[1]) if len(sys.argv) > 1 else 20
     m = Max30102()
-    R, I = [], []
+    I = []
     end, nxt = time.time() + secs, time.time() + 1
     try:
         while time.time() < end:
-            for r, i in m.read():
-                R.append(r); I.append(i)
-            R, I = R[-800:], I[-800:]
+            I = (I + [i for _, i in m.read()])[-600:]
             if time.time() >= nxt:
                 nxt += 1
-                e = estimate(R, I)
-                e.update(ir_dc=int(np.mean(I[-100:])) if I else 0, red_dc=int(np.mean(R[-100:])) if R else 0, n=len(I))
-                print(json.dumps(e), flush=True)
+                print(json.dumps(dict(estimate(I), ir_dc=int(np.mean(I[-100:])) if I else 0)), flush=True)
             time.sleep(0.02)
     finally:
         m.close()

@@ -14,7 +14,7 @@ fi
 
 $PI 'mkdir -p /home/cmx/hub'
 scp $SSHO hub.py phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/hub/"
-scp $SSHO ../chromatic/pi/pi_oximeter.py "$DST:/home/cmx/"
+scp $SSHO ../chromatic/pi/pi_oximeter.py ../chromatic/pi/max30102.py ../chromatic/pi/pi_hr_sensor.py "$DST:/home/cmx/"
 $PI 'chmod +x /home/cmx/hub/link.sh && sudo cp /home/cmx/hub/handoff-*.service /etc/systemd/system/ && sudo systemctl daemon-reload &&
      sudo systemctl enable handoff-hub handoff-link && sudo systemctl restart handoff-hub cmx-oximeter handoff-link && sleep 3 &&
      systemctl is-active handoff-hub cmx-oximeter handoff-link && echo "Wi-Fi address(es): $(hostname -I)"'

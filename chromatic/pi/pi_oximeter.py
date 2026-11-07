@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """MVP, Raspberry Pi side (runs at boot as cmx-oximeter.service; no Mac needed).
 
-finger on the MAX30102 -> heart rate + SpO2 (SpO2 = UNCALIBRATED hobby estimate) -> standard BLE Heart Rate
-(0x180D) + Pulse Oximeter (0x1822) sensor "PI-HRM" -> the Chromatic connects by itself and shows it.
+finger on the MAX30102 -> heart rate (beat by beat) -> standard BLE Heart Rate (0x180D) sensor "PI-HRM" -> the
+Chromatic connects by itself and shows it. Also sent to the hub. SpO2 is not reported until the sensor is calibrated.
 
-Sent to the handheld EVERY second while connected (so it always knows the state):
+Sent to the handheld every 0.25 s while connected (so it always knows the state):
   HR flags 0x04 + HR 0   -> no finger on the sensor
   HR flags 0x06 + HR 0   -> finger on, measuring / hold still (no valid reading yet)
-  HR flags 0x06 + HR n   -> live heart rate (median of the last good seconds; held through <= 3 s glitches)
-  PLX SpO2               -> only when valid
-Reliability (from the 2026-11-07 trials): auto LED current keeps IR DC in 80k-200k (0x18-0x3C was 100 % valid,
->= 0x5A saturates); finger on/off with hysteresis; 2 s settle after placing the finger; 6 s analysis window.
+  HR flags 0x06 + HR n   -> live heart rate (median of the last estimates; held through <= 3 s glitches)
+Latency: finger seen within 0.25 s; heart rate (HeartPy) ~3 s after the finger is still. A reading is shown only when
+two estimates in a row agree within 10 %, so noise (which HeartPy also turns into a "rate") never shows.
+LED current is fixed: changing it mid-reading restarts the signal, and 0x18-0x3C were all 100 % valid in the trials.
 Log: /home/cmx/vitals.jsonl (state changes + readings), journalctl -u cmx-oximeter.
 """
 import json, os, queue, sys, threading, time, urllib.request
@@ -24,10 +24,8 @@ from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # n
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 FINGER_ON, FINGER_OFF = 40000, 25000       # IR DC hysteresis (no finger ~11k, finger 70k-240k)
-LED_MIN, LED_MAX, LED_START = 0x10, 0x3C, 0x24
-DC_LO, DC_HI = 80000, 200000
-WIN = int(FS * 6)                          # analysis window
-SETTLE_S = 2.0
+LED = 0x24
+WIN = int(FS * 4)                          # analysis window
 HOLD_S = 3.0                               # keep showing the last good HR through short glitches
 
 
@@ -115,25 +113,17 @@ def main():
     for p, _ in connected_devices():
         drop(p, "stale link from before restart")
 
-    m = Max30102(led=LED_START)
+    m = Max30102(led=LED)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)    # MARK button: pin 11 to ground (pin 9)
-    st = {"R": [], "I": [], "finger": False, "on_at": 0.0, "led": LED_START, "hist": [], "last_ok": 0.0,
-          "hr": 0, "spo2": None, "state": None, "linked": False, "gain_at": 0.0, "btn": False, "marks": 0}
-
-    def set_led(v):
-        st["led"] = max(LED_MIN, min(LED_MAX, v))
-        m.w(0x0C, st["led"]); m.w(0x0D, st["led"])
-        st["R"], st["I"] = [], []                   # DC step: restart the window
-        st["gain_at"] = time.time()
+    st = {"I": [], "finger": False, "hist": [], "prev": None, "last_ok": 0.0, "hr": 0, "state": None,
+          "linked": False, "btn": False, "marks": 0, "unsub_at": None, "dev_at": 0.0}
 
     def sample():
         try:
-            for r, i in m.read():
-                st["R"].append(r); st["I"].append(i)
+            st["I"] = (st["I"] + [i for _, i in m.read()])[-WIN:]
         except OSError as e:
             say(True, ev="i2c_error", e=str(e))
-        st["R"], st["I"] = st["R"][-WIN:], st["I"][-WIN:]
         pressed = GPIO.input(17) == 0                     # polled every 40 ms, which also debounces
         if pressed and not st["btn"]:
             st["marks"] += 1
@@ -145,73 +135,65 @@ def main():
     def state(s, **k):
         if s != st["state"]:
             st["state"] = s
-            say(True, ev="state", state=s, led=hex(st["led"]), **k)
+            say(True, ev="state", state=s, **k)
             hub("state", s)
 
-    def second():
+    def tick():
         now = time.time()
         I = st["I"]
-        dc = sum(I[-25:]) / max(1, len(I[-25:])) if I else 0
+        dc = sum(I[-10:]) / max(1, len(I[-10:])) if I else 0
         # finger on/off with hysteresis
         if not st["finger"] and dc > FINGER_ON:
-            st["finger"], st["on_at"], st["hist"] = True, now, []
-            st["R"], st["I"] = st["R"][-25:], st["I"][-25:]
+            st["finger"], st["hist"], st["prev"], st["last_ok"] = True, [], None, 0.0
+            state("measuring", why="finger_on")
         elif st["finger"] and dc < FINGER_OFF:
-            st["finger"], st["hist"], st["hr"], st["spo2"] = False, [], 0, None
-        # auto LED current (only with a finger, at most every 2 s)
-        if st["finger"] and now - st["gain_at"] > 2 and len(I) > 50:
-            if dc > DC_HI and st["led"] > LED_MIN:
-                set_led(st["led"] - 6)
-            elif dc < DC_LO and st["led"] < LED_MAX:
-                set_led(st["led"] + 6)
+            st["finger"], st["hist"], st["hr"] = False, [], 0
         # estimate
         if not st["finger"]:
             state("no_finger", dc=int(dc))
-        elif now - st["on_at"] < SETTLE_S or len(st["I"]) < FS * 4:
-            state("measuring", why="settling")
         else:
-            e = estimate(st["R"], st["I"], finger_dc=FINGER_OFF)
-            if not e["hr"]:
-                I6 = st["I"]
-                swing = (max(I6) - min(I6)) / max(1, sum(I6) / len(I6)) * 100
-                say(False, dbg="no_hr", q=e["q"], swing_pct=round(swing, 2), dc=int(dc), n=len(I6), led=hex(st["led"]))
-            if e["hr"]:
-                st["hist"] = (st["hist"] + [(e["hr"], e["spo2"])])[-5:]
-                st["hr"] = sorted(h for h, _ in st["hist"])[len(st["hist"]) // 2]
-                sps = sorted(s for _, s in st["hist"] if s)
-                st["spo2"] = sps[len(sps) // 2] if sps else None
+            e = estimate(st["I"], finger_dc=FINGER_OFF)
+            agree = e["hr"] and st["prev"] and abs(e["hr"] - st["prev"]) <= 0.1 * st["prev"]
+            st["prev"] = e["hr"]
+            if agree:
+                st["hist"] = (st["hist"] + [e["hr"]])[-5:]
+                hr = sorted(st["hist"])[len(st["hist"]) // 2]
                 st["last_ok"] = now
                 state("live")
-                say(True, hr=st["hr"], spo2=st["spo2"], raw=e["hr"], q=e["q"], led=hex(st["led"]))
+                if hr != st["hr"]:
+                    say(True, hr=hr, raw=e["hr"], q=e["q"])
+                st["hr"] = hr
             elif now - st["last_ok"] > HOLD_S:
-                st["hr"], st["spo2"], st["hist"] = 0, None, []
+                st["hr"], st["hist"] = 0, []
                 state("measuring", why="motion" if e["q"] == -1 else "weak_signal")
-        # tell the handheld (every second, whatever the state)
+        # tell the handheld (every tick, whatever the state)
         flags = 0x06 if st["finger"] else 0x04
         bpm = max(0, min(250, int(st["hr"]))) if st["finger"] else 0
         linked = meas.notify(bytes([flags, bpm]))
-        if bpm and st["spo2"]:
-            cont.notify(bytes([0x00]) + int(st["spo2"]).to_bytes(2, "little") + bpm.to_bytes(2, "little"))
         hub("finger", "on" if st["finger"] else "off")
         hub("hr", bpm or None)                              # None = no valid reading (never a stale number)
-        hub("spo2", int(st["spo2"]) if bpm and st["spo2"] else None)
         if linked != st["linked"]:
             st["linked"] = linked
             say(True, ev="handheld", subscribed=bool(linked))
         # watchdog: connected but nobody subscribed for > 6 s -> drop the link so the handheld starts over
-        devs = connected_devices() if not linked else []
-        if devs:
-            st["unsub_s"] = st.get("unsub_s", 0) + 1
-            if st["unsub_s"] > 6:
-                for p, _ in devs:
-                    drop(p, "connected but not subscribed")
-                st["unsub_s"] = 0
-        else:
-            st["unsub_s"] = 0
+        if linked:
+            st["unsub_at"] = None
+        if linked or now - st["dev_at"] < 1:                # D-Bus call blocks the loop: once a second is enough
+            return True
+        st["dev_at"] = now
+        devs = connected_devices()
+        if not devs:
+            st["unsub_at"] = None
+        elif not st["unsub_at"]:
+            st["unsub_at"] = now
+        elif now - st["unsub_at"] > 6:
+            for p, _ in devs:
+                drop(p, "connected but not subscribed")
+            st["unsub_at"] = None
         return True
 
     GLib.timeout_add(40, sample)
-    GLib.timeout_add(1000, second)
+    GLib.timeout_add(250, tick)
     say(True, ev="ready")
     try:
         loop.run()

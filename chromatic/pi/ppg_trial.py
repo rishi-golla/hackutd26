@@ -33,7 +33,7 @@ def score(R, I, label, led):
     res["pi_ir_%"] = round(100 * float(np.std(xi)) * 2.83 / I.mean(), 3)     # ~p2p of a sine from std
     hrs, qs = [], []
     for end in range(int(FS * 5), len(I) + 1, int(FS)):                      # replay 1-s updates on 8-s windows
-        e = estimate(R[max(0, end - 800):end], I[max(0, end - 800):end])
+        e = estimate(I[max(0, end - 800):end])
         qs.append(e["q"]); hrs.append(e["hr"])
     ok = [h for h in hrs if h]
     res["valid_%"] = round(100 * len(ok) / max(1, len(hrs)))
