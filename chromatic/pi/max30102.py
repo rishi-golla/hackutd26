@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""MAX30102 finger sensor on the Pi's I2C bus 1 (address 0x57): raw red/IR samples at 100 Hz, plus a simple
-heart-rate (peak intervals on the IR pulse wave) and SpO2 estimate (ratio of ratios, UNCALIBRATED: hobby sensor,
-textbook curve 110 - 25 R). Finger presence = IR DC level. numpy only.
+"""MAX30102 finger sensor on the Pi's I2C bus 1 (address 0x57): raw red/IR samples at 100 Hz, and heart rate from the
+IR pulse wave using HeartPy (github.com/paulvangentcom/heartrate_analysis_python). Finger presence = IR DC level.
+SpO2 is not reported: the sensor is uncalibrated and its ratio-of-ratios swung 85-100 % on one still recording.
 
   python3 max30102.py [seconds]     prints one JSON line per second
 """
-import json, sys, time
+import json, sys, time, warnings
+import heartpy as hp
 import numpy as np
 import smbus
 
@@ -53,83 +54,54 @@ class Max30102:
             pass
 
 
-# Band-pass 0.6-3.3 Hz (2nd-order Butterworth at 100 Hz, coefficients from scipy.signal.butter), zero-phase.
-_B = np.array([0.0064121937, 0.0, -0.0128243875, 0.0, 0.0064121937])
-_A = np.array([1.0, -3.7463240505, 5.2810708561, -3.3213905511, 0.7866981284])
-
-
-def _lfilter(x):
-    y = np.zeros_like(x)
-    for n in range(len(x)):
-        acc = 0.0
-        for k in range(5):
-            if n - k >= 0:
-                acc += _B[k] * x[n - k]
-                if k:
-                    acc -= _A[k] * y[n - k]
-        y[n] = acc
-    return y
-
-
 def bandpass(x):
-    x = np.asarray(x, float)
-    x = x - x.mean()
-    pad = min(len(x) - 2, 150)
-    xp = np.concatenate([2 * x[0] - x[pad:0:-1], x, 2 * x[-1] - x[-2:-pad - 2:-1]])   # odd reflection, like filtfilt
-    y = _lfilter(_lfilter(xp)[::-1])[::-1]
-    return y[pad:pad + len(x)]
+    return hp.filter_signal(np.asarray(x, float), cutoff=[0.7, 3.5], sample_rate=FS, order=3, filtertype="bandpass")
 
 
-def estimate(red, ir, finger_dc=30000):
-    """red, ir: last ~8 s of samples. Heart rate from the autocorrelation of the band-passed IR pulse wave (robust to
-    single missed/extra beats); SpO2 from the ratio of ratios (AC = std of the band-passed signal) on Maxim's curve,
-    UNCALIBRATED. Windows with motion / finger settling (IR swing > 8 % of DC) are rejected."""
-    red = np.asarray(red, float); ir = np.asarray(ir, float)
-    finger = bool(len(ir) >= 50 and ir[-50:].mean() > finger_dc)
-    out = {"finger": finger, "hr": None, "spo2": None, "q": 0}
-    if not finger or len(ir) < FS * 5:
+def estimate(ir):
+    """Heart rate from the last 3-4 s of IR (finger on) -> {"hr": bpm or None, "why": reason or None, "ac": swing}.
+    why: saturated (press lighter) | settling (finger placed/moved < 3 s ago) | noisy (no clear pulse).
+    ac = pulse swing (std of the band-passed signal), so the caller can tell "moving" from "too weak" for this person.
+    A rate needs (1) a pulse that clearly stands out: spectral peak >= 9x the median power. This is a ratio, so it
+    holds for any LED current, skin or sensor; firm still fingers measured 9-42x, light/moving fingers and pure noise
+    2-8x (2026-11-07). (2) two independent methods that agree within 15 %: HeartPy's beats and the strongest frequency."""
+    ir = np.asarray(ir, float)
+    if len(ir) and ir[-25:].max() > 0.95 * 0x3FFFF:             # 18-bit ADC full scale
+        return {"hr": None, "why": "saturated", "ac": 0.0}
+    jump = np.nonzero(np.abs(ir[10:] - ir[:-10]) > 0.01 * ir[-25:].mean())[0]   # > 1 % within 0.1 s
+    x = (ir[jump[-1] + 11:] if len(jump) else ir)[-int(FS * 4):]
+    if len(x) < FS * 3:
+        return {"hr": None, "why": "settling", "ac": 0.0}
+    y = bandpass(x)
+    out = {"hr": None, "why": "noisy", "ac": float(y.std())}
+    f = np.fft.rfftfreq(1024, 1 / FS)
+    p = np.abs(np.fft.rfft(y * np.hanning(len(y)), 1024)) ** 2
+    band = (f >= 0.7) & (f <= 3.5)
+    if p[band].max() < 9 * np.median(p[band]):
         return out
-    if (ir.max() - ir.min()) > 0.08 * ir.mean():
-        out["q"] = -1                                        # motion / settling
+    peak = f[band][np.argmax(p[band])] * 60
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            bpm = hp.process(hp.scale_data(y), sample_rate=FS)[1]["bpm"]
+    except Exception:                                            # HeartPy raises when it finds no usable beats
         return out
-    xi, xr = bandpass(ir), bandpass(red)
-    s = xi - xi.mean()
-    ac = np.correlate(s, s, "full")[len(s) - 1:]
-    if ac[0] <= 0:
-        return out
-    ac = ac / ac[0]
-    lo, hi = int(FS * 0.33), int(FS * 1.5)                   # 40-180 bpm
-    seg = ac[lo:hi]
-    peaks = [i for i in range(1, len(seg) - 1) if seg[i] >= seg[i - 1] and seg[i] > seg[i + 1]]
-    if not peaks:
-        return out
-    best = max(seg[i] for i in peaks)
-    if best <= 0:
-        return out
-    k =lo + min(i for i in peaks if seg[i] >= 0.85 * best)   # first strong peak = one beat (not two)
-    out["q"] = round(float(ac[k]), 2)
-    if ac[k] >= 0.45:
-        out["hr"] = int(round(60.0 * FS / k))
-        R = (np.std(xr) / red.mean()) / (np.std(xi) / ir.mean())
-        out["spo2"] = int(round(min(100.0, max(70.0, -45.06 * R * R + 30.354 * R + 94.845))))
+    if 30 <= bpm <= 220 and abs(bpm - peak) <= 0.15 * peak:      # also false for NaN
+        out.update(hr=int(round(bpm)), why=None)
     return out
 
 
 if __name__ == "__main__":
     secs = float(sys.argv[1]) if len(sys.argv) > 1 else 20
     m = Max30102()
-    R, I = [], []
+    I = []
     end, nxt = time.time() + secs, time.time() + 1
     try:
         while time.time() < end:
-            for r, i in m.read():
-                R.append(r); I.append(i)
-            R, I = R[-800:], I[-800:]
+            I = (I + [i for _, i in m.read()])[-600:]
             if time.time() >= nxt:
                 nxt += 1
-                e = estimate(R, I)
-                e.update(ir_dc=int(np.mean(I[-100:])) if I else 0, red_dc=int(np.mean(R[-100:])) if R else 0, n=len(I))
-                print(json.dumps(e), flush=True)
+                print(json.dumps(dict(estimate(I), ir_dc=int(np.mean(I[-100:])) if I else 0)), flush=True)
             time.sleep(0.02)
     finally:
         m.close()

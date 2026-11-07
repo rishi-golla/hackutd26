@@ -5,7 +5,7 @@
   python3 ppg_trial.py watch <secs> [led=0x24] [label]  record one condition (e.g. light / firm pressure)
 
 Per condition it prints: IR/red DC (ADC counts, 18-bit full scale 262143), perfusion index PI = AC/DC % (pulse
-strength), autocorrelation quality q (0..1; >= 0.45 is usable), the % of 1-s updates that produced a heart rate,
+strength), the most common reason there was no reading, the % of 1-s updates that produced a heart rate,
 the HR values, and saves the raw samples to ~/trial_<label>.json for offline analysis.
 """
 import json, sys, time
@@ -31,13 +31,13 @@ def score(R, I, label, led):
     res["sat"] = bool(I.max() > 250000 or R.max() > 250000)
     xi = bandpass(I)
     res["pi_ir_%"] = round(100 * float(np.std(xi)) * 2.83 / I.mean(), 3)     # ~p2p of a sine from std
-    hrs, qs = [], []
+    hrs, whys = [], []
     for end in range(int(FS * 5), len(I) + 1, int(FS)):                      # replay 1-s updates on 8-s windows
-        e = estimate(R[max(0, end - 800):end], I[max(0, end - 800):end])
-        qs.append(e["q"]); hrs.append(e["hr"])
+        e = estimate(I[max(0, end - 800):end])
+        whys.append(e["why"]); hrs.append(e["hr"])
     ok = [h for h in hrs if h]
     res["valid_%"] = round(100 * len(ok) / max(1, len(hrs)))
-    res["q_med"] = round(float(np.median(qs)), 2) if qs else None
+    res["why"] = max(set(whys), key=whys.count) if whys else None
     res["hr"] = ok
     res["hr_spread"] = (max(ok) - min(ok)) if ok else None
     return res
@@ -59,8 +59,8 @@ def main():
                 json.dump({"red": R.tolist(), "ir": I.tolist(), "led": led}, open(f"/home/cmx/trial_led{led:02x}.json", "w"))
                 print(json.dumps(r), flush=True)
                 out.append(r)
-            best = max(out, key=lambda r: (r.get("valid_%", 0), r.get("q_med") or 0, -(r.get("hr_spread") or 99)))
-            print(json.dumps({"best": best["led"], "valid_%": best.get("valid_%"), "q_med": best.get("q_med")}), flush=True)
+            best = max(out, key=lambda r: (r.get("valid_%", 0), -(r.get("hr_spread") or 99)))
+            print(json.dumps({"best": best["led"], "valid_%": best.get("valid_%")}), flush=True)
         else:
             secs = float(sys.argv[2]); led = int(sys.argv[3], 16) if len(sys.argv) > 3 else 0x24
             label = sys.argv[4] if len(sys.argv) > 4 else "watch"
