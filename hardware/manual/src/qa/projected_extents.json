@@ -1,0 +1,302 @@
+{
+  "b2_bed_T1": {
+    "extent": 0.82,
+    "family": "b2_bed_T1"
+  },
+  "b2_bed_T2r": {
+    "extent": 0.82,
+    "family": "b2_bed_T2r"
+  },
+  "b2_bed_T2f": {
+    "extent": 0.82,
+    "family": "b2_bed_T2f"
+  },
+  "b2_bed_A_rear": {
+    "extent": 0.82,
+    "family": "b2_bed_A_rear"
+  },
+  "b2_bed_A_front": {
+    "extent": 0.82,
+    "family": "b2_bed_A_front"
+  },
+  "b2_bed_B": {
+    "extent": 0.82,
+    "family": "b2_bed_B"
+  },
+  "b2_bed_C": {
+    "extent": 0.82,
+    "family": "b2_bed_C"
+  },
+  "b2_bed_D": {
+    "extent": 0.82,
+    "family": "b2_bed_D"
+  },
+  "b2_bed_F": {
+    "extent": 0.82,
+    "family": "b2_bed_F"
+  },
+  "b2_bed_G": {
+    "extent": 0.82,
+    "family": "b2_bed_G"
+  },
+  "b2_bed_J": {
+    "extent": 0.82,
+    "family": "b2_bed_J"
+  },
+  "b2_bed_coupon": {
+    "extent": 0.82,
+    "family": "b2_bed_coupon"
+  },
+  "b4_02_cable": {
+    "extent": 0.82,
+    "family": "b4_02_cable"
+  },
+  "b4_03_board": {
+    "extent": 0.82,
+    "family": "b4_03_board"
+  },
+  "b4_04_cradle": {
+    "extent": 0.82,
+    "family": "b4_04_cradle"
+  },
+  "b4_04_clip_front": {
+    "extent": 0.82,
+    "family": "sequence_3"
+  },
+  "b4_04_clip_rear": {
+    "extent": 0.772,
+    "family": "sequence_3"
+  },
+  "b4_06_strap": {
+    "extent": 0.787,
+    "family": "sequence_4"
+  },
+  "b4_06_finger": {
+    "extent": 0.82,
+    "family": "sequence_4"
+  },
+  "b4_06_strap_ok": {
+    "extent": 0.787,
+    "family": "sequence_4"
+  },
+  "b4_06_strap_no": {
+    "extent": 0.787,
+    "family": "sequence_4"
+  },
+  "b6_01_shell": {
+    "extent": 0.741,
+    "family": "sequence_0"
+  },
+  "b6_04_phone": {
+    "extent": 0.75,
+    "family": "sequence_0"
+  },
+  "b6_05_align": {
+    "extent": 0.82,
+    "family": "b6_05_align"
+  },
+  "b6_05_plate": {
+    "extent": 0.82,
+    "family": "sequence_0"
+  },
+  "b6_06_buckle": {
+    "extent": 0.82,
+    "family": "sequence_1"
+  },
+  "b6_06_thumb": {
+    "extent": 0.82,
+    "family": "sequence_1"
+  },
+  "b6_07_tilt": {
+    "extent": 0.82,
+    "family": "b6_07_tilt"
+  },
+  "b6_11_final": {
+    "extent": 0.82,
+    "family": "b6_11_final"
+  },
+  "b2_measure": {
+    "extent": 0.82,
+    "family": "b2_measure"
+  },
+  "b2_t1_test": {
+    "extent": 0.82,
+    "family": "b2_t1_test"
+  },
+  "b2_t1_test_ok": {
+    "extent": 0.732,
+    "family": "sequence_10"
+  },
+  "b2_t1_test_no": {
+    "extent": 0.82,
+    "family": "sequence_10"
+  },
+  "b2_t2_test": {
+    "extent": 0.82,
+    "family": "b2_t2_test"
+  },
+  "coupon_test": {
+    "extent": 0.82,
+    "family": "coupon_test"
+  },
+  "b2_t2_test_front": {
+    "extent": 0.82,
+    "family": "b2_t2_test"
+  },
+  "b6_01_shell_front": {
+    "extent": 0.741,
+    "family": "sequence_0"
+  },
+  "b6_04_phone_front": {
+    "extent": 0.75,
+    "family": "sequence_0"
+  },
+  "b6_05_align_front": {
+    "extent": 0.82,
+    "family": "b6_05_align"
+  },
+  "b6_05_plate_front": {
+    "extent": 0.82,
+    "family": "sequence_0"
+  },
+  "b6_06_buckle_front": {
+    "extent": 0.82,
+    "family": "sequence_1"
+  },
+  "b5_02_shim": {
+    "extent": 0.82,
+    "family": "b5_02_shim"
+  },
+  "b5_01_heatsink_cpu": {
+    "extent": 0.82,
+    "family": "b5_01_heatsink_cpu"
+  },
+  "b5_04_strap_one": {
+    "extent": 0.739,
+    "family": "sequence_5"
+  },
+  "b5_04_straps": {
+    "extent": 0.739,
+    "family": "sequence_5"
+  },
+  "b5_06_pi": {
+    "extent": 0.739,
+    "family": "sequence_5"
+  },
+  "b5_06_pi_click": {
+    "extent": 0.82,
+    "family": "sequence_5"
+  },
+  "b5_07_peel": {
+    "extent": 0.82,
+    "family": "sequence_6"
+  },
+  "b5_07_breadboard": {
+    "extent": 0.82,
+    "family": "sequence_6"
+  },
+  "b5_08_cable_in": {
+    "extent": 0.82,
+    "family": "b5_08_cable_in"
+  },
+  "b5_09_lid": {
+    "extent": 0.82,
+    "family": "sequence_7"
+  },
+  "b5_09_lid_oled": {
+    "extent": 0.82,
+    "family": "sequence_7"
+  },
+  "b5_10_glue_one": {
+    "extent": 0.82,
+    "family": "sequence_7"
+  },
+  "b5_10_glue_two": {
+    "extent": 0.82,
+    "family": "sequence_7"
+  },
+  "b5_10_glue_set": {
+    "extent": 0.82,
+    "family": "sequence_7"
+  },
+  "b5_11_unplug": {
+    "extent": 0.82,
+    "family": "b5_11_unplug"
+  },
+  "b5_11_nut_remove": {
+    "extent": 0.82,
+    "family": "b5_11_nut_remove"
+  },
+  "b5_11_button": {
+    "extent": 0.82,
+    "family": "b5_11_button"
+  },
+  "b5_11_nut": {
+    "extent": 0.82,
+    "family": "b5_11_nut"
+  },
+  "b5_11_plug": {
+    "extent": 0.82,
+    "family": "b5_11_plug"
+  },
+  "b5_12_qwiic": {
+    "extent": 0.82,
+    "family": "sequence_8"
+  },
+  "b5_12_oled": {
+    "extent": 0.82,
+    "family": "sequence_8"
+  },
+  "b5_12_finger": {
+    "extent": 0.82,
+    "family": "sequence_8"
+  },
+  "b5_test_open": {
+    "extent": 0.82,
+    "family": "sequence_8"
+  },
+  "b5_22_close": {
+    "extent": 0.82,
+    "family": "sequence_9"
+  },
+  "b5_22_click": {
+    "extent": 0.817,
+    "family": "sequence_9"
+  },
+  "b5_23_bank": {
+    "extent": 0.82,
+    "family": "sequence_10"
+  },
+  "b5_23_strap_one": {
+    "extent": 0.82,
+    "family": "sequence_10"
+  },
+  "b5_23_straps": {
+    "extent": 0.82,
+    "family": "sequence_10"
+  },
+  "b3_sd_pi": {
+    "extent": 0.82,
+    "family": "b3_sd_pi"
+  },
+  "b3_power": {
+    "extent": 0.82,
+    "family": "b3_power"
+  },
+  "b6_release": {
+    "extent": 0.799,
+    "family": "sequence_12"
+  },
+  "b6_slide_open": {
+    "extent": 0.82,
+    "family": "sequence_12"
+  },
+  "b5_release_lid": {
+    "extent": 0.736,
+    "family": "sequence_9"
+  },
+  "b5_release_pi": {
+    "extent": 0.82,
+    "family": "b5_release_pi"
+  }
+}

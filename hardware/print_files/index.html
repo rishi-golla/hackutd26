@@ -1,0 +1,187 @@
+<title>Handoff Print Files</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a print-shop job ticket. Three download slips on top, then the print queue as a numbered table. */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --ink: #141a20;
+  --muted: #56616c;
+  --line: #d4dbe2;
+  --accent: #c8371f;
+  --accent-soft: #fbe6e1;
+  --relay: #2c5d8a;
+  --relay-soft: #e1ecf6;
+  --ok: #18784f;
+  --ok-soft: #dcf1e7;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171c; --surface: #1b2229; --ink: #e8edf1; --muted: #9aa7b3; --line: #2e3842;
+    --accent: #f07a5f; --accent-soft: #3a211b; --relay: #8cb8e0; --relay-soft: #1d2c3a; --ok: #5fcf9c; --ok-soft: #173327;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171c; --surface: #1b2229; --ink: #e8edf1; --muted: #9aa7b3; --line: #2e3842;
+  --accent: #f07a5f; --accent-soft: #3a211b; --relay: #8cb8e0; --relay-soft: #1d2c3a; --ok: #5fcf9c; --ok-soft: #173327;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--font-body); padding-inline: 16px; padding-block: 28px 48px; }
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 28px; }
+h1 { font: 700 2.4rem/1.05 var(--font-display); letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h2 { font: 700 1.45rem/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
+p { margin: 0; max-width: 65ch; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); font-size: .86em; }
+header { display: grid; gap: 10px; }
+.eyebrow { font: 600 .78rem/1 var(--font-body); text-transform: uppercase; letter-spacing: .09em; color: var(--accent); }
+.slips { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.slip { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.slip.first { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.slip .tag { justify-self: start; font: 600 .72rem/1 var(--font-body); text-transform: uppercase; letter-spacing: .08em; padding: 5px 8px; border-radius: 999px; background: var(--relay-soft); color: var(--relay); }
+.slip.first .tag { background: var(--accent-soft); color: var(--accent); }
+.slip ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: .9rem; }
+.slip ul li { overflow-wrap: anywhere; }
+.btn { appearance: none; border: 0; border-radius: 8px; padding: 11px 14px; font: 600 .95rem/1 var(--font-body); background: var(--ink); color: var(--surface); cursor: pointer; justify-self: start; }
+.btn:hover:not(:disabled) { background: var(--relay); }
+.btn:focus-visible { outline: 3px solid var(--relay); outline-offset: 2px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.status { font-size: .85rem; min-height: 1.2em; color: var(--muted); }
+.status.good { color: var(--ok); }
+.note { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 14px 16px; font-size: .92rem; }
+.queue { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; min-width: 560px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 .75rem/1.2 var(--font-body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.n { font: 700 1.15rem/1 var(--font-display); color: var(--accent); width: 2.2rem; font-variant-numeric: tabular-nums; }
+.black { display: inline-block; font: 600 .72rem/1 var(--font-body); padding: 3px 6px; border-radius: 4px; background: var(--ink); color: var(--surface); }
+.gate { border-left: 3px solid var(--ok); background: var(--ok-soft); padding: 12px 14px; border-radius: 6px; font-size: .92rem; }
+section { display: grid; gap: 12px; }
+.hero { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.hero img { display: block; width: 100%; height: auto; background: #f5f7f9; }
+.hero figcaption { padding: 10px 14px; font-size: .85rem; }
+@media (prefers-reduced-motion: no-preference) { .btn { transition: background-color .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">HackUTD 2026 · Handoff</span>
+    <h1>Handoff print files</h1>
+    <p class="muted">Download a bundle, unzip it, and open the STL files in your slicer. Every file is the current no-snap version, remade on Nov 3. Print the rail test first.</p>
+  </header>
+
+  <figure class="hero"><img src="files/relay_complete_labeled.jpg" alt="The finished relay box on its power bank, held by two straps, with the finger clip on its 500 mm sensor cable" width="1600" height="1200"><figcaption class="muted">The finished relay box and finger clip.</figcaption></figure>
+
+  <div class="slips">
+    <article class="slip first">
+      <span class="tag">New · Nov 7</span>
+      <h2>Fixed camera window</h2>
+      <p class="muted" style="font-size:.9rem">Case A (rear) with the camera opening moved down to the Pixel 9 Pro's real camera bar and enlarged for tolerance. Reprint only this part; B and everything else stay. PLA, 5 walls, 25%, 3 mm brim, about 3–3.5 h. To check the window first, the fit ring in Fit tests now has the same opening and prints in about 12 min.</p>
+      <ul><li class="mono">p1_rear_front_frame.stl</li></ul>
+      <button class="btn" type="button" id="dl-fixA" data-file="p1_rear_front_frame_camfix.zip" disabled>Download zip · 37 KB</button>
+      <div class="status" id="st-fixA" aria-live="polite"></div>
+    </article>
+    <article class="slip">
+      <span class="tag">Start here</span>
+      <h2>Fit tests</h2>
+      <ul><li class="mono">rail_fit_test.stl</li><li class="mono">p1_rear_fit_ring.stl</li></ul>
+      <button class="btn" type="button" id="dl-tests" data-file="handoff_fit_tests_rear.zip" disabled>Download zip · 9 KB</button>
+      <div class="status" id="st-tests" aria-live="polite"></div>
+    </article>
+    <article class="slip">
+      <span class="tag">Rear version</span>
+      <h2>All 8 parts</h2>
+      <p class="muted" style="font-size:.9rem">Rail test, fit ring, case A and B, relay base and lid, finger tray and cradle.</p>
+      <button class="btn" type="button" id="dl-rear" data-file="handoff_all_parts_rear.zip" disabled>Download zip · 282 KB</button>
+      <div class="status" id="st-rear" aria-live="polite"></div>
+    </article>
+    <article class="slip">
+      <span class="tag">Front version</span>
+      <h2>All 8 parts</h2>
+      <p class="muted" style="font-size:.9rem">Only if the phone test said front. The fit ring and case A and B differ; the rest is the same.</p>
+      <button class="btn" type="button" id="dl-front" data-file="handoff_all_parts_front.zip" disabled>Download zip · 265 KB</button>
+      <div class="status" id="st-front" aria-live="polite"></div>
+    </article>
+    <article class="slip">
+      <span class="tag">Backup mount</span>
+      <h2>Universal phone plate</h2>
+      <p class="muted" style="font-size:.9rem">Holds any phone with rubber bands on the same harness buckle. PLA, 6 walls, 25%, 8 mm brim, about 65–80 min. Print it in the tilted position it loads in.</p>
+      <button class="btn" type="button" id="dl-plate" data-file="universal_phone_plate.zip" disabled>Download zip · 37 KB</button>
+      <div class="status" id="st-plate" aria-live="polite"></div>
+    </article>
+  </div>
+
+  <p class="note" id="nodl" hidden>Downloads only work when this page is open in claude.ai. The same files are on the Mac in <span class="mono">hardware/cad/stl/</span>.</p>
+
+  <section>
+    <h2>Print queue, rear version</h2>
+    <div class="queue">
+      <table>
+        <thead><tr><th>#</th><th>File</th><th>Part</th><th>Settings</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr><td class="n">1</td><td class="mono">rail_fit_test.stl</td><td>Rail test</td><td>4 walls, 100%, no brim</td><td>~15 min</td></tr>
+          <tr><td class="n">2</td><td class="mono">p1_rear_fit_ring.stl</td><td>T2 phone fit ring</td><td>3 walls, 15%, no brim</td><td>~12 min</td></tr>
+          <tr><td class="n">3</td><td class="mono">p1_rear_front_frame.stl</td><td>A, bodycam shell</td><td>5 walls, 25%, 3 mm brim</td><td>~3–3.5 h</td></tr>
+          <tr><td class="n">4</td><td class="mono">p1_rear_back_plate.stl</td><td>B, chest plate</td><td>6 walls, 30%, 3 mm brim</td><td>~2.2 h</td></tr>
+          <tr><td class="n">5</td><td class="mono">p2_base.stl</td><td>C, relay base</td><td>5 walls, 20%, 5 mm brim</td><td>~6–7 h</td></tr>
+          <tr><td class="n">6</td><td class="mono">p2_lid.stl</td><td>D, relay lid with posts</td><td>5 walls, 25%, 3 mm brim</td><td>~2.4–2.8 h</td></tr>
+          <tr><td class="n">7</td><td class="mono">p3_tray.stl</td><td>F, finger tray <span class="black">Black</span></td><td>4 walls, 25%, 3 mm brim</td><td>~15 min</td></tr>
+          <tr><td class="n">8</td><td class="mono">p3_hood.stl</td><td>G, finger cradle <span class="black">Black</span></td><td>4 walls, 25%, 5 mm brim</td><td>~1 h</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Every part: PLA or PETG (black for 7 and 8 if you have it), 0.4 mm nozzle, 0.2 mm layers, no supports. Load each file as it is, without rotating or scaling. The harness test T1 already passed, so it isn't included.</p>
+    <p class="gate"><b>Before step 3:</b> the rail test should slide together smoothly by hand, stop solidly at the closed end, and not rattle when held square. If it's too tight or too loose, report it before printing A and B.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  const buttons = [["dl-fixA", "st-fixA"], ["dl-tests", "st-tests"], ["dl-rear", "st-rear"], ["dl-front", "st-front"], ["dl-plate", "st-plate"]];
+  const nodl = document.getElementById("nodl");
+  let downloads = null;
+  const use = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+  use.then(d => {
+    downloads = d;
+    if (!d) { nodl.hidden = false; return; }
+    buttons.forEach(([b]) => { document.getElementById(b).disabled = false; });
+  }).catch(() => { nodl.hidden = false; });
+
+  buttons.forEach(([b, st]) => {
+    const btn = document.getElementById(b), status = document.getElementById(st);
+    btn.addEventListener("click", async () => {
+      if (!downloads) return;
+      const file = btn.dataset.file;
+      status.className = "status"; status.textContent = "Preparing…";
+      btn.disabled = true;
+      try {
+        const res = await fetch("files/" + file.replace(/\.zip$/, ".b64.txt"));
+        if (!res.ok) throw { code: "fetch" };
+        const bin = atob((await res.text()).trim());
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes]);
+        await downloads.save({ filename: file, data: blob });
+        status.className = "status good"; status.textContent = "Saved. Unzip it to get the STL files.";
+      } catch (e) {
+        const code = e && e.code;
+        status.textContent =
+          code === "declined" ? "Not saved." :
+          code === "rate_limited" ? "Another save prompt is open. Finish that one, then try again." :
+          code === "fetch" ? "Couldn't load the file. Reload the page and try again." :
+          "Downloads aren't available in this view. The files are on the Mac in hardware/cad/stl/.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+})();
+</script>

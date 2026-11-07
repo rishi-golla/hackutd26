@@ -1,0 +1,815 @@
+<meta charset="utf-8">
+<title>Handoff Assembly Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one step at a time, like a printed assembly manual page. Picture first, then the parts tray, then one action. Book menu and progress bar on top. */
+:root {
+  --bg: #eef1f4;
+  --card: #ffffff;
+  --sunk: #f4f6f8;
+  --ink: #12171c;
+  --muted: #5a6570;
+  --line: #d6dde4;
+  --accent: #e2482a;
+  --accent-soft: #fde8e2;
+  --ok: #18784f;
+  --ok-soft: #dcf1e7;
+  --no: #b3261e;
+  --no-soft: #fbe3e1;
+  --warn-soft: #fbf0d9;
+  --warn: #8a5300;
+  --term: #15191d;
+  --term-ink: #dfe6ec;
+  --term-dim: #8b98a5;
+  --term-green: #7ee2a8;
+  --phone: #1a1d21;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --card: #161c21; --sunk: #12171b; --ink: #e8edf1; --muted: #9ca8b3; --line: #2a333b;
+    --accent: #ff6a4d; --accent-soft: #3a1d17; --ok: #46c48c; --ok-soft: #12301f; --no: #ff7a70; --no-soft: #3a1a18;
+    --warn-soft: #33270f; --warn: #f0b45a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --card: #161c21; --sunk: #12171b; --ink: #e8edf1; --muted: #9ca8b3; --line: #2a333b;
+  --accent: #ff6a4d; --accent-soft: #3a1d17; --ok: #46c48c; --ok-soft: #12301f; --no: #ff7a70; --no-soft: #3a1a18;
+  --warn-soft: #33270f; --warn: #f0b45a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font-body); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.hidden { display: none !important; }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top .in { max-width: 1180px; margin: 0 auto; padding: 8px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.brand { font: 800 1.25rem var(--font-display); letter-spacing: .04em; text-transform: uppercase; margin-right: auto; }
+.brand span { color: var(--accent); }
+.tbtn { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 500; font-size: .92rem; }
+.tbtn:hover { border-color: var(--ink); }
+.prog { height: 4px; background: var(--line); }
+.prog i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 110px; }
+
+/* book menu */
+.menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.bk { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; cursor: pointer; text-align: left; display: grid; gap: 4px; }
+.bk:hover { border-color: var(--ink); }
+.bk .n { font: 800 2.2rem/1 var(--font-display); color: var(--accent); }
+.bk .t { font: 700 1.3rem var(--font-display); letter-spacing: .02em; }
+.bk .s { color: var(--muted); font-size: .9rem; }
+.bk .bar { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.bk .bar i { display: block; height: 100%; background: var(--ok); }
+.menu-head { display: grid; gap: 6px; margin-bottom: 16px; max-width: 70ch; }
+.menu-head h1 { font: 800 clamp(2.2rem, 6vw, 3.4rem)/1 var(--font-display); margin: 0; letter-spacing: .01em; }
+.menu-head p { margin: 0; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: .9rem; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.legend b { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+
+/* step card */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+@media (max-width: 860px) { .card { grid-template-columns: minmax(0, 1fr); } }
+.pic { background: #f4f6f8; position: relative; display: grid; align-content: center; gap: 0; min-height: 260px; border-right: 1px solid var(--line); }
+@media (max-width: 860px) { .pic { border-right: 0; border-bottom: 1px solid var(--line); } }
+.pic img.main { width: 100%; height: auto; display: block; }
+.pic > .mainwrap, .pic > .pair, .pic > .screens, .pic > .missing { min-width: 0; }
+.mainwrap { position: relative; }
+.zoom { position: absolute; z-index: 2; right: 12px; bottom: 12px; width: 34%; max-width: 260px; aspect-ratio: 1; border-radius: 50%; border: 4px solid var(--accent); overflow: hidden; background: #fff; box-shadow: 0 4px 18px #0003; }
+.zoom img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.pair figure { margin: 0; position: relative; border-top: 1px solid var(--line); }
+.pair figure:first-child { border-right: 1px solid var(--line); }
+.pair img { width: 100%; height: auto; display: block; }
+.mark { position: absolute; top: 8px; left: 8px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font: 800 1.5rem var(--font-display); color: #fff; }
+.mark.ok { background: var(--ok); } .mark.no { background: var(--no); }
+.pair figcaption { position: absolute; left: 56px; top: 14px; font-weight: 600; font-size: .85rem; background: #ffffffe6; color: #12171c; border-radius: 6px; padding: 2px 8px; }
+.missing { aspect-ratio: 4/3; display: grid; place-items: center; color: #8a96a2; font: 600 .95rem var(--font-body); background: repeating-linear-gradient(45deg, #f4f6f8, #f4f6f8 12px, #eceff2 12px, #eceff2 24px); text-align: center; padding: 20px; }
+.pic .screens { padding: 18px; display: grid; gap: 14px; justify-items: center; }
+
+.side { padding: 18px 20px 22px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.stepno { display: flex; align-items: baseline; gap: 10px; }
+.stepno .big { font: 800 3.4rem/0.9 var(--font-display); color: var(--accent); }
+.stepno .of { color: var(--muted); font-size: .9rem; }
+.action { font: 600 1.35rem/1.3 var(--font-body); margin: 0; text-wrap: balance; }
+.sub { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; counter-reset: s; }
+.sub li { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; counter-increment: s; }
+.sub li::before { content: counter(s); width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--card); display: grid; place-items: center; font: 700 .85rem var(--font-display); }
+.tip { margin: 0; color: var(--muted); font-size: .95rem; }
+.tray { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp { display: grid; grid-template-columns: 54px auto; gap: 8px; align-items: center; background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px 4px 4px; }
+.pp img, .pp .ph { width: 54px; height: 54px; object-fit: contain; background: #fff; border-radius: 8px; }
+.pp .ph { display: grid; place-items: center; font: 800 1.1rem var(--font-display); color: var(--muted); }
+.pp .q { font: 800 1.35rem var(--font-display); }
+.pp .l { font-size: .78rem; color: var(--muted); line-height: 1.2; }
+.trayhead { font: 700 .8rem var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.okbox, .warnbox, .probbox { border-radius: 12px; padding: 10px 14px; display: grid; gap: 6px; font-size: .95rem; }
+.okbox { background: var(--ok-soft); border: 1px solid var(--ok); }
+.okbox b:first-child { color: var(--ok); }
+.warnbox { background: var(--no-soft); border: 1px solid var(--no); }
+.warnbox b:first-child { color: var(--no); }
+details.probbox { background: var(--sunk); border: 1px solid var(--line); }
+details.probbox summary { cursor: pointer; font-weight: 600; }
+details.probbox table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+details.probbox td { border-top: 1px solid var(--line); padding: 6px 4px; vertical-align: top; }
+details.probbox td:first-child { width: 42%; color: var(--muted); }
+code { font: .9em var(--font-mono); background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+.choice { display: flex; gap: 10px; flex-wrap: wrap; }
+.choice button { flex: 1 1 160px; border: 2px solid var(--line); background: var(--card); border-radius: 12px; padding: 10px 12px; cursor: pointer; text-align: left; }
+.choice button b { display: block; font: 700 1.2rem var(--font-display); }
+.choice button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: .85rem; border: 1px solid var(--line); background: var(--sunk); border-radius: 999px; padding: 3px 10px; }
+.chip.file { font-family: var(--font-mono); font-size: .8rem; }
+table.fill { width: 100%; border-collapse: collapse; font-size: .95rem; }
+table.fill td { padding: 6px 4px; border-top: 1px solid var(--line); }
+table.fill td:last-child { font-family: var(--font-mono); text-align: right; white-space: nowrap; }
+.holes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.holes div { background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: .9rem; }
+.holes b { font-family: var(--font-mono); }
+
+/* bottom nav */
+.nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--card) 94%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.nav .in { max-width: 1180px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 10px; align-items: center; }
+.nav .where { flex: 1; min-width: 0; color: var(--muted); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nbtn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
+.nbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding-inline: 22px; }
+.nbtn:disabled { opacity: .4; cursor: default; }
+
+/* screen mock-ups */
+.term { width: 100%; max-width: 640px; background: var(--term); color: var(--term-ink); border-radius: 10px; overflow: hidden; box-shadow: 0 6px 24px #0002; text-align: left; }
+.term .bar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: #23292f; font: 500 .78rem var(--font-body); color: var(--term-dim); }
+.term .bar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; display: inline-block; }
+.term .bar i:nth-child(2) { background: #febc2e; } .term .bar i:nth-child(3) { background: #28c840; }
+.term .bar span { margin-left: 8px; }
+.term pre { margin: 0; padding: 12px 14px; font: .86rem/1.55 var(--font-mono); overflow-x: auto; white-space: pre; }
+.term .c { color: var(--term-green); }
+.term .c::before { content: "$ "; color: var(--term-dim); }
+.term .o { color: var(--term-ink); }
+.term .d { color: var(--term-dim); }
+.term .h { background: #e2482a33; outline: 2px solid #ff6a4d; border-radius: 3px; }
+.term .copy { margin: 0 10px 10px; float: right; font: 600 .78rem var(--font-body); background: #2d353d; color: var(--term-ink); border: 1px solid #44505b; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.phone { width: 270px; max-width: 100%; background: var(--phone); border-radius: 30px; padding: 10px; box-shadow: 0 8px 28px #0003; }
+.phone .scr { background: #fff; color: #1f2328; border-radius: 22px; overflow: hidden; font: 13px/1.35 var(--font-body); min-height: 420px; display: flex; flex-direction: column; }
+.phone .status { display: flex; justify-content: space-between; padding: 6px 14px 2px; font-size: 11px; color: #555; }
+.phone .url { margin: 4px 10px 6px; background: #eef1f4; border-radius: 16px; padding: 6px 12px; font: 11px var(--font-mono); color: #333; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.phone .body { padding: 8px 12px 14px; display: grid; gap: 8px; align-content: start; flex: 1; }
+.phone .tabs { display: flex; gap: 4px; }
+.phone .tab { flex: 1; text-align: center; padding: 6px 0; border-radius: 8px; background: #eef1f4; font-weight: 600; font-size: 12px; }
+.phone .tab.on { background: #1f2328; color: #fff; }
+.phone .chips2 { display: flex; flex-wrap: wrap; gap: 4px; }
+.phone .chips2 span { font-size: 10.5px; border-radius: 10px; padding: 2px 7px; background: #dcf1e7; color: #146240; font-weight: 600; }
+.phone .chips2 span.bad { background: #fbe3e1; color: #a1221b; }
+.phone .pb { border-radius: 10px; padding: 9px 10px; text-align: center; font-weight: 600; background: #eef1f4; border: 2px solid transparent; }
+.phone .pb.pri { background: #1f6feb; color: #fff; }
+.phone .tap { border-color: #ff6a4d; box-shadow: 0 0 0 4px #ff6a4d55; position: relative; }
+.phone .tap::after { content: attr(data-n); position: absolute; right: -8px; top: -10px; width: 22px; height: 22px; border-radius: 50%; background: #e2482a; color: #fff; font: 700 12px/22px var(--font-body); text-align: center; }
+.phone h4 { margin: 2px 0 0; font-size: 14px; }
+.phone .field { border: 1px solid #c9d1d9; border-radius: 8px; padding: 7px 9px; font: 12px var(--font-mono); background: #fff; }
+.phone .verdict { border-radius: 10px; padding: 10px; font-weight: 700; }
+.phone .muted { color: #6a737d; font-size: 11.5px; }
+.phone .camui { background: #111; color: #fff; flex: 1; display: grid; grid-template-rows: 1fr auto; border-radius: 0; }
+.phone .vf { background: linear-gradient(160deg, #3a4752, #1e252b); display: grid; place-items: center; color: #9fb0bf; font-size: 12px; }
+.phone .zooms { display: flex; justify-content: center; gap: 8px; padding: 8px; }
+.phone .zooms span { width: 34px; height: 34px; border-radius: 50%; background: #333; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.phone .zooms span.on { background: #fff; color: #111; }
+.phone .rec { display: flex; justify-content: center; gap: 22px; align-items: center; padding: 6px 0 14px; font-size: 11px; }
+.phone .rec b { width: 54px; height: 54px; border-radius: 50%; border: 4px solid #fff; background: #e53935; display: block; }
+.win { width: 100%; max-width: 560px; background: #fff; color: #1f2328; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 24px #0002; border: 1px solid #d0d7de; text-align: left; }
+.win .bar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; background: #eef1f4; font: 500 .78rem var(--font-body); color: #57606a; }
+.win .bar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; display: inline-block; }
+.win .bar i:nth-child(2) { background: #febc2e; } .win .bar i:nth-child(3) { background: #28c840; }
+.win .bar span { margin-left: 8px; }
+.win .wb { padding: 14px; display: grid; gap: 10px; font-size: .9rem; }
+.win .row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; }
+.win .row label { color: #57606a; font-size: .82rem; }
+.win .val { border: 1px solid #c9d1d9; border-radius: 6px; padding: 6px 9px; font: .85rem var(--font-mono); background: #f6f8fa; }
+.win .val.hl { border-color: #e2482a; box-shadow: 0 0 0 3px #e2482a33; background: #fff; }
+.win .big3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.win .big3 div { border: 2px solid #c9d1d9; border-radius: 8px; padding: 10px 8px; text-align: center; font-size: .82rem; }
+.win .big3 div b { display: block; font-size: .72rem; color: #57606a; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+.win .big3 div.hl { border-color: #e2482a; box-shadow: 0 0 0 3px #e2482a33; }
+.win .chk { display: flex; gap: 8px; align-items: center; }
+.win .chk i { width: 16px; height: 16px; border-radius: 4px; background: #1f6feb; display: inline-block; position: relative; }
+.win .chk i::after { content: "✓"; color: #fff; position: absolute; inset: 0; font: 700 12px/16px var(--font-body); text-align: center; }
+.win .progress { height: 10px; background: #eef1f4; border-radius: 5px; overflow: hidden; }
+.win .progress i { display: block; height: 100%; width: 62%; background: #1f6feb; }
+.mac-note { font-size: .8rem; color: var(--muted); text-align: center; }
+
+/* all-steps list */
+.list { display: grid; gap: 18px; }
+.list .card { scroll-margin-top: 80px; }
+.bookhead { margin: 26px 0 4px; font: 800 2rem var(--font-display); }
+.bookhead span { color: var(--accent); margin-right: 8px; }
+@media (prefers-reduced-motion: reduce) { .prog i { transition: none; } }
+</style>
+
+<header class="top">
+  <div class="in">
+    <div class="brand">Handoff <span>assembly</span></div>
+    <button class="tbtn" id="btnBooks" type="button">Books</button>
+    <button class="tbtn" id="btnView" type="button">Show all steps</button>
+  </div>
+  <div class="prog" aria-hidden="true"><i id="progBar"></i></div>
+</header>
+
+<main class="wrap" id="app"></main>
+
+<nav class="nav" aria-label="Step navigation">
+  <div class="in">
+    <button class="nbtn" id="btnPrev" type="button">← Back</button>
+    <div class="where" id="where"></div>
+    <button class="nbtn primary" id="btnNext" type="button">Done, next →</button>
+  </div>
+</nav>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* Parts and hardware                                                  */
+/* ------------------------------------------------------------------ */
+const PARTS = {
+  A: "Bodycam outer shell", B: "Bodycam chest plate", C: "Relay base", D: "Relay lid",
+  F: "Finger tray", G: "Finger cradle", T1: "Mount test", T2: "Fit ring", RT: "Rail test (optional)", UP: "Universal phone plate (optional)", LP: "LCD pod (optional)", LC: "LCD1602 screen (kit, 4-pin)",
+  P: "Raspberry Pi 4", S: "Qwiic SHIM", M: "Finger sensor", K: "MARK button",
+  BB: "Mini breadboard", HS: "Heatsink", Q2: "Long Qwiic cable (500 mm)",
+  PB: "Your power bank", UC: "Your USB-C cable", HR: "Chest harness", PH: "Pixel 9 Pro",
+  h4: "220 Ω resistor", h5: "Jumper, female–male", h6: "Hook-and-loop strap, ≤13 mm wide, ≤1.2 mm thick", h7: "Zip tie", h8: "Black tape", h9: "Jumper, male–male", RB: "Rubber band, about 2 mm wide", glue: "Hot glue"
+};
+const icon = k => `img/icon_${k}.jpg`;
+
+/* screen mock-up helpers */
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function term(title, lines, copy) {
+  const body = lines.map(l => {
+    const t = l.slice(2), k = l[0];
+    if (k === "$") return `<span class="c">${esc(t)}</span>`;
+    if (k === "!") return `<span class="o h">${esc(t)}</span>`;
+    if (k === "~") return `<span class="d">${esc(t)}</span>`;
+    return `<span class="o">${esc(t)}</span>`;
+  }).join("\n");
+  const cmds = lines.filter(l => l[0] === "$").map(l => l.slice(2)).join("\n");
+  return `<div class="term"><div class="bar"><i></i><i></i><i></i><span>${esc(title)}</span></div><pre>${body}</pre>${copy !== false && cmds ? `<button class="copy" type="button" data-copy="${esc(cmds)}">Copy commands</button>` : ""}</div>`;
+}
+function phone(url, body) {
+  return `<div class="phone"><div class="scr"><div class="status"><span>9:41</span><span>▲ ▮▮▮</span></div>${url ? `<div class="url">${esc(url)}</div>` : ""}<div class="body">${body}</div></div></div>`;
+}
+const CHIPS = `<div class="chips2"><span>✓ Secure context</span><span>✓ Camera API</span><span>✓ Motion sensor API</span><span>✓ Wake lock API</span><span>✓ Speech</span><span>✓ Web Audio</span></div>`;
+const TABS = on => `<div class="tabs">${["Camera","Motion","Speaker","Screen"].map(t => `<span class="tab${t===on?" on":""}">${t}</span>`).join("")}</div>`;
+const PAGEURL = "http://172.20.10.4:8000/";
+function win(title, body) { return `<div class="win"><div class="bar"><i></i><i></i><i></i><span>${esc(title)}</span></div><div class="wb">${body}</div></div>`; }
+
+/* ------------------------------------------------------------------ */
+/* Books and steps                                                     */
+/* ------------------------------------------------------------------ */
+const BOOKS = [
+  { id: "b0", n: "0", title: "Parts and tools", sub: "Check you have everything" },
+  { id: "b1", n: "1", title: "Choose your case", sub: "A 10-minute phone test decides which bodycam case to print" },
+  { id: "b2", n: "2", title: "Print", sub: "Two fit tests, an optional rail test, then 6 parts" },
+  { id: "b3", n: "3", title: "Set up the Pi", sub: "Flash the card and install the software" },
+  { id: "b4", n: "4", title: "Finger clip", sub: "Built first: its cable goes into the relay box" },
+  { id: "b5", n: "5", title: "Relay box", sub: "Pi, finger cable, button and wiring" },
+  { id: "b6", n: "6", title: "Bodycam", sub: "Phone in the case, case on the harness. No screws." },
+  { id: "b7", n: "7", title: "All together", sub: "Everything talking over Dino's hotspot" }
+];
+
+const S = [];
+const add = (book, o) => S.push(Object.assign({ book }, o));
+
+/* ---------- Book 0 ---------- */
+add("b0", { id: "0.1", img: "parts_printed", special: "inventory", action: "Lay out your parts and check them off.",
+  tip: "Letters like A or K are used in every step. There are no screws and no snaps: parts slide on rails or sit on pegs, and hot glue, straps and rubber bands hold them." });
+add("b0", { id: "0.2", special: "tools", action: "Get these tools ready.",
+  tip: "No screwdriver and no soldering iron." });
+
+/* ---------- Book 1 ---------- */
+add("b1", { id: "1.1", img: "b1_samewifi", action: "Connect the Mac and the Pixel to the same Wi-Fi.",
+  tip: "Home Wi-Fi is fine for now." });
+add("b1", { id: "1.2", action: "On the Mac, open Terminal and run these two lines.",
+  screens: [term("Terminal — Mac", ["$ cd ~/Documents/Hackathons/HackUTD-2026/hardware", "$ bash software/mac/serve_phone_test.sh", "  ", "  HANDOFF phone test page", "    This Mac: 172.20.10.4 (en0)", "    On the Pixel (same Wi-Fi), open in Chrome:", "  ", "! http://172.20.10.4:8000/", "  ", "~ Ctrl-C stops the server."])],
+  tip: "Your numbers will be different. Note the highlighted address and leave this window open." });
+add("b1", { id: "1.3", action: "On the Pixel, open Chrome and go to the flags page.",
+  screens: [phone("chrome://flags/#unsafely-treat-insecure-origin-as-secure",
+    `<h4>Insecure origins treated as secure</h4><div class="pb tap" data-n="2">Enabled ▾</div><div class="field tap" data-n="3">http://172.20.10.4:8000</div><div style="flex:1"></div><div class="pb pri tap" data-n="4">Relaunch</div>`)],
+  sub: ["Type <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in the address bar.", "Set it to <b>Enabled</b>.", "Type your Mac's address from step 1.2, without the final <code>/</code>.", "Tap <b>Relaunch</b>."] });
+add("b1", { id: "1.4", action: "Open your Mac's address in Chrome.",
+  screens: [phone(PAGEURL, `<h4>HANDOFF phone test</h4>${CHIPS}${TABS("Camera")}<div class="muted">All six chips green = ready.</div>`)],
+  ok: "All six chips at the top are green.",
+  prob: [["Red <code>✗ Secure context</code>", "Redo step 1.3 with the exact address, then tap Relaunch."], ["This site can't be reached", "The phone and Mac are on different Wi-Fi, or the Mac's firewall blocks Python. Allow it in System Settings → Network → Firewall."]] });
+add("b1", { id: "1.5", action: "Tap Camera, then Allow camera, then Scan all cameras.",
+  screens: [phone(PAGEURL, `${TABS("Camera")}<h4>1. Which cameras can Chrome use?</h4><div class="pb pri tap" data-n="1">Allow camera</div><div class="pb tap" data-n="2">Scan all cameras</div><div class="muted">☑ Ask for zoom permission (pan/tilt/zoom)</div>`)],
+  tip: "Allow every permission Chrome asks for." });
+add("b1", { id: "1.6", special: "verdict", action: "Read the verdict and tap the case it tells you to print.",
+  screens: [phone(PAGEURL, `${TABS("Camera")}<div class="verdict" style="background:#dcf1e7;color:#146240">Verdict: REAR MODE - ultra-wide reachable</div><div class="muted">or MAYBE REAR - check by eye<br>or FRONT MODE</div>`)] });
+
+/* ---------- Book 2 ---------- */
+add("b2", { id: "2.1", img: "b2_measure", action: "Measure the camera bar on the back of your phone.",
+  special: "measure", tip: "Take the phone's case off first. A ruler is fine." });
+add("b2", { id: "2.2", img: "b2_bed_T1", img2: "b2_bed_T2", action: "Print the two fit tests, T1 and T2.",
+  special: "printtests",
+  sub: ["Printer setup for every part in this book: 0.4 mm nozzle, 0.40–0.45 mm line width, 0.2 mm layers, 6 top and 6 bottom layers, your PLA profile (PETG also works), no supports. PLA is fine: nothing in this build bends or snaps.", "Load each file as it is. Don't rotate or scale it."] });
+add("b2", { id: "2.3", img: "b2_t1_test", ok_img: "b2_t1_test_ok", no_img: "b2_t1_test_no", okcap: "Snug, straight", nocap: "Gap or wobble",
+  action: "Slide T1's two fingers between the buckle's three prongs. Push the thumbscrew through and tighten it by hand.",
+  parts: [["T1", 1], ["HR", 1]],
+  ok: "It slides in with light friction and doesn't wobble once tight.",
+  tip: "Your T1 already passed on your harness (Nov 3), so this mount size is locked. Skip this step unless you switch to a different harness.",
+  prob: [["Too tight, wobbly, or the thumbscrew won't go through", "Don't edit the GoPro sizes in the CAD yourself: the checker in step 2.1's box keeps T1 locked to the version that passed and will report a failure. Note what's wrong and ask for a new T1 to be made."]] });
+add("b2", { id: "2.4", img: "b2_t2_test", action: "Lay the phone in T2.",
+  parts: [["T2", 1], ["PH", 1]],
+  ok: "A hair of play all round. Rear version: the camera bar sits inside the window with at least 2 mm clear.",
+  prob: [["Phone is tight", "Raise <code>phone_clearance</code> by 0.1 (it's 0.4)."], ["Bar off-centre", "Correct the measurements from step 2.1."]] });
+add("b2", { id: "2.5", img: "b2_bed_rail_test", action: "Optional: print the rail test, RT.", special: "print", print: { k: "RT", file: "rail_fit_test.stl", walls: 4, infill: "100%", brim: "none", time: "about 15–17 min" },
+  tip: "Two rigid pieces that slide like the bodycam case. It takes 15 minutes and checks the slide fit before the 3-hour case prints." });
+add("b2", { id: "2.6", img: "b2_rail_test", action: "Slide the tongue into the rail by hand, all the way to the end.", parts: [["RT", 1]],
+  tip: "Trim any first-layer burr first. Nothing clicks: these parts don't flex.",
+  ok: "It slides smoothly, stops solidly at the closed end, and doesn't rattle when you hold the two pieces square.",
+  prob: [["Too tight or it binds", "In <code>cad/common.scad</code> raise <code>snap_clearance</code> (now the rail fit, 0.18) to <code>0.21</code>, save, run the command in step 2.1's box and reprint RT."], ["Loose or rattles", "Lower it to <code>0.15</code>, the smallest allowed, the same way."]] });
+add("b2", { id: "2.7", img: "b2_bed_A", action: "Print part A, the bodycam outer shell.", special: "print", print: { k: "A", file: "front_frame", walls: 5, infill: "25%", brim: "3 mm", time: "about 2.5–3.5 h" } });
+add("b2", { id: "2.8", img: "b2_bed_B", action: "Print part B, the bodycam chest plate.", special: "print", print: { k: "B", file: "back_plate", walls: 6, infill: "30%", brim: "3 mm", time: "about 2.2 h" } });
+add("b2", { id: "2.9", img: "b2_bed_C", action: "Print part C, the relay base.", special: "print", print: { k: "C", file: "p2_base.stl", walls: 5, infill: "20%", brim: "5 mm", time: "about 6–7 h" },
+  tip: "The longest print. A good one to run overnight." });
+add("b2", { id: "2.10", img: "b2_bed_D", action: "Print part D, the relay lid.", special: "print", print: { k: "D", file: "p2_lid.stl", walls: 5, infill: "25%", brim: "3 mm", time: "about 2.4–2.8 h" },
+  tip: "Two short posts stand up from the lid's underside. They print fine without supports." });
+add("b2", { id: "2.11", img: "b2_bed_F", action: "Print part F, the finger tray, in black.", special: "print", print: { k: "F", file: "p3_tray.stl", walls: 4, infill: "25%", brim: "3 mm", time: "about 15 min", black: true } });
+add("b2", { id: "2.12", img: "b2_bed_G", action: "Print part G, the finger cradle, in black.", special: "print", print: { k: "G", file: "p3_hood.stl", walls: 4, infill: "25%", brim: "5 mm", time: "about 1.1 h", black: true } });
+add("b2", { id: "2.13", img: "parts_printed", action: "Peel off the brims and clear stringing from every slot, hole and groove.",
+  tip: "Smooth any edge that will touch the phone or a finger. Optional: fill the recessed labels with a red paint pen." });
+add("b2", { id: "2.14", img: "b2_bed_universal_plate", action: "Optional backup: print the universal phone plate, UP.", special: "print", print: { k: "UP", file: "universal_phone_plate.stl", walls: 6, infill: "25%", brim: "8 mm", time: "about 65–80 min" },
+  tip: "It holds any phone with rubber bands on the same harness buckle, in case the case doesn't suit a phone. Load it exactly as it opens: it leans at 45° on purpose so it prints without supports. Don't lay it flat." });
+add("b2", { id: "2.15", img: "lcd_pod_bed", action: "Optional: print the LCD pod, LP, for the kit's LCD1602 screen.", special: "print", print: { k: "LP", file: "lcd1602_pod.stl", walls: 4, infill: "25%", brim: "3 mm", time: "about 35–45 min" },
+  tip: "Only if you're adding the screen (end of Book 5). It assumes the LCD board is about 80 × 36 mm with holes on a 75 × 31 mm rectangle: measure yours first if you can." });
+
+/* ---------- Book 3 ---------- */
+add("b3", { id: "3.1", img: "b3_sd_mac", action: "Put the microSD card in the Mac.",
+  warn: "Flashing erases the card. Copy off anything you need first." });
+add("b3", { id: "3.2", action: "Install Raspberry Pi Imager, then open it from Applications.",
+  screens: [term("Terminal — Mac", ["$ brew install --cask raspberry-pi-imager", "~ ==> raspberry-pi-imager was successfully installed!"])] });
+add("b3", { id: "3.3", action: "Pick these three things.",
+  screens: [win("Raspberry Pi Imager", `<div class="big3"><div class="hl"><b>Device</b>Raspberry Pi 4</div><div class="hl"><b>OS</b>Raspberry Pi OS (other) → Raspberry Pi OS Lite (64-bit)</div><div class="hl"><b>Storage</b>Your microSD card</div></div>`), `<div class="mac-note">Imager's screens change between versions; pick the same three choices.</div>`] });
+add("b3", { id: "3.4", action: "When it offers OS customisation, choose Edit settings and type exactly this.",
+  screens: [win("OS customisation", `<div class="row"><label>Hostname</label><div class="val hl">handoff-relay</div></div><div class="row"><label>Username</label><div class="val hl">handoff</div></div><div class="row"><label>Password</label><div class="val">a password your team knows</div></div><div class="row"><label>Wi-Fi name (SSID)</label><div class="val hl">dino-hotspot</div></div><div class="row"><label>Wi-Fi password</label><div class="val">the hotspot password</div></div><div class="row"><label>Wi-Fi country</label><div class="val hl">US</div></div><div class="row"><label>Time zone / keyboard</label><div class="val">America/Chicago / us</div></div><div class="chk"><i></i>Enable SSH — use password authentication</div>`)],
+  tip: "Use the hotspot's real name. If it has a curly apostrophe, like Dino’s iPhone, rename Dino's phone to something plain first. On an iPhone, turn on Maximize Compatibility." });
+add("b3", { id: "3.5", action: "Click Save, then Yes, then wait for it to finish writing.",
+  screens: [win("Raspberry Pi Imager", `<div>Writing… about 5 minutes</div><div class="progress"><i></i></div><div class="muted" style="color:#57606a">Wait until it says you can remove the card.</div>`)] });
+add("b3", { id: "3.6", img: "b3_sd_pi", action: "Slide the card into the slot under the Pi.", parts: [["P", 1]],
+  tip: "Metal contacts face the board. It slides in a few millimetres and stops." });
+add("b3", { id: "3.7", img: "b3_power", action: "Turn on Dino's hotspot, then plug the Pi's own power supply in. Wait 3 minutes.",
+  tip: "The first start takes a while and restarts itself once." });
+add("b3", { id: "3.8", action: "Join the Mac to the hotspot. In Terminal, log in to the Pi.",
+  screens: [term("Terminal — Mac", ["$ ssh handoff@handoff-relay.local", "  Are you sure you want to continue connecting (yes/no/[fingerprint])? yes", "  handoff@handoff-relay.local's password: ••••••••", "! handoff@handoff-relay:~ $"])],
+  ok: "You see a prompt that starts with <code>handoff@handoff-relay</code>.",
+  prob: [["<code>Could not resolve hostname</code>", "Wait 2 more minutes. Or find the Pi's address in the hotspot's list of devices and use <code>ssh handoff@172.20.10.x</code>."], ["<code>Connection refused</code>", "SSH wasn't turned on. Redo steps 3.3–3.5."], ["The Pi never appears on the hotspot", "Wrong Wi-Fi name or password, or no country set. Redo steps 3.3–3.5."]] });
+add("b3", { id: "3.9", action: "Open a second Terminal tab (⌘T) on the Mac and copy the test programs to the Pi.",
+  screens: [term("Terminal — Mac, second tab", ["$ cd ~/Documents/Hackathons/HackUTD-2026/hardware/software", "$ rsync -av --exclude __pycache__ pi/ handoff@handoff-relay.local:~/handoff-pi/", "~ ...", "  sent 214,553 bytes  received 1,104 bytes"])] });
+add("b3", { id: "3.10", action: "Back in the Pi tab, run the setup.",
+  screens: [term("SSH — handoff-relay", ["$ cd ~/handoff-pi", "$ bash setup_pi.sh", "~ ==> 1/5 System packages ... 5/5 Check", "    ok       smbus2", "    ok       luma.oled", "    ok       websockets", "! Setup complete."])],
+  tip: "Takes 2–5 minutes. If it says <b>Reboot now</b> or <b>Log out</b>, do it and log in again as in step 3.8.",
+  prob: [["<code>FAILED (line N). Is the Pi online?</code>", "The hotspot has no data. Check it, then run the setup again."], ["<code>MISSING</code> in step 5/5", "Run the setup again."]] });
+add("b3", { id: "3.11", action: "Run the self-test and the health check.",
+  screens: [term("SSH — handoff-relay", ["$ source ~/handoff-venv/bin/activate", "$ cd ~/handoff-pi", "$ python3 -m lib.selftest", "! 21/21 checks passed", "$ python3 health_check.py", "  CPU temp    : 47.2 C   OK", "  Power/clock : throttled=0x0   OK", "  Wi-Fi       : connected to \"dino-hotspot\", signal 71%", "~ I2C bus 1   : none   PROBLEM   <- normal for now"])],
+  ok: "<code>21/21 checks passed</code> and <code>throttled=0x0</code>.",
+  tip: "Every time you log in to the Pi, run the first two lines before anything else." });
+
+/* ---------- Book 4 ---------- */
+add("b4", { id: "4.1", img: "b4_02_cable", action: "Click the long cable Q2 into either socket on the sensor M.", parts: [["M", 1], ["Q2", 1]],
+  tip: "It fits one way only. Push until it clicks." });
+add("b4", { id: "4.2", img: "b4_03_board", action: "Lay M on the tray F, sensor side up, small window toward the closed end.", parts: [["F", 1]] });
+add("b4", { id: "4.3", img: "b4_04_cradle", zoom: "b4_04_locate_zoom", action: "Lower the cradle G onto the tray, with its three pins in their holes.", parts: [["G", 1]],
+  tip: "The pins are spaced unevenly, so it only fits one way round." });
+add("b4", { id: "4.4", ok_img: "b4_04_locate_ok", no_img: "b4_04_locate_no", okcap: "Seam flush all round", nocap: "One end raised",
+  action: "Check the seam between F and G is flush all the way round." });
+add("b4", { id: "4.5", img: "b4_04_glue_1", zoom: "b4_04_glue_zoom", action: "Put a rice-grain dot of hot glue across the seam on one side, near the finger opening.", parts: [["glue", 4]],
+  warn: "Glue only on the outside seam. Keep it away from the sensor window, the cable, the finger channel and the strap slots." });
+add("b4", { id: "4.6", img: "b4_04_glue_2", action: "Put a dot at the same spot on the other side." });
+add("b4", { id: "4.7", img: "b4_04_glue_3", action: "Put a dot on the first side, near the closed fingertip end." });
+add("b4", { id: "4.8", img: "b4_04_glue_4", action: "Put the last dot opposite it. Let all four cool for 2 minutes.",
+  tip: "To open the clip later, peel the four dots off once cold and lift G off the pins." });
+add("b4", { id: "4.9", ok_img: "b4_05_tape_ok", no_img: "b4_05_tape_no", okcap: "Tape around the window", nocap: "Tape over the window",
+  action: "Seal the hairline gap around the sensor window with thin strips of black tape.", parts: [["h8", 1]] });
+add("b4", { id: "4.10", img: "b4_07_thread", action: "Thread a zip tie through the tray's small slot beside the cable.", parts: [["h7", 1]],
+  tip: "The cable itself doesn't go through the slot." });
+add("b4", { id: "4.11", img: "b4_07_ziptie", action: "Close the zip tie around the cable, next to the plug, and trim it.",
+  tip: "Now a tug on the cable can't pull the plug out." });
+add("b4", { id: "4.12", img: "b4_06_strap", action: "Thread one of your straps through the two low slots in the walls. Leave it open.", tip: "Use a black strap if you have one: it keeps room light off the sensor.", parts: [["h6", 1]],
+  ok: "The finger clip is built. You'll put a finger in it for the first time in step 5.28." });
+
+/* ---------- Book 5 ---------- */
+const OFF = "Shut down first: press <b>Ctrl-C</b> if a test is running, run <code>sudo poweroff</code>, wait 10 seconds and unplug the Pi. Keep the lid open.";
+const BACKON = "Then plug in, log in, run the <code>source</code> and <code>cd</code> lines, and test again.";
+add("b5", { id: "5.1", img: "b5_01_heatsink_cpu", action: "Peel the biggest heatsink and stick it on the processor.", parts: [["P", 1], ["HS", 1]],
+  tip: "Keep the other heatsinks in the bag; one is enough. Press it down for 10 seconds.",
+  warn: "Pi off and unplugged. If it's still on from Book 3, run <code>sudo poweroff</code>, wait 10 seconds, then unplug it." });
+add("b5", { id: "5.2", img: "b5_02_shim", zoom: "b5_02_shim_zoom", ok_img: "b5_02_shim_ok", no_img: "b5_02_shim_no", okcap: "Square pad on pin 1", nocap: "Shifted or flipped",
+  action: "Press S onto the first 6 header pins, square pad on pin 1.", parts: [["S", 1]],
+  tip: "Pin 1 is at the end away from the USB ports, on the inner row. Push S all the way down.",
+  warn: "Shifted or flipped, it shorts 5 V to ground. Check twice." });
+add("b5", { id: "5.3", img: "b5_06_pi", zoom: "b5_06_pi_zoom", action: "Lower the Pi onto the 4 pegs in the base C, USB-C toward the side opening.", parts: [["C", 1]] });
+add("b5", { id: "5.4", img: "b5_06_pi_seat", ok_img: "b5_06_pi_ok", no_img: "b5_06_pi_no", okcap: "Flat on its pad", nocap: "Corner raised",
+  action: "Check the Pi sits flat on all four corner pads.",
+  tip: "If a corner sits high, press gently near that corner only, never on the chips. Nothing holds the Pi down until the lid goes on, so keep the open box flat while you wire and test." });
+add("b5", { id: "5.5", img: "b5_06_usb_dryfit", ok_img: "b5_06_usb_dryfit_ok", no_img: "b5_06_usb_dryfit_no", okcap: "Slides in, clear all round", nocap: "Plug body rubs the opening",
+  action: "Dry-fit your power cable: push its plug gently through the side opening into the Pi.", parts: [["UC", 1]],
+  ok: "It slides all the way in without rubbing the opening.",
+  prob: [["The plug's body rubs, or won't reach the socket", "Don't force it. Use a cable with a slimmer plug: a body about 15 × 10 mm or smaller fits easily; 17 × 12 mm is the tightest that fits."]] });
+add("b5", { id: "5.6", img: "b5_06_usb_remove", action: "Pull the plug back out." });
+add("b5", { id: "5.7", img: "b5_07_peel", action: "Peel the backing off the breadboard.", parts: [["BB", 1]] });
+add("b5", { id: "5.8", img: "b5_07_breadboard", action: "Press the breadboard into its pocket, row 1 nearest the Pi.",
+  tip: "If your board's letters run the other way up, always go by the letters and numbers printed on it." });
+add("b5", { id: "5.9", img: "b5_08_cable_in", action: "Feed the finger clip's cable in through the notch under FINGER." });
+add("b5", { id: "5.10", img: "b5_12_finger_shim", zoom: "b5_12_finger_shim_zoom", ok_img: "b5_12_finger_shim_ok", no_img: "b5_12_finger_shim_no", okcap: "Plug pushed fully in", nocap: "Plug not home",
+  action: "Click the cable's plug into the socket on S until it clicks.",
+  tip: "It fits one way only. Don't force it upside down." });
+add("b5", { id: "5.11", img: "b5_12_finger_slack", action: "Leave 12 cm of cable inside the box, in a loose loop, as in the picture.",
+  tip: "Measure along the cable from the back of the plug to the little eye beside the notch. The rest stays outside." });
+add("b5", { id: "5.12", img: "b5_08_tie_thread", action: "Thread a zip tie through the little eye beside the notch.", parts: [["h7", 1]] });
+add("b5", { id: "5.13", img: "b5_08_tie_close", action: "Close the zip tie around the cable and trim it.",
+  tip: "Keep the 12 cm loop inside loose. Now a tug on the cable outside can't reach the plug." });
+add("b5", { id: "5.14", img: "b5_11_unplug", action: "Unplug the wire plug from the back of the button K.", parts: [["K", 1], ["D", 1]] });
+add("b5", { id: "5.15", img: "b5_11_nut_remove", action: "Unscrew the button's nut and keep it." });
+add("b5", { id: "5.16", img: "b5_11_button", action: "Push the button through the round hole in the lid D, from the labelled side." });
+add("b5", { id: "5.17", img: "b5_11_nut", zoom: "b5_11_button_zoom", action: "Screw the nut on from underneath, by hand.",
+  tip: "Finger-tight plus a quarter turn." });
+add("b5", { id: "5.18", img: "b5_11_plug", action: "Push the wire plug back onto the button." });
+add("b5", { id: "5.19", img: "wire_00_overview", action: "Wiring: get to know the breadboard.",
+  sub: ["Each numbered row has two halves. Holes a–e are joined together, and f–j are joined together.", "The middle gap keeps the two halves apart.", "Do all wiring with the Pi unplugged."] });
+add("b5", { id: "5.20", img: "wire_01_resistors", action: "Put the 3 resistors across the middle gap.", parts: [["h4", 3]], holes: [["e9 → f9", "red"], ["e11 → f11", "green"], ["e13 → f13", "blue"]],
+  tip: "Resistors work either way round." });
+add("b5", { id: "5.21", img: "wire_02_jumpers_switch", action: "Two jumpers: Pi pin 11 to c3, and Pi pin 9 to c5.", parts: [["h5", 2]], holes: [["pin 11 → c3", "switch"], ["pin 9 → c5", "ground"]],
+  tip: "Female end on the Pi pin, male end in the breadboard hole." });
+add("b5", { id: "5.22", img: "wire_03_jumper_common", action: "One jumper: Pi pin 17 to c7.", parts: [["h5", 1]], holes: [["pin 17 → c7", "3.3 V"]] });
+add("b5", { id: "5.23", img: "wire_04_jumpers_rgb", action: "Three jumpers: pin 15 to h9, pin 16 to h11, pin 18 to h13.", parts: [["h5", 3]], holes: [["pin 15 → h9", "red"], ["pin 16 → h11", "green"], ["pin 18 → h13", "blue"]] });
+add("b5", { id: "5.24", img: "wire_05_identify", special: "identify", action: "Are the button's 6 wires labelled? If not, find out which is which.", parts: [["h4", 1], ["h9", 2]] });
+add("b5", { id: "5.25", img: "wire_06_button", action: "Push the button's 6 wires into a3, a5, a7, a9, a11 and a13.", holes: [["SW → a3", "switch"], ["SW → a5", "switch"], ["+ → a7", "common"], ["R → a9", "red"], ["G → a11", "green"], ["B → a13", "blue"]],
+  tip: "Go by your tape labels from step 5.24, not by the order of the wires in the picture. Twist each wire's strands tight first so they stay in the hole." });
+add("b5", { id: "5.26", img: "wire_07_done", action: "Check every wire against this picture.",
+  holes: [["a3 SW · c3 pin 11", ""], ["a5 SW · c5 pin 9", ""], ["a7 + · c7 pin 17", ""], ["a9 R · e9–f9 · h9 pin 15", ""], ["a11 G · e11–f11 · h11 pin 16", ""], ["a13 B · e13–f13 · h13 pin 18", ""]],
+  tip: "Route the jumpers neatly so the lid won't press on them." });
+add("b5", { id: "5.27", img: "b5_test_open", action: "Lid beside the box, plug the Pi's power supply in through the side opening, log in, and scan.",
+  screens: [term("SSH — handoff-relay", ["$ source ~/handoff-venv/bin/activate", "$ cd ~/handoff-pi", "$ python3 i2c_scan.py", "  Found 1 device(s):", "    0x57  MAX30101 pulse sensor (finger clip)", "! RESULT: OK - the sensor answers."])],
+  prob: [["<code>Nothing answered</code>", `${OFF} Press S fully down on pins 1–6, square pad on pin 1. Check the finger cable clicks into S. ${BACKON}`], ["<code>MAX30101 missing</code>", `${OFF} Re-click the finger cable at both ends. ${BACKON}`]] });
+add("b5", { id: "5.28", img: "b4_06_finger", ok_img: "b4_06_strap_ok", no_img: "b4_06_strap_no", okcap: "Over the finger, under the visor", nocap: "Over the top of the visor",
+  action: "Test the finger clip. Start it with the clip empty.",
+  screens: [term("SSH — handoff-relay", ["$ python3 test_max30101.py", "  PART_ID 0x15 - MAX30101 OK", "  Calibrating: keep your finger OFF the sensor for 2 s ...", "! Now rest your fingertip on the sensor window. Keep still.", "      time       IR      red  finger     HR", "     8.0 s  109,899   79,930     YES     72"])],
+  sub: ["Wait for the line asking for your finger.", "Slide a fingertip in, palm down, until it touches the stop under the visor.", "Close the strap over the finger, directly above the sensor, with light pressure. Keep still.", "When the heart rate matches, press <b>Ctrl-C</b> to stop the test."],
+  ok: "The <b>finger</b> column says <b>YES</b>, and <b>HR</b> matches your pulse within about 5 (count your wrist for 15 seconds, times 4).",
+  prob: [["Finger stays <code>no</code>", "Finger not on the window. Or add <code>--led-ma 12</code>."], ["<code>YES</code> but no heart rate", "Strap too tight. Loosen it a little and keep still."], ["<code>SAT</code>", "Too much light. Add <code>--led-ma 3</code>."]] });
+add("b5", { id: "5.29", action: "Test the button and its light ring.",
+  screens: [term("SSH — handoff-relay", ["$ python3 test_button.py", "  Part 1 - colours, 2 s each:", "    round 1: red / green / blue / white / amber", "  Part 2 - button. Press, release, and hold for 1.5 s.", "! [  21.52 s] PRESS", "  [  21.82 s] RELEASE after 0.31 s", "  [  23.83 s] HOLD (held >= 1.5 s)"])],
+  ok: "The ring shows each colour. Pressing turns it green, holding turns it blue. Press <b>Ctrl-C</b> to stop.",
+  prob: [["Green and blue much dimmer than red", `${OFF} Add a second 220 Ω beside each: d11 to g11 and d13 to g13. Never a plain wire. ${BACKON}`], ["Wrong colour lights", `Two colour wires are swapped. ${OFF} Swap them in the breadboard. ${BACKON}`], ["No PRESS lines", `The switch wires aren't in a3 and a5. ${OFF} Fix them. ${BACKON}`]] });
+add("b5", { id: "5.30", img: "b5_22_posts", zoom: "b5_22_posts_zoom", action: "Look under the lid D: two short posts will press on two corners of the Pi when it closes.",
+  tip: "They land on the bare rings around the Pi's mounting holes, so nothing is glued to the Pi. Make sure no jumper wire will sit under either post." });
+add("b5", { id: "5.31", img: "b5_22_close", action: "Shut the Pi down, unplug it, and lower the lid onto its ledges without pinching any wire.",
+  screens: [term("SSH — handoff-relay", ["$ sudo poweroff", "~ Connection to handoff-relay.local closed."])],
+  tip: "Wait about 10 seconds, until the Pi's green light stops flashing, before you unplug it." });
+add("b5", { id: "5.32", img: "b5_22_seat", ok_img: "b5_22_close_ok", no_img: "b5_22_close_no", okcap: "Seam flush all round", nocap: "Lid raised on a wire",
+  action: "Check the lid sits flush on the base all the way round.",
+  tip: "Nothing clicks: the two straps in the next steps hold it shut. To open the box later, undo both straps and lift the lid straight off.",
+  prob: [["The lid rocks or won't sit flush", "Don't pull it down with the straps. Lift it off and check no wire is under a post. If a post tip is a bit too tall, sand it down a little and try again."]] });
+add("b5", { id: "5.33", img: "b5_23_bank", action: "Set the box on your power bank, flat side down.", parts: [["PB", 1]],
+  tip: "The bank must reach under both strap positions: about 10–16 cm long and no wider than 6.8 cm. Put its ports at the same end as the box's side opening." });
+add("b5", { id: "5.34", img: "b5_23_strap_one", zoom: "b5_22_strap_zoom", action: "Wrap the first strap around the lid, box and bank together, in the guide near the side opening, and fasten it.", parts: [["h6", 2]],
+  tip: "It needs at least 5 cm of overlap to hold: about 32 cm for a 14 mm-thick bank, 35 cm for one up to 30 mm thick, longer for a thicker bank. 10–12 mm wide fits the guides best; 13 mm is the widest, no thicker than 1.2 mm." });
+add("b5", { id: "5.35", img: "b5_23_straps", action: "Wrap the second strap the same way, in the guide at the other end." });
+add("b5", { id: "5.36", ok_img: "b5_22_strap_ok", no_img: "b5_22_strap_no", okcap: "In the guides, everything clear", nocap: "Across the vents",
+  action: "Check both straps sit in their guides and cover no vent, port, button or the finger cable.",
+  ok: "The bank sits flat against the box, the lid can't lift, and a sideways push doesn't slide the box on the bank." });
+add("b5", { id: "5.37", img: "b5_23_usb_a", action: "Plug your cable into the power bank.", parts: [["UC", 1]],
+  tip: "Use the bank's strongest port: USB-C, or a USB-A port marked 2.4 A or more. A short cable (30 cm or less) is best." });
+add("b5", { id: "5.38", img: "b5_23_usb_c", action: "Plug the other end into the Pi through the side opening.",
+  tip: "Push gently; never force it. A straight plug sticks out of the side by about 1.5–2.5 cm, depending on the cable. That's fine." });
+add("b5", { id: "5.39", img: "relay_complete_labeled", action: "Wait a minute for the Pi to start, log in again, and check it runs on the battery.",
+  screens: [term("Terminal — Mac", ["$ ssh handoff@handoff-relay.local", "$ source ~/handoff-venv/bin/activate", "$ cd ~/handoff-pi", "$ python3 health_check.py", "  CPU temp    : 51.3 C   OK", "! Power/clock : throttled=0x0   OK", "  I2C bus 1   : 0x57   OK", "  RESULT: all good"])],
+  ok: "<code>throttled=0x0</code>. Run it again after 10 minutes: still 0x0 and under 70 °C. The relay box is done.",
+  prob: [["<code>under-voltage</code>", "Try a shorter, thicker cable, or the bank's USB-C port. Charge the bank. If it still happens, that bank is too weak: run from the Pi's wall supply."], ["The Pi never starts with a USB-C to USB-C cable", "Some early Pi 4 boards ignore those cables. Use a USB-A to USB-C cable instead."], ["To take the Pi out later", "Run <code>sudo poweroff</code>, wait 10 seconds and unplug it. Undo both straps, lift the lid off, and lift the board off its pegs."]] });
+add("b5", { id: "5.40", action: "Optional: LCD screen add-on. Check the back of the kit's LCD1602.", parts: [["LC", 1], ["LP", 1]],
+  ok: "A small board on the back with just 4 pins labelled GND, VCC, SDA and SCL. Carry on.",
+  prob: [["16 pins in a row instead", "That version needs too many wires. Skip this add-on; the dashboard shows everything."]] });
+add("b5", { id: "5.41", img: "lcd_pod_bed", action: "Lower the LCD onto the pod's 4 pegs, then put a tiny dot of hot glue on each peg tip.", parts: [["glue", 4]],
+  tip: "The board should sit flat on all four pads, with the blue contrast screw and the 4 pins clear of the posts.",
+  warn: "Glue only on the 4 peg tips. Keep it off the screen, the small board on the back and the pins." });
+add("b5", { id: "5.42", action: "Shut the Pi down and unplug it. Undo both straps and lift the lid off.",
+  screens: [term("SSH — handoff-relay", ["$ sudo poweroff", "~ Connection to handoff-relay.local closed."])],
+  tip: "Wait about 10 seconds after poweroff before unplugging." });
+add("b5", { id: "5.43", img: "lcd_pod_wiring", action: "Look at Pi pins 3 and 5, under the SHIM: about 4 mm or more of metal should stick up above it.",
+  prob: [["Barely any metal showing", "A jumper won't grip. Stop here and leave the LCD out."]] });
+add("b5", { id: "5.44", img: "lcd_pod_wiring", action: "Two jumpers: Pi pin 3 to g16, and Pi pin 5 to g17.", parts: [["h5", 2]], holes: [["pin 3 → g16", "SDA"], ["pin 5 → g17", "SCL"]],
+  tip: "Push the female ends straight down over the pins that stick up through the SHIM." });
+add("b5", { id: "5.45", img: "lcd_pod_wiring", action: "Push 4 more jumpers, male end first, down through the third lid vent from the top, one at a time.", parts: [["h5", 4]],
+  tip: "It's a snug fit. If a plug won't pass, open the slot a little with a small file or folded sandpaper." });
+add("b5", { id: "5.46", img: "lcd_pod_wiring", action: "Plug their male ends in: d7, d5, h16 and h17.", holes: [["→ d7", "3.3 V"], ["→ d5", "ground"], ["→ h16", "SDA"], ["→ h17", "SCL"]],
+  warn: "The VCC wire goes to d7, which is 3.3 V. Never to a 5 V pin: that would put 5 V on the Pi's data pins." });
+add("b5", { id: "5.47", action: "Push the 4 female ends onto the LCD's pins: d7 wire to VCC, d5 to GND, h16 to SDA, h17 to SCL.",
+  tip: "Go by the labels printed next to the LCD's pins, not by wire colour." });
+add("b5", { id: "5.48", img: "b5_22_close", action: "Lower the lid onto its ledges without pinching any wire. Leave about 3 cm of loose wire outside.",
+  tip: "Check no wire sits under either lid post." });
+add("b5", { id: "5.49", img: "lcd_pod_on_box", action: "Set the pod at the lid's USB-C end, screen facing that side, and run that end's strap over the pod's centre spine, below the screen. Fasten both straps.",
+  ok: "The pod sits steady, the other strap and the MARK button are clear, and the strap doesn't cross the screen." });
+add("b5", { id: "5.50", img: "lcd_pod_on_box_labeled", action: "Power up, log in and test the screen.",
+  screens: [term("SSH — handoff-relay", ["$ source ~/handoff-venv/bin/activate", "$ cd ~/handoff-pi", "$ python3 test_lcd.py", "  LCD found at 0x27. Showing a demo for 10 s (Ctrl-C to stop early)...", "! Done. Screen cleared and backlight off."])],
+  tip: "First copy the updated scripts to the Pi with the rsync line from step 3.9. 0x3F instead of 0x27 is also fine. After this, stream_test.py shows live heart rate, oxygen and the link status on the screen.",
+  ok: "The screen shows HANDOFF RELAY, then HR and SpO2 numbers.",
+  prob: [["Backlight on, no letters, or very faint", "Loosen the pod's strap, lift the pod, and turn the blue contrast screw on the back slowly. At 3.3 V the best spot is often near one end."], ["Still unreadable", "Leave the LCD unplugged. Don't move VCC to 5 V."], ["<code>no LCD answers at 0x27 or 0x3F</code>", "Shut down, then re-check all six jumpers against steps 5.44–5.47."]] });
+
+/* ---------- Book 6 ---------- */
+add("b6", { id: "6.1", img: "b6_02_harness", action: "Put the harness on. The base sits flat in the middle of your chest.", parts: [["HR", 1]] });
+add("b6", { id: "6.2", action: "Turn the phone's volume all the way up. On the test page, tap Speaker, then Say.",
+  screens: [phone(PAGEURL, `${TABS("Speaker")}<h4>Speaker test</h4><div class="pb pri tap" data-n="1">Say: "Compressions too slow. Push faster."</div><div class="pb">Beep (1 s, full volume)</div>`)],
+  ok: "Clearly audible at arm's length.",
+  tip: "The page from Book 1 still works if the Mac's server is running." });
+add("b6", { id: "6.3", special: "camapp", action: "Open the Camera app, choose Video, pick the wide setting, and start recording." });
+add("b6", { id: "6.4", img: "b6_01_shell", action: "Lay the outer shell A face down.", parts: [["A", 1]] });
+add("b6", { id: "6.5", img: "b6_04_phone", special: "phonein", action: "Lay the phone in the shell.", parts: [["PH", 1]] });
+add("b6", { id: "6.6", img: "b6_05_align", zoom: "b6_05_align_zoom", action: "Line the chest plate B up with the open ends of the two long rails.", parts: [["B", 1]] });
+add("b6", { id: "6.7", img: "b6_05_plate", zoom: "b6_05_plate_zoom", action: "Slide the plate along the rails until it stops at the closed end." });
+add("b6", { id: "6.8", ok_img: "b6_05_plate_ok", no_img: "b6_05_plate_no", okcap: "At the end stop", nocap: "Gap before the stop",
+  action: "Check the plate has reached the stop.",
+  tip: "Nothing clicks. The rubber bands in the next two steps keep the plate on. To open later, roll both bands off and slide the plate out." });
+add("b6", { id: "6.9", img: "b6_05_strap", zoom: "b6_05_strap_zoom", action: "Stretch a thin rubber band into the groove along one long edge and around both short ends.", parts: [["RB", 2]],
+  tip: "About 2 mm wide and no thicker than 1.2 mm; a soft loop about 14–15 cm long laid flat." });
+add("b6", { id: "6.10", img: "b6_05_strap_second", zoom: "b6_05_strap_second_zoom", action: "Stretch the second band into the groove along the other long edge.",
+  ok: "Both bands sit in their grooves and cover no camera window, button, port or the mount." });
+add("b6", { id: "6.11", img: "b6_06_buckle", zoom: "b6_06_buckle_zoom", action: "Fit the case's two fingers between the buckle's three prongs." });
+add("b6", { id: "6.12", img: "b6_06_thumb", action: "Push the thumbscrew through all five." });
+add("b6", { id: "6.13", img: "b6_07_tilt", action: "Tilt the case about 15° down." });
+add("b6", { id: "6.14", img: "b6_07_tighten", action: "Tighten the thumbscrew by hand." });
+add("b6", { id: "6.15", img: "b6_11_final", action: "Over a cushion, give the case a gentle pull. Nothing should move.",
+  prob: [["The plate slides", "A band has come out of its groove, or the plate isn't at the stop. Redo step 6.7, then refit both bands."], ["The case turns on the buckle", "Tighten the thumbscrew more."]] });
+add("b6", { id: "6.16", img: "b6_08_kneel", action: "Click the buckle into the harness. Kneel over the manikin or a cushion and mime compressions for 20 seconds.",
+  warn: "Never do compressions on a person." });
+add("b6", { id: "6.17", ok_img: "b6_09_frame_ok", no_img: "b6_09_frame_no", okcap: "Hands and chest in view", nocap: "Mostly floor or horizon",
+  action: "Take the case off, roll off both bands, slide the plate off, stop the recording and watch it.",
+  prob: [["Mostly floor", "Tilt less (step 6.13)."], ["Mostly horizon", "Tilt more."], ["Dark corners", "The window clips the lens: raise <code>camera_margin</code> in <code>cad/common.scad</code> and reprint A."]] });
+add("b6", { id: "6.18", action: "Start the compression test, close the case again, put it on and compress the cushion.",
+  screens: [phone(PAGEURL, `${TABS("Motion")}<h4>Compression-rate test</h4><div class="muted">☑ Speak coaching</div><div class="pb tap" data-n="2">Metronome: ON</div><div class="pb pri tap" data-n="3">Start motion test</div>`)],
+  sub: ["Screen tab: tap <b>Request screen wake lock</b>.", "Motion tab: tick <b>Speak coaching</b>, turn the <b>Metronome</b> on (110), tap <b>Start motion test</b>.", "Close the case (steps 6.5–6.10) and put it back on.", "Compress slowly: you hear <b>“Push faster.”</b> On the beat: silence. Stop for over 10 s: <b>“Resume compressions.”</b>"],
+  ok: "You heard all three. The bodycam is done.",
+  warn: "Never do compressions on a person." });
+add("b6", { id: "6.19", img: "universal_plate_assembled", action: "Backup: mount any phone on the universal plate UP instead of the case.", parts: [["UP", 1], ["RB", 2]],
+  sub: ["Ledges down. Rest the phone on both corner ledges.", "Back camera: the screen faces the plate. Selfie camera: the back faces the plate.", "Put two rubber bands in matching notches on both long edges, well apart, where they miss the camera and side buttons. A third is optional.", "Fit the plate's two mount fingers into the harness buckle and hand-tighten the thumbscrew, as in steps 6.11–6.14."],
+  tip: "Bands 3–8 mm wide and about 14–17 cm round when unstretched (7–8.5 cm laid flat), or two hook-and-loop straps up to 13 mm wide and 25–30 cm long. Test it over a cushion before wearing.",
+  warn: "With the back against the plate, the camera bump must not press on it. If it does, stick equal tape pads on the flat parts of the back to lift it clear." });
+
+/* ---------- Book 7 ---------- */
+add("b7", { id: "7.1", img: "b7_network", action: "Turn on Dino's hotspot. Join the Mac to it. The relay joins by itself; join the Pixel too." });
+add("b7", { id: "7.2", action: "On the Mac, start the receiver.",
+  screens: [term("Terminal — Mac", ["$ cd ~/Documents/Hackathons/HackUTD-2026/hardware/software/mac", "$ python3 -m venv .venv", "$ source .venv/bin/activate", "$ pip install -r requirements.txt", "$ python3 receiver.py", "  HANDOFF receiver - listening on ws://0.0.0.0:8765", "!   this Mac: 172.20.10.4 (en0)  ->  on the Pi run:  python3 stream_test.py 172.20.10.4"])],
+  tip: "Click Allow if the Mac asks about incoming connections. Next time you only need the <code>cd</code>, <code>source</code> and <code>python3 receiver.py</code> lines." });
+add("b7", { id: "7.3", action: "On the Pi, start the stream with the address the receiver printed. Finger off for the first 2 seconds.",
+  screens: [term("SSH — handoff-relay", ["$ python3 stream_test.py 172.20.10.4", "  [link] connecting to ws://172.20.10.4:8765 ...", "! [link] connected", "  [   5.0 s] connected | sent 125 msgs (25.0/s) | finger YES | HR --"])] });
+add("b7", { id: "7.4", action: "Put a finger in the clip and press MARK a few times. Watch the Mac.",
+  screens: [term("Terminal — Mac", ["  [13:52:26] handoff-relay   25 msg/s  HR  72  pulse   missing 0  arrival gap 41 ms  last 23 ms ago", "! [13:52:30] BUTTON  handoff-relay: PRESS", "  [13:52:30] BUTTON  handoff-relay: RELEASE, held 0.3 s"], false)],
+  ok: "For 2 minutes: 24–26 msg/s, <code>missing 0</code>, arrival gap under about 150 ms, and no <code>&lt;&lt; STALL</code>. The relay's ring is green.",
+  prob: [["<code>Connect call failed</code> on the Pi", "The receiver isn't running, or the address is wrong."], ["<code>&lt;&lt; STALL</code>", "Move the hotspot closer. On the Pi: <code>sudo iw wlan0 set power_save off</code>."], ["Pi says connected, Mac shows nothing", "Allow Python in the Mac's firewall settings."]] });
+add("b7", { id: "7.5", action: "On the Pixel, open the test page over the hotspot.",
+  screens: [phone(PAGEURL, `<h4>HANDOFF phone test</h4>${CHIPS}${TABS("Camera")}`)],
+  sub: ["Take the phone out of the case.", "Update the Chrome flag (step 1.3) to the Mac's hotspot address.", "Open the page. If the Mac's server stopped, run it again (step 1.2)."],
+  ok: "All six chips green. Everything works together. The rest is the hackathon." });
+
+/* ------------------------------------------------------------------ */
+/* State                                                               */
+/* ------------------------------------------------------------------ */
+const KEY = "handoff-manual-v1";
+let st = { i: -1, done: {}, mode: "rear", inv: {}, all: false, rev: 6 };
+let saved = null;
+try { saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) st = Object.assign(st, saved); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+/* rev 3 (Nov 1): the OLED was dropped, the base's USB-C opening grew, and Book 5 was renumbered.
+   Old Book 5 ticks no longer match, and base C and lid D must be reprinted. */
+/* rev 5 (Nov 3): no snaps. Books 2 and 4-6 renumbered and every printed part remade, so old print,
+   assembly and printed-part ticks no longer match. */
+if (saved && saved.rev !== 5 && saved.rev !== 6) {
+  Object.keys(st.done).filter(k => /^[2456]\./.test(k) && k !== "2.1").forEach(k => delete st.done[k]);
+  ["O", "Q1", "A", "B", "C", "D", "F", "G", "J", "T3", "RT"].forEach(k => delete st.inv[k]);
+  if (st.i >= 0 && (!S[st.i] || S[st.i].book >= "b2")) st.i = -1;
+  st.rev = 5;
+  save();
+}
+/* rev 6 (Nov 3): lid posts replace the Pi glue. Book 5 renumbered and lid D remade. */
+if (st.rev !== 6) {
+  Object.keys(st.done).filter(k => /^5\./.test(k) || k === "2.10").forEach(k => delete st.done[k]);
+  delete st.inv.D;
+  if (st.i >= 0 && S[st.i] && S[st.i].book === "b5") st.i = -1;
+  st.rev = 6;
+  save();
+}
+const app = document.getElementById("app");
+
+/* ------------------------------------------------------------------ */
+/* Rendering                                                           */
+/* ------------------------------------------------------------------ */
+function imgTag(id, cls) {
+  return `<img class="${cls || "main"}" src="img/${id}.jpg" alt="" loading="lazy" onerror="this.outerHTML='<div class=missing>Picture for this step is being drawn</div>'">`;
+}
+function tray(parts) {
+  if (!parts || !parts.length) return "";
+  return `<div><div class="trayhead">You need</div><div class="tray">${parts.map(([k, n]) =>
+    `<div class="pp"><img src="${icon(k)}" alt="" onerror="this.outerHTML='<span class=ph>${k}</span>'"><div><div class="q">${n}× <span style="font-size:.85rem;color:var(--muted)">${k}</span></div><div class="l">${PARTS[k] || k}</div></div></div>`).join("")}</div></div>`;
+}
+function modeName() { return st.mode === "front" ? "front" : "rear"; }
+
+function specialHTML(s) {
+  const m = modeName();
+  switch (s.special) {
+    case "inventory": {
+      const groups = [
+        ["Printed parts", ["A","B","C","D","F","G","T1","T2","RT"]],
+        ["Electronics", ["P","S","M","K","BB","HS","Q2"]],
+        ["Other", ["PB","UC","HR","PH"]],
+        ["Small bits", ["h4","h5","h6","h7","h8","h9","RB","glue"]]
+      ];
+      const counts = { h4: "5", h5: "6", h6: "3", h7: "2", h8: "1 roll", h9: "2", HS: "1", RB: "2", glue: "4 dots" };
+      return groups.map(([g, ks]) => `<div><div class="trayhead">${g}</div><div class="tray">${ks.map(k =>
+        `<label class="pp" style="cursor:pointer"><input type="checkbox" id="inv-${k}" data-inv="${k}" ${st.inv[k] ? "checked" : ""} style="position:absolute;opacity:0">
+          <img src="${icon(k)}" alt="" onerror="this.outerHTML='<span class=ph>${k}</span>'"><div><div class="q">${st.inv[k] ? "✓ " : ""}${counts[k] ? counts[k] + "× " : ""}<span style="font-size:.85rem;color:var(--muted)">${k}</span></div><div class="l">${PARTS[k]}</div></div></label>`).join("")}</div></div>`).join("") +
+        `<p class="tip">Tap a part to tick it. Printed parts come from Book 2; tick them after printing. Straps: two that wrap the closed relay box and your power bank with 5 cm of overlap, about 32–35 cm each (10–12 mm wide fits best), and one about 20 cm, black, for the finger. Rubber bands: two soft ones about 2 mm wide, each about 14–15 cm long laid flat.</p>`;
+    }
+    case "tools":
+      return `<div class="tray">${[
+        ["🔥", "Hot glue gun"], ["✂️", "Scissors"], ["🔪", "Hobby knife or flush cutters"],
+        ["📏", "Ruler or calipers"], ["💾", "microSD card 16 GB+ and a card reader"], ["🖊️", "Masking tape and a marker"], ["🖍️", "Red paint pen (optional)"]
+      ].map(([e, t]) => `<div class="pp"><span class="ph" style="font-size:1.6rem">${e}</span><div class="l" style="font-size:.9rem;color:var(--ink)">${t}</div></div>`).join("")}</div>`;
+    case "verdict":
+      return `<div class="choice" role="group" aria-label="Case version">
+        <button type="button" data-mode="rear" aria-pressed="${m === "rear"}"><b>Rear version</b>Verdict says REAR MODE, or MAYBE REAR and one camera is clearly wider.</button>
+        <button type="button" data-mode="front" aria-pressed="${m === "front"}"><b>Front version</b>Verdict says FRONT MODE.</button></div>
+        <p class="tip">MAYBE REAR: open each rear camera; if one is clearly wider, tap <b>This is the ultra-wide</b> and choose Rear.</p>`;
+    case "measure":
+      return `<table class="fill"><tbody>
+        <tr><td><b>a</b> Bar width, side to side</td><td>61 mm</td></tr>
+        <tr><td><b>b</b> Bar height, top to bottom</td><td>19 mm</td></tr>
+        <tr><td><b>c</b> Phone's top edge to the bar</td><td>9.5 mm</td></tr>
+        <tr><td><b>d</b> How far the bar sticks out</td><td>3.6 mm</td></tr></tbody></table>
+        <div class="okbox"><b>All within 0.5 mm?</b>Go on to step 2.2.</div>
+        <details class="probbox"><summary>One is more than 0.5 mm off</summary>
+          <p style="margin:6px 0">Open <code>hardware/cad/common.scad</code> in a text editor and change <code>camera_bar_w</code> (a), <code>camera_bar_h</code> (b), <code>camera_bar_top</code> (c) or <code>camera_bar_protrusion</code> (d). Save, then run:</p>
+          ${term("Terminal — Mac", ["$ cd ~/Documents/Hackathons/HackUTD-2026/hardware", "$ cad/.venv/bin/python cad/verify.py", "~ PASS ...", "! ALL CHECKS PASSED"])}
+        </details>`;
+    case "printtests":
+      return `<div class="chips"><span class="chip file">cad/stl/p1_mount_test.stl</span><span class="chip">T1 · about 25 min</span></div>
+        <div class="chips"><span class="chip file">cad/stl/p1_${m}_fit_ring.stl</span><span class="chip">T2 · about 12 min</span></div>
+        <div class="chips"><span class="chip">PLA or PETG</span><span class="chip">0.2 mm layers</span><span class="chip">No supports</span><span class="chip">Don't rotate or scale</span></div>
+        <p class="tip">The file names follow your Book 1 choice: <b>${m}</b>.</p>`;
+    case "print": {
+      const p = s.print;
+      const file = p.file.endsWith(".stl") ? p.file : `p1_${m}_${p.file}.stl`;
+      return `<div class="chips"><span class="chip file">cad/stl/${file}</span></div>
+        <div class="chips"><span class="chip">${p.black ? "Black PLA or PETG" : "PLA or PETG"}</span><span class="chip">0.2 mm layers</span><span class="chip">${p.walls} walls</span><span class="chip">${p.infill} ${p.infill === "100%" ? "rectilinear" : "gyroid"}</span><span class="chip">Brim ${p.brim}</span><span class="chip">No supports</span><span class="chip">${p.time}</span></div>
+        <p class="tip">Leave it exactly as it loads: the file is already the right way up.</p>`;
+    }
+    case "identify":
+      return `<div class="choice" style="flex-direction:column">
+          <div class="okbox"><b>Yes, labelled</b>Mark each wire with tape: SW, SW, +, R, G, B. Then go to step 5.25.</div>
+          <div class="probbox" style="display:grid;gap:6px"><b>No labels: use the helper</b>
+            <ol class="sub"><li>Pi unplugged. Add the spare resistor from d7 to d15.</li><li>Plug a male–male jumper into a15: its loose end is the <b>+ probe</b>.</li><li>Plug a male–male jumper into b5: its loose end is the <b>− probe</b>.</li><li>Plug the Pi in, log in, and run the helper. Touch the wires it names; type what lights.</li></ol>
+            ${term("SSH — handoff-relay", ["$ python3 identify_wires.py", "~ ...", "  RESULT (common anode, found in 11 steps)", "    switch      : wires 1 and 2", "    ring common : wire 3", "!   red : wire 4   green : wire 5   blue : wire 6"])}
+            <p class="tip" style="margin:0">When it asks for the switch wires on pins 11 and 9, push them into a3 and a5 instead. Tape-label every wire. Then shut the Pi down with <code>sudo poweroff</code>, wait 10 seconds, unplug it, and remove the probes and the spare resistor.</p>
+          </div></div>`;
+    case "camapp":
+      return phone(null, `<div class="camui"><div class="vf">viewfinder</div><div><div class="zooms"><span class="${m === "rear" ? "on" : ""}">.5</span><span class="${m === "rear" ? "" : "on"}">1×</span><span>2×</span><span>5×</span></div><div class="rec"><span>Photo</span><b></b><span style="font-weight:700">Video</span></div></div></div>`) +
+        `<p class="tip">${m === "rear" ? "Rear version: tap <b>.5</b> for the ultra-wide." : "Front version: switch to the front camera."} Then tap the red button.</p>`;
+    case "phonein":
+      return `<p class="tip">${m === "rear" ? "Rear version: <b>screen up</b>, back down, so the camera bar drops into its window." : "Front version: <b>screen down</b>, facing out through the window."} No side button should be pressed.</p>`;
+  }
+  return "";
+}
+
+function holesHTML(h) {
+  if (!h) return "";
+  return `<div class="holes">${h.map(([a, b]) => `<div><b>${a}</b>${b ? `<br><span class="tip" style="font-size:.82rem">${b}</span>` : ""}</div>`).join("")}</div>`;
+}
+function cardHTML(s, idx) {
+  const book = BOOKS.find(b => b.id === s.book);
+  const inBook = S.filter(x => x.book === s.book);
+  const pos = inBook.indexOf(s) + 1;
+  let pic = "";
+  if (s.img) pic += `<div class="mainwrap">${imgTag(s.img)}${s.zoom ? `<div class="zoom">${imgTag(s.zoom, "z")}</div>` : ""}</div>`;
+  if (s.img2) pic += imgTag(s.img2 === "b2_bed_T2" ? `b2_bed_T2${modeName() === "front" ? "f" : "r"}` : s.img2);
+  if (s.ok_img) pic += `<div class="pair"><figure><span class="mark ok">✓</span><figcaption>${s.okcap || ""}</figcaption>${imgTag(s.ok_img, "x")}</figure><figure><span class="mark no">✗</span><figcaption>${s.nocap || ""}</figcaption>${imgTag(s.no_img, "x")}</figure></div>`;
+  if (s.screens) pic += `<div class="screens">${s.screens.join("")}</div>`;
+  if (s.special === "camapp") pic += `<div class="screens">${specialHTML(s).split('<p class="tip">')[0]}</div>`;
+  if (!pic) pic = `<div class="screens" style="align-content:center;min-height:200px"><div style="font:800 5rem var(--font-display);color:var(--accent)">${book.n}</div></div>`;
+  let sp = s.special && s.special !== "camapp" ? specialHTML(s) : (s.special === "camapp" ? `<p class="tip">${specialHTML(s).split('<p class="tip">')[1] || ""}` : "");
+  if (s.special === "print" || s.special === "printtests") {
+    // swap the A/B bed image to the chosen mode
+  }
+  return `<article class="card" id="step-${s.id}">
+    <div class="pic">${pic}</div>
+    <div class="side">
+      <div class="stepno"><span class="big">${s.id}</span><span class="of">Book ${book.n} · ${book.title} · step ${pos} of ${inBook.length}</span></div>
+      <h2 class="action">${s.action}</h2>
+      ${tray(s.parts)}
+      ${s.sub ? `<ol class="sub">${s.sub.map(x => `<li><span>${x}</span></li>`).join("")}</ol>` : ""}
+      ${holesHTML(s.holes)}
+      ${sp}
+      ${s.tip ? `<p class="tip">${s.tip}</p>` : ""}
+      ${s.warn ? `<div class="warnbox"><b>Careful</b>${s.warn}</div>` : ""}
+      ${s.ok ? `<div class="okbox"><b>Check</b>${s.ok}</div>` : ""}
+      ${s.prob ? `<details class="probbox"><summary>Not what you see?</summary><table><tbody>${s.prob.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("")}</tbody></table></details>` : ""}
+    </div>
+  </article>`;
+}
+
+const FRONT_BASES = ["b2_t2_test", "b6_01_shell", "b6_04_phone", "b6_05_align", "b6_05_plate", "b6_05_strap", "b6_05_strap_second", "b6_06_buckle"];
+function frontName(id) {
+  if (!id) return id;
+  for (const b of FRONT_BASES) {
+    if (id === b) return b + "_front";
+    if (id.startsWith(b + "_") && /_(zoom|ok|no)$/.test(id) && id.slice(b.length).match(/^_(zoom|ok|no)$/)) return b + "_front" + id.slice(b.length);
+  }
+  return id;
+}
+function fixBedImage(s) {
+  let o = s;
+  if (s.special === "print" && s.print.k === "A") o = Object.assign({}, o, { img: `b2_bed_A_${modeName()}` });
+  if (modeName() === "front") {
+    o = Object.assign({}, o, { img: frontName(o.img), zoom: frontName(o.zoom), ok_img: frontName(o.ok_img), no_img: frontName(o.no_img) });
+  }
+  return o;
+}
+
+function renderMenu() {
+  st.i = -1; save();
+  const total = S.length, done = S.filter(s => st.done[s.id]).length;
+  app.innerHTML = `<div class="menu-head"><h1>Handoff assembly manual</h1>
+    <p>One step at a time. The picture shows what to do; the new part is the bright one. Tap <b>Done, next</b> after each step. Your place is saved on this device.</p>
+    <div class="legend"><span><b style="background:var(--accent)"></b>New part in this step</span><span><b style="background:var(--ok)"></b>Check</span><span><b style="background:var(--no)"></b>Careful</span></div>
+    <p style="margin-top:6px">${done} of ${total} steps done. Your bodycam case: <b>${modeName()}</b> version.</p></div>
+    <div class="menu">${BOOKS.map(b => {
+      const steps = S.filter(s => s.book === b.id), d = steps.filter(s => st.done[s.id]).length;
+      return `<button class="bk" type="button" data-book="${b.id}"><span class="n">${b.n}</span><span class="t">${b.title}</span><span class="s">${b.sub} · ${steps.length} steps</span><span class="bar"><i style="width:${Math.round(100 * d / steps.length)}%"></i></span></button>`;
+    }).join("")}</div>`;
+  updateChrome();
+}
+function renderStep() {
+  const s = fixBedImage(S[st.i]);
+  app.innerHTML = cardHTML(s, st.i);
+  window.scrollTo({ top: 0 });
+  updateChrome();
+}
+function renderAll() {
+  let html = "";
+  BOOKS.forEach(b => {
+    html += `<h2 class="bookhead"><span>${b.n}</span>${b.title}</h2><div class="list">`;
+    S.filter(s => s.book === b.id).forEach(s => { html += cardHTML(fixBedImage(s), S.indexOf(s)); });
+    html += `</div>`;
+  });
+  app.innerHTML = html;
+  updateChrome();
+}
+function render() { if (st.all) renderAll(); else if (st.i < 0) renderMenu(); else renderStep(); }
+
+function updateChrome() {
+  const done = S.filter(s => st.done[s.id]).length;
+  document.getElementById("progBar").style.width = (100 * done / S.length) + "%";
+  document.getElementById("btnView").textContent = st.all ? "One step at a time" : "Show all steps";
+  const nav = document.querySelector(".nav");
+  nav.classList.toggle("hidden", st.all || st.i < 0);
+  if (st.i >= 0 && !st.all) {
+    const s = S[st.i], b = BOOKS.find(x => x.id === s.book);
+    document.getElementById("where").textContent = `Step ${s.id} · ${b.title}`;
+    document.getElementById("btnPrev").disabled = st.i === 0;
+    document.getElementById("btnNext").textContent = st.i === S.length - 1 ? "Done ✓" : (st.done[s.id] ? "Next →" : "Done, next →");
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Events                                                              */
+/* ------------------------------------------------------------------ */
+document.getElementById("btnBooks").addEventListener("click", () => { st.all = false; renderMenu(); });
+document.getElementById("btnView").addEventListener("click", () => { st.all = !st.all; save(); if (!st.all && st.i < 0) renderMenu(); else render(); });
+document.getElementById("btnPrev").addEventListener("click", () => { if (st.i > 0) { st.i--; save(); renderStep(); } });
+document.getElementById("btnNext").addEventListener("click", () => {
+  const s = S[st.i]; st.done[s.id] = true;
+  if (st.i < S.length - 1) { st.i++; save(); renderStep(); } else { save(); renderMenu(); }
+});
+document.addEventListener("keydown", e => {
+  if (st.all || st.i < 0 || e.target.closest("input, textarea")) return;
+  if (e.key === "ArrowRight") document.getElementById("btnNext").click();
+  if (e.key === "ArrowLeft") document.getElementById("btnPrev").click();
+});
+app.addEventListener("click", e => {
+  const bk = e.target.closest("[data-book]");
+  if (bk) { const first = S.findIndex(s => s.book === bk.dataset.book && !st.done[s.id]); st.i = first >= 0 ? first : S.findIndex(s => s.book === bk.dataset.book); st.all = false; save(); renderStep(); return; }
+  const md = e.target.closest("[data-mode]");
+  if (md) { st.mode = md.dataset.mode; save(); render(); return; }
+  const cp = e.target.closest("[data-copy]");
+  if (cp) {
+    const txt = cp.getAttribute("data-copy").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    const ok = () => { cp.textContent = "Copied"; setTimeout(() => cp.textContent = "Copy commands", 1500); };
+    try { navigator.clipboard.writeText(txt).then(ok, () => { cp.textContent = "Select and copy"; }); } catch (err) { cp.textContent = "Select and copy"; }
+  }
+});
+app.addEventListener("change", e => {
+  const inv = e.target.closest("[data-inv]");
+  if (inv) { st.inv[inv.dataset.inv] = inv.checked; save(); render(); }
+});
+render();
+</script>

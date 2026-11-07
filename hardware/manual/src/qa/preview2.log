@@ -1,0 +1,25 @@
+00:09.356  render           | Saved: '/Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/manual/src/qa/preview/coupon_test.png'
+RENDERED coupon_test
+00:17.630  render           | Saved: '/Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/manual/src/qa/preview/b5_23_usb_c.png'
+RENDERED b5_23_usb_c
+Blender 5.2.1 LTS (hash 9e2066aef7ef built 2026-08-25 01:35:57)
+Timer 'STL Import' took 0.94 ms
+Timer 'STL Import' took 0.35 ms
+Timer 'STL Import' took 0.23 ms
+Timer 'STL Import' took 0.21 ms
+Timer 'STL Import' took 0.37 ms
+Timer 'STL Import' took 0.39 ms
+Timer 'STL Import' took 0.22 ms
+Timer 'STL Import' took 0.16 ms
+Timer 'STL Import' took 1.68 ms
+Timer 'STL Import' took 0.86 ms
+Timer 'STL Import' took 0.31 ms
+Timer 'STL Import' took 69583 ns
+Timer 'STL Import' took 51125 ns
+Timer 'STL Import' took 0.60 ms
+Timer 'STL Import' took 0.26 ms
+Timer 'STL Import' took 0.19 ms
+Timer 'STL Import' took 0.47 ms
+Timer 'STL Import' took 0.31 ms
+
+Blender quit
