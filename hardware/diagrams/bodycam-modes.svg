@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1450" height="930" viewBox="0 0 1450 930">
+<rect width="100%" height="100%" fill="#f8faf9"/>
+<text x="40" y="54" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#142b3a" text-anchor="start">Bodycam camera modes</text>
+<text x="40" y="86" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#526675" text-anchor="start">Both modes wear the phone landscape; mount and GoPro buckle remain on the chest-facing side</text>
+<rect x="45" y="120" width="660" height="700" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="375" y="158" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#142b3a" text-anchor="middle">REAR MODE • preferred</text>
+<text x="375" y="190" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="middle">Screen faces chest; rear camera bar faces outward.</text>
+<text x="375" y="235" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="middle">OUTWARD VIEW</text>
+<rect x="160" y="258" width="430" height="205" rx="28" fill="#263337" stroke="#0f2024" stroke-width="3"/>
+<rect x="495" y="284" width="42" height="150" rx="18" fill="#101719" stroke="#050b0d" stroke-width="2"/>
+<circle cx="516" cy="314" r="10" fill="#5e7981" stroke="none" stroke-width="1"/>
+<circle cx="516" cy="354" r="10" fill="#5e7981" stroke="none" stroke-width="1"/>
+<circle cx="516" cy="394" r="10" fill="#5e7981" stroke="none" stroke-width="1"/>
+<text x="375" y="428" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#d6534c" text-anchor="middle">HANDOFF</text>
+<text x="375" y="498" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="middle">Rear camera bar vertical in landscape</text>
+<text x="375" y="554" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="middle">SIDE VIEW • chest on left</text>
+<rect x="140" y="582" width="48" height="147" rx="15" fill="#d8e3df" stroke="#b8ccc5" stroke-width="2"/>
+<text x="164" y="758" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#526675" text-anchor="middle">CHEST</text>
+<rect x="323" y="600" width="57" height="110" rx="6" fill="#263337" stroke="#0f2024" stroke-width="2"/>
+<rect x="247" y="632" width="76" height="46" rx="4" fill="#43545a" stroke="#1b2b2d" stroke-width="2"/>
+<circle cx="269" cy="655" r="11" fill="#f1f4f2" stroke="none" stroke-width="1"/>
+<circle cx="301" cy="655" r="11" fill="#f1f4f2" stroke="none" stroke-width="1"/>
+<text x="229" y="710" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="middle">2-prong mount</text>
+<text x="451" y="630" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#142b3a" text-anchor="start">OUTWARD →</text>
+<text x="451" y="660" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Screen → chest</text>
+<text x="451" y="685" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Rear → outward</text>
+<rect x="745" y="120" width="660" height="700" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="1075" y="158" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#142b3a" text-anchor="middle">FRONT MODE • fallback</text>
+<text x="1075" y="190" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="middle">Screen faces outward; back faces chest.</text>
+<text x="1075" y="235" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="middle">OUTWARD VIEW</text>
+<rect x="860" y="258" width="430" height="205" rx="28" fill="#263337" stroke="#0f2024" stroke-width="3"/>
+<rect x="877" y="273" width="396" height="175" rx="18" fill="#708d96" stroke="#172a30" stroke-width="2"/>
+<circle cx="890" cy="360" r="4" fill="#0f2024" stroke="none" stroke-width="1"/>
+<text x="1075" y="498" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="middle">Full screen visible</text>
+<text x="1075" y="554" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="middle">SIDE VIEW • chest on left</text>
+<rect x="840" y="582" width="48" height="147" rx="15" fill="#d8e3df" stroke="#b8ccc5" stroke-width="2"/>
+<text x="864" y="758" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#526675" text-anchor="middle">CHEST</text>
+<rect x="1023" y="600" width="57" height="110" rx="6" fill="#263337" stroke="#0f2024" stroke-width="2"/>
+<rect x="947" y="632" width="76" height="46" rx="4" fill="#43545a" stroke="#1b2b2d" stroke-width="2"/>
+<circle cx="969" cy="655" r="11" fill="#f1f4f2" stroke="none" stroke-width="1"/>
+<circle cx="1001" cy="655" r="11" fill="#f1f4f2" stroke="none" stroke-width="1"/>
+<text x="929" y="710" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="middle">2-prong mount</text>
+<text x="1151" y="630" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#142b3a" text-anchor="start">OUTWARD →</text>
+<text x="1151" y="660" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Screen → outward</text>
+<text x="1151" y="685" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Rear → chest</text>
+<text x="1075" y="790" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#9a4d20" text-anchor="middle">Mount raised to clear rear camera bar</text>
+<text x="725" y="873" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#526675" text-anchor="middle">The harness buckle has 3 prongs; the case has the mating 2-prong mount. Tilt axis is parallel to the long edge.</text>
+</svg>

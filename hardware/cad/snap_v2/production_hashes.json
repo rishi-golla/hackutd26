@@ -1,0 +1,20 @@
+{
+  "stl/p1_front_front_frame.stl": "d57e20e5ec41f5c6608ca778e4308712f7ee6bef468f5546a9b6a9c1527212ff",
+  "stl/p1_front_fit_ring.stl": "d70af470f7c301acd2af9188110756630151379241b333064a68e13e119ae03f",
+  "stl/p3_joint_clips.stl": "d91709f8c41baf8bbda54c9c8e2e78f39dd8f2a1650821377a1c33f39102c1d0",
+  "stl/p3_tray.stl": "e0c4f69d2593afd19327af8912d75d22dd5e02e9ac0d15f443ae0cfb0dc7e93e",
+  "stl/p1_rear_front_frame.stl": "1bffe3352b2784c5f1152f88e04ac9dbf9d18d41497cecfa5a1acc36ac62364e",
+  "stl/p1_mount_test.stl": "f9a908359a5925257a9efbf7f233314d6ffb7b96fafc7a02e5e5738a22c361a6",
+  "stl/p2_base.stl": "1f80a01f9288080e70901ea1f1a65348630431d3b10ba91bfa62cd85d7a6b3ce",
+  "stl/p3_hood.stl": "46f788c81da9f266cd7deac94d25e1b3cbcaa5a644130be4f4b9f06ddbbd03d2",
+  "stl/p1_front_back_plate.stl": "6a962c8813de7b957591d65a5c5b48cdd39273941939dadbe83ae012b73511c4",
+  "stl/snap_coupon.stl": "66b086ff99614a9c946ecfc6b7c5c86cc0d48d770969ea364a2c8611dad64e36",
+  "stl/p2_lid.stl": "e5c77301ac355f43406518dad467e427374a527d1882ec1a970b99d20c9c8eb0",
+  "stl/p1_rear_fit_ring.stl": "57f754a3840d32d7a5dbfe4347c94cba5091da041065f161d26e8769d7e0672e",
+  "stl/p1_rear_back_plate.stl": "7a8a2cd59da4c956a7d315321334e47aa97d434c0262975ec0663317c48ef4a7",
+  "common.scad": "6f9b14b1c3bffc00fd512ccd6b46a383e61560e323aa9ccb3cd6547d35d2a1d7",
+  "p1_bodycam.scad": "ba2dd1ea33caaeba7b38906f275c132def44c47f5af4e9873a5eaa975402a6b2",
+  "p2_relay.scad": "ca6176a8ed8eb29f6653298ac75f5c2f7b410b8148e07a668315cbce0114b8a5",
+  "p3_finger_clip.scad": "0375a0498bdf43cf38b18d1fd588966ad1b94e88c0c980e0e4d08c4b8956d887",
+  "snap_coupon.scad": "3714e76cc55ec7bd9df77baeef697fbd3b0fe65d0ac6c20e22b29f07a6796572"
+}

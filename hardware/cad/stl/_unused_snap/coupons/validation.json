@@ -1,0 +1,89 @@
+[
+  {
+    "name": "snap_coupon_c025",
+    "file": "stl/coupons/snap_coupon_c025.stl",
+    "returncode": 0,
+    "watertight": true,
+    "winding_consistent": true,
+    "positive_volume": true,
+    "components": 8,
+    "dimensions_mm": [
+      97.6,
+      56.0,
+      13.6
+    ],
+    "bounds_mm": [
+      [
+        -7.8,
+        -0.0,
+        0.0
+      ],
+      [
+        89.8,
+        56.0,
+        13.6
+      ]
+    ],
+    "volume_mm3": 4353.62,
+    "triangles": 5986,
+    "passed": true
+  },
+  {
+    "name": "snap_coupon_c020",
+    "file": "stl/coupons/snap_coupon_c020.stl",
+    "returncode": 0,
+    "watertight": true,
+    "winding_consistent": true,
+    "positive_volume": true,
+    "components": 8,
+    "dimensions_mm": [
+      97.6,
+      56.0,
+      13.5
+    ],
+    "bounds_mm": [
+      [
+        -7.8,
+        -0.0,
+        0.0
+      ],
+      [
+        89.8,
+        56.0,
+        13.5
+      ]
+    ],
+    "volume_mm3": 4330.69,
+    "triangles": 6732,
+    "passed": true
+  },
+  {
+    "name": "snap_coupon_c015",
+    "file": "stl/coupons/snap_coupon_c015.stl",
+    "returncode": 0,
+    "watertight": true,
+    "winding_consistent": true,
+    "positive_volume": true,
+    "components": 8,
+    "dimensions_mm": [
+      97.6,
+      56.0,
+      13.4
+    ],
+    "bounds_mm": [
+      [
+        -7.8,
+        -0.0,
+        0.0
+      ],
+      [
+        89.8,
+        56.0,
+        13.4
+      ]
+    ],
+    "volume_mm3": 4305.57,
+    "triangles": 3632,
+    "passed": true
+  }
+]

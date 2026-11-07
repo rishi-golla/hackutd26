@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="850" viewBox="0 0 1380 850">
+<rect width="100%" height="100%" fill="#f8faf9"/>
+<text x="40" y="54" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#142b3a" text-anchor="start">Handoff network</text>
+<text x="40" y="86" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#526675" text-anchor="start">Dino’s phone hotspot provides the local Wi-Fi for all three devices</text>
+<rect x="445" y="130" width="490" height="145" rx="9" fill="#e0f2ec" stroke="#8dcbb3" stroke-width="2"/>
+<text x="690" y="184" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#142b3a" text-anchor="middle">Dino’s phone</text>
+<text x="690" y="221" font-family="Arial, sans-serif" font-size="20" font-weight="400" fill="#142b3a" text-anchor="middle">Wi-Fi hotspot</text>
+<text x="690" y="252" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="middle">iPhone: enable Maximize Compatibility</text>
+<line x1="690" y1="275" x2="690" y2="350" stroke="#168561" stroke-width="5"/>
+<line x1="235" y1="350" x2="1145" y2="350" stroke="#168561" stroke-width="5"/>
+<line x1="235" y1="350" x2="235" y2="405" stroke="#168561" stroke-width="5"/>
+<circle cx="235" cy="350" r="6" fill="#168561" stroke="none" stroke-width="1"/>
+<line x1="690" y1="350" x2="690" y2="405" stroke="#168561" stroke-width="5"/>
+<circle cx="690" cy="350" r="6" fill="#168561" stroke="none" stroke-width="1"/>
+<line x1="1145" y1="350" x2="1145" y2="405" stroke="#168561" stroke-width="5"/>
+<circle cx="1145" cy="350" r="6" fill="#168561" stroke="none" stroke-width="1"/>
+<rect x="55" y="405" width="360" height="220" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="235" y="451" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#142b3a" text-anchor="middle">Pixel bodycam</text>
+<text x="235" y="493" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Connect to hotspot Wi-Fi</text>
+<text x="235" y="530" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Chrome web page</text>
+<text x="235" y="567" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Open Mac phone test page :8000</text>
+<rect x="510" y="405" width="360" height="220" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="690" y="451" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#142b3a" text-anchor="middle">Raspberry Pi relay</text>
+<text x="690" y="493" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Connect to hotspot Wi-Fi</text>
+<text x="690" y="530" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">hostname: handoff-relay</text>
+<text x="690" y="567" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">handoff-relay.local</text>
+<rect x="965" y="405" width="360" height="220" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="1145" y="451" font-family="Arial, sans-serif" font-size="21" font-weight="700" fill="#142b3a" text-anchor="middle">MacBook</text>
+<text x="1145" y="493" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Connect to hotspot Wi-Fi</text>
+<text x="1145" y="530" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Receiver: port 8765</text>
+<text x="1145" y="567" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#142b3a" text-anchor="middle">Phone test page: port 8000</text>
+<text x="690" y="693" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#526675" text-anchor="middle">Local network • same hotspot for every device</text>
+<text x="690" y="729" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="middle">The phone test page is served by the Mac; use the Mac’s reachable hotspot address.</text>
+</svg>

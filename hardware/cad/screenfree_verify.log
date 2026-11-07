@@ -1,0 +1,108 @@
+PASS p1_rear_front_frame [158.4, 103.8, 15.62]
+PASS p1_rear_back_plate [158.4, 100.8, 21.3]
+PASS p1_rear_fit_ring [158.4, 77.6, 2.0]
+PASS p1_front_front_frame [158.4, 103.8, 19.22]
+PASS p1_front_back_plate [158.4, 100.8, 21.3]
+PASS p1_front_fit_ring [158.4, 77.6, 2.0]
+PASS p1_mount_test [32.0, 34.0, 21.5]
+PASS p2_base [170.0, 78.0, 42.4]
+PASS p2_lid [158.0, 78.0, 5.4]
+PASS p3_tray [32.9, 53.4, 2.2]
+PASS p3_hood [32.9, 22.35, 53.4]
+PASS p3_joint_clips [52.0, 7.5, 4.4]
+PASS snap_coupon [82.0, 56.0, 13.7]
+PASS p1_rear_ring_phone empty
+PASS p1_rear_worn_buckle empty
+PASS p1_rear_frame_phone empty
+PASS p1_rear_back_phone empty
+PASS p1_rear_frame_back empty
+PASS p1_front_ring_phone empty
+PASS p1_front_worn_buckle empty
+PASS p1_front_frame_phone empty
+PASS p1_front_back_phone empty
+/Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/.venv/lib/python3.14/site-packages/trimesh/triangles.py:302: RuntimeWarning: invalid value encountered in divide
+  center_mass = integrated[1:4] / volume
+PASS p1_front_frame_back 0.0
+PASS p2_base_pi 0.0
+PASS p2_base_shim empty
+PASS p2_base_button empty
+PASS p2_base_bread 0.0
+PASS p2_base_usb_plug empty
+/Users/alantai/Documents/Hackathons/HackUTD-2026/hardware/cad/.venv/lib/python3.14/site-packages/trimesh/triangles.py:302: RuntimeWarning: divide by zero encountered in divide
+  center_mass = integrated[1:4] / volume
+PASS p2_base_finger_route empty
+PASS p2_lid_pi empty
+PASS p2_lid_shim empty
+PASS p2_lid_button 0.0
+PASS p2_lid_bread empty
+PASS p2_lid_usb_plug empty
+PASS p2_lid_finger_route empty
+PASS p2_base_lid 0.0
+PASS p2_pi_button empty
+PASS p2_bread_button empty
+PASS p2_base_bank empty
+PASS p2_bank_straps_base empty
+PASS p2_bank_straps_bank empty
+PASS p2_bank_straps_pi empty
+PASS p2_bank_straps_bread empty
+PASS p2_flat_bottom_base empty
+PASS p3_strap_tray 0.0
+PASS p3_strap_hood empty
+PASS p3_strap_board empty
+PASS p3_finger_cradle 0.0
+PASS p3_tray_board 0.0
+PASS p3_hood_board 0.0
+PASS p3_tray_hood 0.0
+PASS p3_clips_tray empty
+PASS p3_clips_hood empty
+PASS p3_clips_board empty
+PASS p3_clips_strap empty
+PASS p3_clips_finger empty
+PASS p2_pi_clips_pi empty
+PASS p2_pi_clips_shim empty
+PASS p2_pi_clips_bread empty
+PASS p2_pi_clips_usb_plug empty
+PASS p1_rear_latch_shoulders 0.0
+PASS p1_rear_phone_insertion_15 empty
+PASS p1_rear_phone_insertion_5 empty
+PASS p1_front_latch_shoulders 0.0
+PASS p1_front_phone_insertion_15 empty
+PASS p1_front_phone_insertion_5 empty
+PASS engagement_p1_rear_withdrawal 2.268006
+PASS engagement_p1_rear_normal_load 272.218082
+PASS engagement_p1_front_withdrawal 2.268007
+PASS engagement_p1_front_normal_load 272.218129
+PASS engagement_p2_lid 19.712035
+PASS engagement_pi_hold_down 2.084507
+PASS engagement_p3_clips_withdrawal 5.235996
+PASS engagement_p3_clamp 61.214963
+PASS clearance_pi_lid_ge3p0 empty
+PASS clearance_button_pi_ge3p0 empty
+PASS clearance_button_bread_ge4p9 empty
+PASS optional_oled_base_oled empty
+PASS optional_oled_lid_oled 0.0
+PASS optional_oled_pi_oled empty
+PASS optional_oled_shim_oled empty
+PASS optional_oled_pi_lid_3mm empty
+PASS optional_oled_pi_3p8 empty
+PASS screen_free_full_skin empty
+PASS screen_free_no_pads_guides empty
+PASS finger_route_pi empty
+PASS finger_route_shim empty
+PASS finger_route_bread empty
+PASS finger_route_button empty
+PASS finger_route_pi_clips empty
+PASS finger_route_lid_beams empty
+PASS finger_route_lid_3mm empty
+PASS straight_usb_max_base empty
+PASS straight_usb_max_pi empty
+PASS straight_usb_max_lid empty
+PASS tolerance_0.2_p1_rear empty
+PASS tolerance_0.2_p1_front 0.0
+PASS tolerance_0.2_p2 0.0
+PASS tolerance_0.2_p3 empty
+PASS tolerance_0.4_p1_rear empty
+PASS tolerance_0.4_p1_front 0.0
+PASS tolerance_0.4_p2 0.0
+PASS tolerance_0.4_p3 empty
+ALL CHECKS PASSED

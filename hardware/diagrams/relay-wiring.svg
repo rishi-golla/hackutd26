@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1660" height="1200" viewBox="0 0 1660 1200">
+<rect width="100%" height="100%" fill="#f8faf9"/>
+<text x="40" y="54" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#142b3a" text-anchor="start">Relay wiring</text>
+<text x="40" y="86" font-family="Arial, sans-serif" font-size="16" font-weight="400" fill="#526675" text-anchor="start">Physical header pin numbers • functional wiring • see breadboard layout for exact holes</text>
+<rect x="35" y="112" width="430" height="944" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="55" y="146" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#142b3a" text-anchor="start">Raspberry Pi 4 • 40-pin header</text>
+<rect x="57" y="159" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="175" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="182" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 1  3.3V</text>
+<rect x="252" y="159" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="268" cy="175" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="281" y="182" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 2  5V</text>
+<rect x="57" y="197" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="213" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="220" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 3  GPIO2 / SDA</text>
+<rect x="252" y="197" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="268" cy="213" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="281" y="220" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 4  5V</text>
+<rect x="57" y="235" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="251" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="258" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 5  GPIO3 / SCL</text>
+<rect x="252" y="235" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="268" cy="251" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="281" y="258" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 6  GND</text>
+<circle cx="73" cy="289" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="296" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start"> 7  GPIO4</text>
+<circle cx="268" cy="289" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="296" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start"> 8  GPIO14</text>
+<rect x="57" y="311" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="327" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="334" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start"> 9  GND</text>
+<circle cx="268" cy="327" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="334" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">10  GPIO15</text>
+<rect x="57" y="349" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="365" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="372" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start">11  GPIO17</text>
+<circle cx="268" cy="365" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="372" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">12  GPIO18</text>
+<circle cx="73" cy="403" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="410" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">13  GPIO27</text>
+<circle cx="268" cy="403" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="410" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">14  GND</text>
+<rect x="57" y="425" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="441" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="448" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start">15  GPIO22</text>
+<rect x="252" y="425" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="268" cy="441" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="281" y="448" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start">16  GPIO23</text>
+<rect x="57" y="463" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="73" cy="479" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="86" y="486" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start">17  3.3V</text>
+<rect x="252" y="463" width="174" height="32" rx="5" fill="#e2f3ed" stroke="#b1d9cb" stroke-width="1"/>
+<circle cx="268" cy="479" r="5" fill="#168561" stroke="none" stroke-width="1"/>
+<text x="281" y="486" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#142b3a" text-anchor="start">18  GPIO24</text>
+<circle cx="73" cy="517" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="524" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">19  GPIO10</text>
+<circle cx="268" cy="517" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="524" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">20  GND</text>
+<circle cx="73" cy="555" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="562" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">21  GPIO9</text>
+<circle cx="268" cy="555" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="562" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">22  GPIO25</text>
+<circle cx="73" cy="593" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="600" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">23  GPIO11</text>
+<circle cx="268" cy="593" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="600" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">24  GPIO8</text>
+<circle cx="73" cy="631" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="638" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">25  GND</text>
+<circle cx="268" cy="631" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="638" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">26  GPIO7</text>
+<circle cx="73" cy="669" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="676" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">27  GPIO0</text>
+<circle cx="268" cy="669" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="676" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">28  GPIO1</text>
+<circle cx="73" cy="707" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="714" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">29  GPIO5</text>
+<circle cx="268" cy="707" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="714" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">30  GND</text>
+<circle cx="73" cy="745" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="752" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">31  GPIO6</text>
+<circle cx="268" cy="745" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="752" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">32  GPIO12</text>
+<circle cx="73" cy="783" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="790" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">33  GPIO13</text>
+<circle cx="268" cy="783" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="790" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">34  GND</text>
+<circle cx="73" cy="821" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="828" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">35  GPIO19</text>
+<circle cx="268" cy="821" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="828" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">36  GPIO16</text>
+<circle cx="73" cy="859" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="866" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">37  GPIO26</text>
+<circle cx="268" cy="859" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="866" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">38  GPIO20</text>
+<circle cx="73" cy="897" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="86" y="904" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">39  GND</text>
+<circle cx="268" cy="897" r="5" fill="#9ba9ad" stroke="none" stroke-width="1"/>
+<text x="281" y="904" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="start">40  GPIO21</text>
+<text x="55" y="1004" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">Green = occupied by SHIM or used connection</text>
+<text x="55" y="1028" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">Pins 1–6 are covered by the SHIM.</text>
+<rect x="505" y="112" width="1115" height="234" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="525" y="147" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#142b3a" text-anchor="start">I²C / Qwiic chain</text>
+<rect x="530" y="175" width="270" height="125" rx="9" fill="#f5f8f7" stroke="#c9d7d8" stroke-width="2"/>
+<text x="545" y="201" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#142b3a" text-anchor="start">Qwiic SHIM</text>
+<text x="545" y="228" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">On header pins 1–6</text>
+<text x="545" y="251" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">square pad → pin 1</text>
+<text x="545" y="274" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">5 V input; onboard 3.3 V</text>
+<rect x="1220" y="175" width="360" height="125" rx="9" fill="#f5f8f7" stroke="#c9d7d8" stroke-width="2"/>
+<text x="1235" y="201" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#142b3a" text-anchor="start">MAX30101</text>
+<text x="1235" y="228" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">Either Qwiic port</text>
+<text x="1235" y="251" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#526675" text-anchor="start">in finger clip</text>
+<line x1="800" y1="208" x2="1220" y2="208" stroke="#222222" stroke-width="5"/>
+<line x1="800" y1="221" x2="1220" y2="221" stroke="#df3e36" stroke-width="5"/>
+<line x1="800" y1="234" x2="1220" y2="234" stroke="#3082bd" stroke-width="5"/>
+<line x1="800" y1="247" x2="1220" y2="247" stroke="#e4b92b" stroke-width="5"/>
+<text x="1010" y="290" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="middle">500 mm direct cable</text>
+<rect x="505" y="370" width="1115" height="484" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="525" y="405" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#142b3a" text-anchor="start">HBAN button → breadboard → Pi</text>
+<text x="525" y="435" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="start">Common-anode RGB ring; the switch uses the internal pull-up.</text>
+<text x="525" y="479" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="start">BUTTON LEAD</text>
+<text x="880" y="479" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="start">170-POINT MINI BREADBOARD</text>
+<text x="1310" y="479" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#526675" text-anchor="start">PI PHYSICAL PIN</text>
+<text x="535" y="519" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">Switch 1</text>
+<line x1="690" y1="514" x2="897" y2="514" stroke="#526675" stroke-width="3"/>
+<rect x="902" y="496" width="126" height="35" rx="5" fill="#f2f6f5" stroke="#b9cac8" stroke-width="1"/>
+<text x="965" y="519" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="middle">junction</text>
+<line x1="1028" y1="514" x2="1280" y2="514" stroke="#526675" stroke-width="3"/>
+<text x="1310" y="519" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">11  GPIO17</text>
+<text x="535" y="570" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">Switch 2</text>
+<line x1="690" y1="565" x2="897" y2="565" stroke="#526675" stroke-width="3"/>
+<rect x="902" y="547" width="126" height="35" rx="5" fill="#f2f6f5" stroke="#b9cac8" stroke-width="1"/>
+<text x="965" y="570" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="middle">junction</text>
+<line x1="1028" y1="565" x2="1280" y2="565" stroke="#526675" stroke-width="3"/>
+<text x="1310" y="570" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">9  GND</text>
+<text x="535" y="621" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">Ring common (+)</text>
+<line x1="690" y1="616" x2="897" y2="616" stroke="#526675" stroke-width="3"/>
+<rect x="902" y="598" width="126" height="35" rx="5" fill="#f2f6f5" stroke="#b9cac8" stroke-width="1"/>
+<text x="965" y="621" font-family="Arial, sans-serif" font-size="14" font-weight="400" fill="#142b3a" text-anchor="middle">junction</text>
+<line x1="1028" y1="616" x2="1280" y2="616" stroke="#526675" stroke-width="3"/>
+<text x="1310" y="621" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">17  3.3 V</text>
+<text x="535" y="672" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">Red cathode</text>
+<line x1="690" y1="667" x2="897" y2="667" stroke="#c63939" stroke-width="3"/>
+<rect x="902" y="649" width="126" height="35" rx="5" fill="#fff4de" stroke="#e2be76" stroke-width="1"/>
+<text x="965" y="672" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#142b3a" text-anchor="middle">220 Ω</text>
+<line x1="1028" y1="667" x2="1280" y2="667" stroke="#c63939" stroke-width="3"/>
+<text x="1310" y="672" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">15  GPIO22</text>
+<text x="535" y="723" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">Green cathode</text>
+<line x1="690" y1="718" x2="897" y2="718" stroke="#168561" stroke-width="3"/>
+<rect x="902" y="700" width="126" height="35" rx="5" fill="#fff4de" stroke="#e2be76" stroke-width="1"/>
+<text x="965" y="723" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#142b3a" text-anchor="middle">220 Ω</text>
+<line x1="1028" y1="718" x2="1280" y2="718" stroke="#168561" stroke-width="3"/>
+<text x="1310" y="723" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">16  GPIO23</text>
+<text x="535" y="774" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">Blue cathode</text>
+<line x1="690" y1="769" x2="897" y2="769" stroke="#237db4" stroke-width="3"/>
+<rect x="902" y="751" width="126" height="35" rx="5" fill="#fff4de" stroke="#e2be76" stroke-width="1"/>
+<text x="965" y="774" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#142b3a" text-anchor="middle">220 Ω</text>
+<line x1="1028" y1="769" x2="1280" y2="769" stroke="#237db4" stroke-width="3"/>
+<text x="1310" y="774" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#142b3a" text-anchor="start">18  GPIO24</text>
+<text x="525" y="824" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#9a4d20" text-anchor="start">R / G / B are SIGNAL colors here. Button wire insulation colors are not documented; identify each lead.</text>
+<rect x="505" y="882" width="1115" height="174" rx="9" fill="white" stroke="#c9d7d8" stroke-width="2"/>
+<text x="525" y="915" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#142b3a" text-anchor="start">Legend and operating notes</text>
+<line x1="530" y1="945" x2="565" y2="945" stroke="#222222" stroke-width="5"/>
+<text x="575" y="950" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Black: GND</text>
+<line x1="730" y1="945" x2="765" y2="945" stroke="#df3e36" stroke-width="5"/>
+<text x="775" y="950" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Red: 3.3 V</text>
+<line x1="945" y1="945" x2="980" y2="945" stroke="#3082bd" stroke-width="5"/>
+<text x="990" y="950" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Blue: SDA</text>
+<line x1="1155" y1="945" x2="1190" y2="945" stroke="#e4b92b" stroke-width="5"/>
+<text x="1200" y="950" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#142b3a" text-anchor="start">Yellow: SCL</text>
+<text x="525" y="987" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="start">Qwiic colors above identify the single SHIM-to-finger cable. RGB ring cathodes are active LOW.</text>
+<text x="525" y="1015" font-family="Arial, sans-serif" font-size="15" font-weight="400" fill="#526675" text-anchor="start">Each LED cathode needs its own 220 Ω resistor. Pressed switch connects GPIO17 to GND.</text>
+</svg>

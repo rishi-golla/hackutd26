@@ -1,0 +1,1374 @@
+{
+  "parts": [
+    {
+      "name": "p1_rear_front_frame",
+      "file": "checks_snap_v2/stl/p1_rear_front_frame.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.4,
+        103.6,
+        15.62
+      ],
+      "bounds_mm": [
+        [
+          -79.2,
+          -51.8,
+          0.0
+        ],
+        [
+          79.2,
+          51.8,
+          15.62
+        ]
+      ],
+      "volume_mm3": 40825.94,
+      "triangles": 4084,
+      "passed": true
+    },
+    {
+      "name": "p1_rear_back_plate",
+      "file": "checks_snap_v2/stl/p1_rear_back_plate.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.4,
+        101.4,
+        21.3
+      ],
+      "bounds_mm": [
+        [
+          -79.2,
+          -50.7,
+          0.0
+        ],
+        [
+          79.2,
+          50.7,
+          21.3
+        ]
+      ],
+      "volume_mm3": 26659.88,
+      "triangles": 1752,
+      "passed": true
+    },
+    {
+      "name": "p1_rear_fit_ring",
+      "file": "checks_snap_v2/stl/p1_rear_fit_ring.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.4,
+        77.6,
+        2.0
+      ],
+      "bounds_mm": [
+        [
+          -79.2,
+          -38.8,
+          0.0
+        ],
+        [
+          79.2,
+          38.8,
+          2.0
+        ]
+      ],
+      "volume_mm3": 2511.69,
+      "triangles": 962,
+      "passed": true
+    },
+    {
+      "name": "p1_front_front_frame",
+      "file": "checks_snap_v2/stl/p1_front_front_frame.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.4,
+        103.6,
+        19.22
+      ],
+      "bounds_mm": [
+        [
+          -79.2,
+          -51.8,
+          0.0
+        ],
+        [
+          79.2,
+          51.8,
+          19.22
+        ]
+      ],
+      "volume_mm3": 29254.45,
+      "triangles": 2332,
+      "passed": true
+    },
+    {
+      "name": "p1_front_back_plate",
+      "file": "checks_snap_v2/stl/p1_front_back_plate.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.4,
+        101.4,
+        21.3
+      ],
+      "bounds_mm": [
+        [
+          -79.2,
+          -50.7,
+          0.0
+        ],
+        [
+          79.2,
+          50.7,
+          21.3
+        ]
+      ],
+      "volume_mm3": 26659.88,
+      "triangles": 1752,
+      "passed": true
+    },
+    {
+      "name": "p1_front_fit_ring",
+      "file": "checks_snap_v2/stl/p1_front_fit_ring.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.4,
+        77.6,
+        2.0
+      ],
+      "bounds_mm": [
+        [
+          -79.2,
+          -38.8,
+          0.0
+        ],
+        [
+          79.2,
+          38.8,
+          2.0
+        ]
+      ],
+      "volume_mm3": 2127.51,
+      "triangles": 544,
+      "passed": true
+    },
+    {
+      "name": "p1_mount_test",
+      "file": "checks_snap_v2/stl/p1_mount_test.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        32.0,
+        34.0,
+        21.5
+      ],
+      "bounds_mm": [
+        [
+          -16.0,
+          -17.0,
+          0.0
+        ],
+        [
+          16.0,
+          17.0,
+          21.5
+        ]
+      ],
+      "volume_mm3": 4896.73,
+      "triangles": 1228,
+      "passed": true
+    },
+    {
+      "name": "p2_base",
+      "file": "checks_snap_v2/stl/p2_base.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        170.0,
+        78.0,
+        45.3
+      ],
+      "bounds_mm": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          170.0,
+          78.0,
+          45.3
+        ]
+      ],
+      "volume_mm3": 79544.33,
+      "triangles": 6904,
+      "passed": true
+    },
+    {
+      "name": "p2_lid",
+      "file": "checks_snap_v2/stl/p2_lid.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        158.0,
+        78.0,
+        6.4
+      ],
+      "bounds_mm": [
+        [
+          0.0,
+          -78.0,
+          0.0
+        ],
+        [
+          158.0,
+          0.0,
+          6.4
+        ]
+      ],
+      "volume_mm3": 26125.91,
+      "triangles": 6842,
+      "passed": true
+    },
+    {
+      "name": "p3_tray",
+      "file": "checks_snap_v2/stl/p3_tray.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        32.9,
+        53.4,
+        2.2
+      ],
+      "bounds_mm": [
+        [
+          -3.75,
+          -13.0,
+          0.0
+        ],
+        [
+          29.15,
+          40.4,
+          2.2
+        ]
+      ],
+      "volume_mm3": 3034.24,
+      "triangles": 390,
+      "passed": true
+    },
+    {
+      "name": "p3_hood",
+      "file": "checks_snap_v2/stl/p3_hood.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 1,
+      "dimensions_mm": [
+        32.9,
+        22.35,
+        53.4
+      ],
+      "bounds_mm": [
+        [
+          -3.75,
+          0.0,
+          0.0
+        ],
+        [
+          29.15,
+          22.35,
+          53.4
+        ]
+      ],
+      "volume_mm3": 12622.23,
+      "triangles": 854,
+      "passed": true
+    },
+    {
+      "name": "p3_joint_clips",
+      "file": "checks_snap_v2/stl/p3_joint_clips.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 2,
+      "dimensions_mm": [
+        52.0,
+        8.3,
+        4.4
+      ],
+      "bounds_mm": [
+        [
+          0.0,
+          -5.85,
+          0.0
+        ],
+        [
+          52.0,
+          2.45,
+          4.4
+        ]
+      ],
+      "volume_mm3": 1045.42,
+      "triangles": 376,
+      "passed": true
+    },
+    {
+      "name": "snap_coupon",
+      "file": "checks_snap_v2/stl/snap_coupon.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 8,
+      "dimensions_mm": [
+        82.0,
+        58.0,
+        16.5
+      ],
+      "bounds_mm": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          82.0,
+          58.0,
+          16.5
+        ]
+      ],
+      "volume_mm3": 5383.21,
+      "triangles": 2158,
+      "passed": true
+    }
+  ],
+  "intersections": [
+    {
+      "name": "p1_rear_ring_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_worn_buckle",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_frame_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_back_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_frame_back",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_ring_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_worn_buckle",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_frame_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_back_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_frame_back",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p2_base_pi",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p2_base_shim",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_base_button",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_base_bread",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p2_base_usb_plug",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_base_finger_route",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_lid_pi",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_lid_shim",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_lid_button",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p2_lid_bread",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_lid_usb_plug",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_lid_finger_route",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_base_lid",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 4.608008,
+      "log": "Geometries in cache: 205\nGeometry cache size in bytes: 1378616\nCGAL Polyhedrons in cache: 62\nCGAL cache size in bytes: 8894000\nTotal rendering time: 0:00:00.067\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -25\n   Vertices:      124\n   Facets:        144\n"
+    },
+    {
+      "name": "p2_pi_button",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_bread_button",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_base_bank",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_bank_straps_base",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_bank_straps_bank",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_bank_straps_pi",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_bank_straps_bread",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_flat_bottom_base",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p3_strap_tray",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p3_strap_hood",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p3_strap_board",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p3_finger_cradle",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p3_tray_board",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p3_hood_board",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p3_tray_hood",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "p3_clips_tray",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 23.049416,
+      "log": "Geometries in cache: 53\nGeometry cache size in bytes: 117088\nCGAL Polyhedrons in cache: 19\nCGAL cache size in bytes: 481500\nTotal rendering time: 0:00:00.004\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -1\n   Vertices:       28\n   Facets:         48\n"
+    },
+    {
+      "name": "p3_clips_hood",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 28.264077,
+      "log": "Geometries in cache: 83\nGeometry cache size in bytes: 183352\nCGAL Polyhedrons in cache: 30\nCGAL cache size in bytes: 1032500\nTotal rendering time: 0:00:00.010\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -1\n   Vertices:       40\n   Facets:         72\n"
+    },
+    {
+      "name": "p3_clips_board",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p3_clips_strap",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p3_clips_finger",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_pi_clips_pi",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_pi_clips_shim",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_pi_clips_bread",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p2_pi_clips_usb_plug",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_latch_shoulders",
+      "operation": "difference",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_phone_insertion_15",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_rear_phone_insertion_5",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_latch_shoulders",
+      "operation": "difference",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_phone_insertion_15",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "p1_front_phone_insertion_5",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "engagement_p1_rear_withdrawal",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 3.743994
+    },
+    {
+      "name": "engagement_p1_rear_normal_load",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 339.891858
+    },
+    {
+      "name": "engagement_p1_front_withdrawal",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 3.743995
+    },
+    {
+      "name": "engagement_p1_front_normal_load",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 339.891873
+    },
+    {
+      "name": "engagement_p2_lid",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 34.559988
+    },
+    {
+      "name": "engagement_pi_hold_down",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 12.630543
+    },
+    {
+      "name": "engagement_p3_clips_withdrawal",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 57.970285
+    },
+    {
+      "name": "engagement_p3_clamp",
+      "operation": "engagement",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 95.030041
+    },
+    {
+      "name": "clearance_pi_lid_ge3p0",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "clearance_button_pi_ge3p0",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "clearance_button_bread_ge4p9",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "optional_oled_base_oled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "optional_oled_lid_oled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "optional_oled_pi_oled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "optional_oled_shim_oled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "optional_oled_pi_lid_3mm",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "optional_oled_pi_3p8",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "screen_free_full_skin",
+      "operation": "difference",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "screen_free_no_pads_guides",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_pi",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_shim",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_bread",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_button",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_pi_clips",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_lid_beams",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "finger_route_lid_3mm",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "straight_usb_max_base",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "straight_usb_max_pi",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "straight_usb_max_lid",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "tolerance_0.2_p1_rear",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "tolerance_0.2_p1_front",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "tolerance_0.2_p2",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 4.608008,
+      "log": "Geometries in cache: 205\nGeometry cache size in bytes: 1378616\nCGAL Polyhedrons in cache: 62\nCGAL cache size in bytes: 8894000\nTotal rendering time: 0:00:00.058\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -25\n   Vertices:      124\n   Facets:        144\n"
+    },
+    {
+      "name": "tolerance_0.2_p3",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 51.313493,
+      "log": "Geometries in cache: 104\nGeometry cache size in bytes: 243616\nCGAL Polyhedrons in cache: 38\nCGAL cache size in bytes: 1407250\nTotal rendering time: 0:00:00.012\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -1\n   Vertices:       54\n   Facets:        100\n"
+    },
+    {
+      "name": "tolerance_0.4_p1_rear",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "tolerance_0.4_p1_front",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "tolerance_0.4_p2",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 2.303981,
+      "log": "Geometries in cache: 205\nGeometry cache size in bytes: 1378616\nCGAL Polyhedrons in cache: 62\nCGAL cache size in bytes: 8899750\nTotal rendering time: 0:00:00.056\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -25\n   Vertices:      124\n   Facets:        144\n"
+    },
+    {
+      "name": "tolerance_0.4_p3",
+      "operation": "intersection",
+      "passed": false,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 50.298184,
+      "log": "Geometries in cache: 104\nGeometry cache size in bytes: 243616\nCGAL Polyhedrons in cache: 38\nCGAL cache size in bytes: 1420000\nTotal rendering time: 0:00:00.013\n   Top level object is a 3D object (manifold):\n   Status:     NoError\n   Genus:      -1\n   Vertices:       57\n   Facets:        106\n"
+    },
+    {
+      "name": "backup_p1_rear_frame_assembled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "backup_p1_rear_back_assembled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "backup_p1_rear_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "backup_p1_rear_backup_access",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "backup_p1_front_frame_assembled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "backup_p1_front_back_assembled",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 1e-06,
+      "contact_only": true
+    },
+    {
+      "name": "backup_p1_front_phone",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "backup_p1_front_backup_access",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "backup_p2_base",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "backup_p2_lid",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 0,
+      "empty": false,
+      "overlap_mm3": 0.0,
+      "contact_only": true
+    },
+    {
+      "name": "backup_p2_bank",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "backup_p2_backup_access",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_pi_pi_components",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_pi_lid",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_pi_pi_clips",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_pi_bread",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_pi_finger_route",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_pi_components_2mm",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_p3_board",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_p3_clips",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_p3_strap",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    },
+    {
+      "name": "glue_p3_finger",
+      "operation": "intersection",
+      "passed": true,
+      "returncode": 1,
+      "empty": true
+    }
+  ],
+  "joint_metrics": [
+    {
+      "name": "P1 squeeze latch",
+      "thickness_mm": 2,
+      "deflection_mm": 1.45,
+      "length_mm": 21.8,
+      "engagement_mm": 1.3,
+      "nominal_strain_pct": 0.915,
+      "limit_pct": 1.5,
+      "passed": true
+    },
+    {
+      "name": "P2 lid paddle",
+      "thickness_mm": 1.6,
+      "deflection_mm": 2.95,
+      "length_mm": 22.8,
+      "engagement_mm": 2.8,
+      "nominal_strain_pct": 1.362,
+      "limit_pct": 1.5,
+      "passed": true
+    },
+    {
+      "name": "Pi edge clip",
+      "thickness_mm": 1.2,
+      "deflection_mm": 1.15,
+      "length_mm": 12.1,
+      "engagement_mm": 1,
+      "nominal_strain_pct": 1.414,
+      "limit_pct": 1.5,
+      "passed": true
+    },
+    {
+      "name": "P3 J spring clip",
+      "thickness_mm": 1.6,
+      "deflection_mm": 1.5,
+      "length_mm": 16.5,
+      "engagement_mm": 1.35,
+      "nominal_strain_pct": 1.322,
+      "limit_pct": 1.5,
+      "passed": true
+    }
+  ],
+  "regressions": [
+    {
+      "name": "legacy_oled_lid_without_new_backup_guides_matches_archive",
+      "vertex_delta_mm": 0.0,
+      "volume_delta_mm3": 0.0,
+      "passed": true
+    }
+  ],
+  "fit_metrics": [
+    {
+      "name": "straight_15x10_min_gap",
+      "value_mm": 1.2,
+      "minimum_mm": 1.19,
+      "passed": true
+    },
+    {
+      "name": "straight_17x12_min_gap",
+      "value_mm": 0.2,
+      "minimum_mm": 0.19,
+      "passed": true
+    },
+    {
+      "name": "finger_loop_spare_length",
+      "value_mm": 7.0545,
+      "minimum_mm": 3,
+      "passed": true
+    },
+    {
+      "name": "finger_cable_to_flat_lid",
+      "value_mm": 7.5,
+      "minimum_mm": 3,
+      "passed": true
+    },
+    {
+      "name": "strap_width_clearance",
+      "value_mm": 0.4,
+      "minimum_mm": 0.39,
+      "passed": true
+    },
+    {
+      "name": "relay_strap_thickness_clearance",
+      "value_mm": 1.6,
+      "minimum_mm": 1.59,
+      "passed": true
+    }
+  ],
+  "coupon_ladder": [
+    {
+      "name": "snap_coupon_v2_c020",
+      "file": "checks_snap_v2/stl/coupons/snap_coupon_v2_c020.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 8,
+      "dimensions_mm": [
+        97.6,
+        58.0,
+        16.5
+      ],
+      "bounds_mm": [
+        [
+          -7.8,
+          0.0,
+          0.0
+        ],
+        [
+          89.8,
+          58.0,
+          16.5
+        ]
+      ],
+      "volume_mm3": 5573.46,
+      "triangles": 7648,
+      "passed": true
+    },
+    {
+      "name": "snap_coupon_v2_c015",
+      "file": "checks_snap_v2/stl/coupons/snap_coupon_v2_c015.stl",
+      "returncode": 0,
+      "watertight": true,
+      "winding_consistent": true,
+      "positive_volume": true,
+      "components": 8,
+      "dimensions_mm": [
+        97.6,
+        58.0,
+        16.425
+      ],
+      "bounds_mm": [
+        [
+          -7.8,
+          0.0,
+          0.0
+        ],
+        [
+          89.8,
+          58.0,
+          16.425
+        ]
+      ],
+      "volume_mm3": 5558.46,
+      "triangles": 4548,
+      "passed": true
+    }
+  ],
+  "passed": false
+}

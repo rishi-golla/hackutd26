@@ -1,0 +1,916 @@
+<title>Handoff Build Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field manual. Sticky stage rail, one section per build stage, every stage ends in a checkpoint box. Graphite + signal red to match the printed parts. */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --sunk: #f5f7f9;
+  --plate: #ffffff;
+  --ink: #12171c;
+  --muted: #56616c;
+  --line: #d6dde4;
+  --accent: #c8371f;
+  --accent-soft: #fbe6e1;
+  --ok: #18784f;
+  --ok-soft: #dcf1e7;
+  --warn: #9a5b00;
+  --warn-soft: #fbf0d9;
+  --code-bg: #1b2229;
+  --code-ink: #e6edf3;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1215; --surface: #161c21; --sunk: #12171b; --plate: #f3f5f7; --ink: #e7ecf0; --muted: #9ba7b2; --line: #2a333b;
+    --accent: #ff6d55; --accent-soft: #3a1d18; --ok: #46c48c; --ok-soft: #12301f; --warn: #f0b45a; --warn-soft: #33270f;
+    --code-bg: #0b0f12; --code-ink: #e6edf3; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1215; --surface: #161c21; --sunk: #12171b; --plate: #f3f5f7; --ink: #e7ecf0; --muted: #9ba7b2; --line: #2a333b;
+  --accent: #ff6d55; --accent-soft: #3a1d18; --ok: #46c48c; --ok-soft: #12301f; --warn: #f0b45a; --warn-soft: #33270f;
+  --code-bg: #0b0f12; --code-ink: #e6edf3; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font-body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 18px; padding-block: 0 80px; }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: .01em; line-height: 1.1; }
+h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 700; }
+h2 { font-size: clamp(1.8rem, 4vw, 2.3rem); font-weight: 700; }
+h3 { font-size: 1.45rem; font-weight: 600; margin-top: 8px; }
+h4 { font-size: 1.15rem; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--accent); }
+.prose { max-width: 68ch; display: grid; gap: 10px; }
+.muted { color: var(--muted); }
+.mono, code { font-family: var(--font-mono); font-size: .92em; }
+p code, li code, td code { background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+
+/* stage rail */
+.rail { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.rail .inner { max-width: 1040px; margin: 0 auto; padding-inline: 18px; display: flex; gap: 6px; overflow-x: auto; padding-block: 8px; scrollbar-width: thin; }
+.rail a { flex: none; text-decoration: none; color: var(--muted); font: 600 .95rem var(--font-display); letter-spacing: .04em; text-transform: uppercase; padding: 5px 10px; border-radius: 6px; border: 1px solid transparent; }
+.rail a:hover, .rail a:focus-visible { color: var(--ink); border-color: var(--line); background: var(--surface); outline: none; }
+.rail a.on { color: var(--accent); border-color: var(--accent); background: var(--surface); }
+
+header.top { display: grid; gap: 14px; padding-block: 34px 10px; }
+.eyebrow { font: 600 .9rem var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.hero { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); margin-top: 14px; }
+.hero img { display: block; width: 100%; height: auto; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 16px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; }
+.fact .k { font: 600 .82rem var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fact .v { font: 600 1.35rem var(--font-display); }
+
+section.stage { margin-top: 56px; display: grid; gap: 18px; scroll-margin-top: 64px; }
+.stage-head { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 2px solid var(--ink); }
+.stage-head .num { font: 700 1rem var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.stage-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: .92rem; }
+.stage-meta span::before { content: "■ "; color: var(--accent); font-size: .7em; vertical-align: 2px; }
+
+/* callouts */
+.note, .warn, .check, .rules { border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; border: 1px solid var(--line); background: var(--surface); }
+.warn { border-color: var(--accent); background: var(--accent-soft); }
+.warn .tag, .check .tag, .note .tag, .rules .tag { font: 700 .85rem var(--font-display); letter-spacing: .1em; text-transform: uppercase; }
+.warn .tag { color: var(--accent); }
+.rules { border-color: var(--warn); background: var(--warn-soft); }
+.rules .tag { color: var(--warn); }
+.note .tag { color: var(--muted); }
+.check { border: 2px solid var(--ok); background: var(--surface); }
+.check .tag { color: var(--ok); display: flex; gap: 8px; align-items: center; }
+.check .tag::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--ok); display: inline-block; }
+
+/* steps */
+ol.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 14px; }
+ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+ol.steps > li::before { content: counter(step); width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: var(--surface); display: grid; place-items: center; font: 600 .95rem var(--font-display); margin-top: 1px; }
+ol.steps > li > div { min-width: 0; display: grid; gap: 8px; }
+ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+
+/* figures */
+figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+figure .frame { background: var(--plate); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: block; }
+figure img { display: block; width: 100%; height: auto; }
+figcaption { font-size: .86rem; color: var(--muted); }
+.figs { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.figs.three { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.concept { font: 600 .72rem var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--warn); }
+
+/* code */
+.code { position: relative; background: var(--code-bg); color: var(--code-ink); border-radius: 8px; min-width: 0; }
+.code pre { margin: 0; padding: 12px 14px; overflow-x: auto; font: .86rem/1.55 var(--font-mono); }
+.code .copy { position: absolute; top: 6px; right: 6px; font: 500 .75rem var(--font-body); color: var(--code-ink); background: transparent; border: 1px solid #ffffff40; border-radius: 5px; padding: 2px 8px; cursor: pointer; }
+.code .copy:hover, .code .copy:focus-visible { background: #ffffff1f; outline: none; }
+.code.out { background: var(--sunk); color: var(--ink); border: 1px solid var(--line); }
+.code.out .copy { display: none; }
+.code .label { display: block; font: 600 .72rem var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: #9fb0bf; padding: 8px 14px 0; }
+.code.out .label { color: var(--muted); }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 .82rem var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: var(--sunk); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* checklist */
+.checklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+.ci { display: grid; grid-template-columns: auto 52px 1fr; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; min-width: 0; }
+.ci input { width: 18px; height: 18px; accent-color: var(--ok); }
+.ci img { width: 52px; height: 40px; object-fit: contain; background: var(--plate); border-radius: 4px; }
+.ci .ph { width: 52px; height: 40px; border-radius: 4px; background: var(--sunk); display: grid; place-items: center; font: 600 .7rem var(--font-display); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.ci .t { font-size: .9rem; line-height: 1.35; min-width: 0; }
+.ci .t small { display: block; color: var(--muted); font-size: .8rem; }
+.ci:has(input:checked) { border-color: var(--ok); background: var(--ok-soft); }
+.progress { font-size: .9rem; color: var(--muted); }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.two > * { min-width: 0; }
+footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; display: grid; gap: 6px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<nav class="rail" aria-label="Build stages">
+  <div class="inner" id="rail">
+    <a href="#start">Start</a>
+    <a href="#s1">1 Phone test</a>
+    <a href="#s2">2 Fit tests</a>
+    <a href="#s3">3 Print</a>
+    <a href="#s4">4 Pi setup</a>
+    <a href="#s5">5 Bench wiring</a>
+    <a href="#s6">6 Relay box</a>
+    <a href="#s7">7 Finger clip</a>
+    <a href="#s8">8 Bodycam</a>
+    <a href="#s9">9 End to end</a>
+    <a href="#safety">Safety</a>
+    <a href="#files">Files</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">HackUTD 2026 · Phase 2</span>
+    <h1>Handoff build guide</h1>
+    <div class="prose">
+      <p>This guide builds the two Handoff devices. The <strong>AI bodycam</strong> is your Pixel 9 Pro in a 3D-printed case on a chest harness. The <strong>vitals relay</strong> is your Raspberry Pi 4 in a printed box with a finger sensor, a small screen and a MARK button.</p>
+      <p>Work through the stages in order. Each one ends with a <strong>checkpoint</strong>: what you should see, and what to do if you don't. Nothing needs soldering.</p>
+    </div>
+    <div class="hero"><img src="assets/hero.jpg" alt="Paramedic kneeling over a CPR manikin wearing the bodycam on a chest harness, with the relay box and finger clip beside the manikin." width="1400" height="933"></div>
+    <div class="facts">
+      <div class="fact"><span class="k">Hands-on time</span><span class="v">About 5 hours</span></div>
+      <div class="fact"><span class="k">Printing</span><span class="v">About 16 hours</span></div>
+      <div class="fact"><span class="k">PETG needed</span><span class="v">About 300 g</span></div>
+      <div class="fact"><span class="k">Soldering</span><span class="v">None</span></div>
+    </div>
+  </header>
+
+  <!-- ============ START ============ -->
+  <section class="stage" id="start">
+    <div class="stage-head">
+      <span class="num">Before you start</span>
+      <h2>Tools, parts and ground rules</h2>
+    </div>
+
+    <div class="rules">
+      <span class="tag">Hackathon rules</span>
+      <p>HackUTD's 2025 rules said "no coding or building before noon on Saturday". The 2026 rules aren't posted yet. Get the organizers' answer before you assemble hardware or run these scripts ahead of the event. Everything here assembles in about an hour, so you can also do Stages 4–9 at the venue if you have to.</p>
+    </div>
+
+    <div class="figs">
+      <figure>
+        <a class="frame" href="assets/system.jpg" target="_blank" rel="noopener"><img src="assets/system.jpg" alt="The bodycam, relay box with finger clip, a hotspot phone and a MacBook on a table." loading="lazy"></a>
+        <figcaption><span class="concept">Illustration</span> The finished system: bodycam, vitals relay with finger clip, Dino's phone as the hotspot, and the MacBook. The dashboard on screen is only illustrative; the relay measures heart rate and an experimental SpO2, not ECG.</figcaption>
+      </figure>
+      <figure>
+        <a class="frame" href="assets/network.png" target="_blank" rel="noopener"><img src="assets/network.png" alt="Network diagram: Dino's phone hotspot connects the Pixel bodycam, the Raspberry Pi relay at handoff-relay.local and the MacBook running the receiver on port 8765 and the phone test page on port 8000." loading="lazy"></a>
+        <figcaption>How the devices talk. Everything joins Dino's phone hotspot.</figcaption>
+      </figure>
+    </div>
+
+    <h3>Tools</h3>
+    <div class="checklist" data-list="tools">
+      <label class="ci"><input type="checkbox" id="t-printer"><span class="ph">Print</span><span class="t">3D printer, 0.4 mm nozzle<small>About 300 g PETG (graphite or black) and 25 g opaque black PETG or PLA for the finger clip</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-driver"><span class="ph">Tool</span><span class="t">Small Phillips screwdriver (#0 or #1)<small>For the M2.5 nylon screws</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-pliers"><span class="ph">Tool</span><span class="t">Needle-nose pliers or tweezers<small>For seating nuts in pockets</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-cutters"><span class="ph">Tool</span><span class="t">Flush cutters or a hobby knife<small>Brim and print cleanup</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-measure"><span class="ph">Tool</span><span class="t">Calipers, or a steel ruler<small>To measure the Pixel's camera bar</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-sd"><span class="ph">Card</span><span class="t">microSD card, 16 GB or more, and a card reader<small>Flashing erases it; back up anything on it first</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-tape"><span class="ph">Tape</span><span class="t">Masking tape, a fine marker, black electrical tape<small>Wire labels; the black tape seals the finger sensor</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-zip"><span class="ph">Ties</span><span class="t">Two small zip ties (or twist ties)<small>Cable strain relief at the relay box and finger clip</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-scissors"><span class="ph">Tool</span><span class="t">Scissors<small>For the Velcro straps</small></span></label>
+      <label class="ci"><input type="checkbox" id="t-paint"><span class="ph">Opt.</span><span class="t">Red paint pen (optional)<small>Fills the recessed labels</small></span></label>
+    </div>
+
+    <h3>Parts</h3>
+    <div class="checklist" data-list="parts">
+      <label class="ci"><input type="checkbox" id="p-harness"><img src="assets/part-harness.jpg" alt=""><span class="t">GoPro chest harness<small>Comes with the buckle and thumbscrew</small></span></label>
+      <label class="ci"><input type="checkbox" id="p-max"><img src="assets/part-max30101.jpg" alt=""><span class="t">SparkFun MAX30101 finger sensor</span></label>
+      <label class="ci"><input type="checkbox" id="p-shim"><img src="assets/part-qwiic-shim.jpg" alt=""><span class="t">Qwiic SHIM for Raspberry Pi</span></label>
+      <label class="ci"><input type="checkbox" id="p-hdr"><img src="assets/part-qt-header-cable.jpg" alt=""><span class="t">Qwiic-to-pins cable (backup for the SHIM)</span></label>
+      <label class="ci"><input type="checkbox" id="p-qcables"><img src="assets/part-qwiic-cable-kit.jpg" alt=""><span class="t">Qwiic cable kit<small>You use one short cable and one 500 mm cable</small></span></label>
+      <label class="ci"><input type="checkbox" id="p-oled"><img src="assets/part-oled.jpg" alt=""><span class="t">Adafruit 1.3" OLED screen</span></label>
+      <label class="ci"><input type="checkbox" id="p-button"><img src="assets/part-button-hban.jpg" alt=""><span class="t">16 mm MARK button with RGB ring<small>Pre-wired, 6 wires</small></span></label>
+      <label class="ci"><input type="checkbox" id="p-bb"><img src="assets/part-breadboard.jpg" alt=""><span class="t">Mini breadboard, 170-point</span></label>
+      <label class="ci"><input type="checkbox" id="p-stand"><img src="assets/part-standoff.jpg" alt=""><span class="t">M2.5 nylon standoff kit<small>Uses 18 M2.5×6 screws, 18 nuts, four 6 mm M/F standoffs</small></span></label>
+      <label class="ci"><input type="checkbox" id="p-velcro"><img src="assets/part-velcro.jpg" alt=""><span class="t">8 inch Velcro straps<small>Two for the power bank, one for the finger</small></span></label>
+      <label class="ci"><input type="checkbox" id="p-heat"><img src="assets/part-heatsink.jpg" alt=""><span class="t">Pi 4 heatsinks</span></label>
+      <label class="ci"><input type="checkbox" id="p-bank"><img src="assets/part-powerbank.jpg" alt=""><span class="t">Anker 10,000 mAh power bank</span></label>
+      <label class="ci"><input type="checkbox" id="p-cable"><img src="assets/part-cable.jpg" alt=""><span class="t">1 ft right-angle USB-A to USB-C cable</span></label>
+      <label class="ci"><input type="checkbox" id="p-kit"><span class="ph">Kit</span><span class="t">From the SunFounder kit<small>5 × 220 Ω resistors, 6 female-to-male and 2 female-female jumper wires</small></span></label>
+      <label class="ci"><input type="checkbox" id="p-own"><span class="ph">Own</span><span class="t">Already yours<small>Pi 4 + its official power supply, Pixel 9 Pro, MacBook, Dino's phone</small></span></label>
+    </div>
+    <p class="progress" id="prog-start" aria-live="polite"></p>
+
+    <div class="warn">
+      <span class="tag">Read before wiring anything</span>
+      <ul class="plain">
+        <li>Turn the Pi <strong>off</strong> before you plug or unplug anything on its header.</li>
+        <li>The Qwiic SHIM's square pad goes over <strong>pin 1</strong>. Offset or flipped, it shorts 5 V to ground.</li>
+        <li>Never connect an LED colour wire without its 220 Ω resistor.</li>
+        <li>The full safety notes are at the <a href="#safety">end of this guide</a>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 1 ============ -->
+  <section class="stage" id="s1">
+    <div class="stage-head">
+      <span class="num">Stage 1</span>
+      <h2>Test the phone and pick the case version</h2>
+      <div class="stage-meta"><span>20 minutes</span><span>Pixel 9 Pro, MacBook, same Wi-Fi</span></div>
+    </div>
+    <div class="two">
+      <div class="prose">
+        <p>The bodycam case comes in two versions. <strong>Rear mode</strong> is preferred: the screen faces your chest and the rear ultra-wide camera (123°) looks out. Chrome doesn't always let web pages use the ultra-wide lens, though. If it can't, you print <strong>front mode</strong>, where the screen faces out and the 103° front camera films.</p>
+        <p>This test decides which one to print, so do it before you print the case.</p>
+      </div>
+      <figure>
+        <a class="frame" href="assets/bodycam-modes.png" target="_blank" rel="noopener"><img src="assets/bodycam-modes.png" alt="Diagram comparing rear mode, with the screen toward the chest and the camera bar facing out, and front mode, with the screen facing out. Both are worn landscape with the 2-prong mount on the chest side." loading="lazy"></a>
+        <figcaption>Both versions are worn sideways (landscape), so the video is landscape.</figcaption>
+      </figure>
+    </div>
+    <ol class="steps">
+      <li><div><p>Put the Mac and the Pixel on the same Wi-Fi network (home Wi-Fi or Dino's hotspot).</p></div></li>
+      <li><div>
+        <p>On the Mac, open Terminal and start the test page server:</p>
+        <div class="code"><pre>cd ~/Documents/Hackathons/HackUTD-2026/hardware
+bash software/mac/serve_phone_test.sh</pre></div>
+        <p>It prints the address to open on the phone, such as <code>http://172.20.10.4:8000/</code>.</p>
+      </div></li>
+      <li><div>
+        <p>The camera only works on a "secure" page, so tell Chrome to trust this one. On the Pixel, open Chrome and go to:</p>
+        <div class="code"><pre>chrome://flags/#unsafely-treat-insecure-origin-as-secure</pre></div>
+        <p>Set it to <strong>Enabled</strong>, type the exact origin the script printed (for example <code>http://172.20.10.4:8000</code>), and tap <strong>Relaunch</strong>. Redo this whenever the Mac's address changes.</p>
+      </div></li>
+      <li><div><p>Open the address. The chips along the top should all be green, starting with <strong>✓ Secure context</strong>.</p></div></li>
+      <li><div><p>Open the <strong>Camera</strong> tab, tap <strong>Allow camera</strong>, then <strong>Scan all cameras</strong>. Read the verdict box.</p></div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <div class="tbl"><table>
+        <thead><tr><th>Verdict</th><th>What it means</th><th>Print</th></tr></thead>
+        <tbody>
+          <tr><td><code>REAR MODE - ultra-wide reachable</code></td><td>A rear camera zooms out to about 0.5×. Open it, tap <strong>Min (widest)</strong>, and check the picture really widens.</td><td>Rear set</td></tr>
+          <tr><td><code>MAYBE REAR - check by eye</code></td><td>Several rear cameras, none reporting zoom below 1×. Open each one; if one is clearly wider, tap <strong>This is the ultra-wide</strong>.</td><td>Rear set if one is clearly wider</td></tr>
+          <tr><td><code>FRONT MODE</code></td><td>Only the main rear camera is reachable.</td><td>Front set</td></tr>
+        </tbody>
+      </table></div>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>"This site can't be reached"</td><td>Phone and Mac are on different networks, or the Mac's firewall blocks Python. Allow it in System Settings → Network → Firewall.</td></tr>
+          <tr><td>Red <code>✗ Secure context</code></td><td>The flag isn't set for the exact origin, or Chrome wasn't relaunched.</td></tr>
+          <tr><td><code>NotAllowedError</code></td><td>Tap the icon left of the address bar → Permissions → Camera → Allow.</td></tr>
+          <tr><td>Zoom column says <code>not reported</code></td><td>Allow the zoom permission and scan again.</td></tr>
+        </tbody>
+      </table></div>
+      <p>Write down the verdict. Every other test on this page is in <code>software/README.md</code> section 7.</p>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 2 ============ -->
+  <section class="stage" id="s2">
+    <div class="stage-head">
+      <span class="num">Stage 2</span>
+      <h2>Measure the phone and print the fit tests</h2>
+      <div class="stage-meta"><span>1 hour, including about 40 minutes of printing</span><span>Calipers or ruler, harness, phone</span></div>
+    </div>
+    <div class="prose">
+      <p>Google doesn't publish the camera bar's exact size, so the case uses estimates you can correct. Two small test prints catch any problem before you spend 5 hours printing the full case.</p>
+    </div>
+    <ol class="steps">
+      <li><div>
+        <p>Take any case off the phone. Measure these with the phone held upright (portrait), and compare with the defaults:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Measure</th><th>Variable in <code>cad/common.scad</code></th><th>Default</th></tr></thead>
+          <tbody>
+            <tr><td>Camera bar width (side to side)</td><td><code>camera_bar_w</code></td><td class="num">61 mm</td></tr>
+            <tr><td>Camera bar height (top to bottom)</td><td><code>camera_bar_h</code></td><td class="num">19 mm</td></tr>
+            <tr><td>Phone's top edge to the top of the bar</td><td><code>camera_bar_top</code></td><td class="num">9.5 mm</td></tr>
+            <tr><td>How far the bar sticks out from the back</td><td><code>camera_bar_protrusion</code></td><td class="num">3.6 mm</td></tr>
+            <tr><td>Corner radius (compare against the fit ring)</td><td><code>phone_r</code></td><td class="num">9.5 mm</td></tr>
+          </tbody>
+        </table></div>
+      </div></li>
+      <li><div>
+        <p>If any number is more than 0.5 mm off, edit it in <code>cad/common.scad</code>, then regenerate every STL and re-run all the fit checks with one command:</p>
+        <div class="code"><pre>cd ~/Documents/Hackathons/HackUTD-2026/hardware
+cad/.venv/bin/python cad/verify.py</pre></div>
+        <p>It should end with every check passing. If it exits with an error, undo the last change.</p>
+      </div></li>
+      <li><div>
+        <p>Print the two test pieces (settings in <a href="#s3">Stage 3</a>):</p>
+        <ul class="plain">
+          <li><code>cad/stl/p1_mount_test.stl</code>: about 25 minutes</li>
+          <li><code>cad/stl/p1_rear_fit_ring.stl</code> or <code>p1_front_fit_ring.stl</code>, matching your Stage 1 verdict: about 12 minutes</li>
+        </ul>
+      </div></li>
+      <li><div>
+        <div class="figs">
+          <figure><a class="frame" href="assets/p1_mount_test.jpg" target="_blank" rel="noopener"><img src="assets/p1_mount_test.jpg" alt="Render of the mount test: a small square foot with two GoPro fingers." loading="lazy"></a><figcaption>Mount test: the case's two GoPro fingers on a small foot.</figcaption></figure>
+          <figure><a class="frame" href="assets/p1_rear_fit_ring.jpg" target="_blank" rel="noopener"><img src="assets/p1_rear_fit_ring.jpg" alt="Render of the thin rear fit ring with its camera window gauge." loading="lazy"></a><figcaption>Rear fit ring with its camera-window gauge.</figcaption></figure>
+        </div>
+        <p>Slide the mount test's two fingers between the buckle's three prongs. Push the harness thumbscrew through and tighten it by hand. Then lay the phone in the fit ring. For the rear ring, lay the gauge against the phone's back to see where the camera bar falls.</p>
+      </div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <ul class="plain">
+        <li>The fingers slide in with light friction, the thumbscrew passes through without forcing, and nothing wobbles once tightened.</li>
+        <li>The phone sits inside the ring with a hair of play all round (about 0.4 mm).</li>
+        <li>Rear ring only: the camera bar sits inside the gauge window with at least 2 mm clear on every side.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Change in <code>cad/common.scad</code>, then re-run <code>verify.py</code></th></tr></thead>
+        <tbody>
+          <tr><td>Fingers too tight in the buckle</td><td>Lower <code>gopro_finger</code> by 0.1–0.2 mm (default 3.0)</td></tr>
+          <tr><td>Fingers loose or wobbly</td><td>Raise <code>gopro_finger</code> by 0.1 mm</td></tr>
+          <tr><td>Thumbscrew won't go through</td><td>Raise <code>gopro_hole</code> by 0.2 mm (default 5.2)</td></tr>
+          <tr><td>Phone tight in the ring</td><td>Raise <code>phone_clearance</code> by 0.1 mm (default 0.4)</td></tr>
+          <tr><td>Camera bar off-centre in the gauge</td><td>Adjust <code>camera_bar_top</code>, <code>camera_bar_side_offset</code>, <code>camera_bar_w</code> or <code>camera_bar_h</code></td></tr>
+        </tbody>
+      </table></div>
+      <p>Reprint the test piece after any change. Don't force a part to fit.</p>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 3 ============ -->
+  <section class="stage" id="s3">
+    <div class="stage-head">
+      <span class="num">Stage 3</span>
+      <h2>Print every part</h2>
+      <div class="stage-meta"><span>About 16 hours of printer time</span><span>No supports on any part</span></div>
+    </div>
+    <div class="prose">
+      <p>Every STL is already turned the right way for the bed. <strong>Don't auto-orient or scale them</strong>: scaling changes the screw and mount fits. Print only the case set that matches your Stage 1 verdict.</p>
+    </div>
+    <div class="tbl"><table>
+      <thead><tr><th>General setting</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Nozzle / layer height</td><td>0.4 mm / 0.20 mm (first layer 0.20 mm)</td></tr>
+        <tr><td>Top and bottom layers</td><td>6</td></tr>
+        <tr><td>Infill pattern</td><td>Gyroid (rectilinear at 100% for the mount test)</td></tr>
+        <tr><td>Supports</td><td>None for every part</td></tr>
+        <tr><td>Material</td><td>PETG for the case and relay box (PLA softens near a warm Pi). Opaque black PETG or PLA for the finger clip.</td></tr>
+        <tr><td>Temperatures</td><td>Your filament maker's PETG/PLA profile</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tbl" id="print-table"><table>
+      <thead><tr><th>Part</th><th>STL in <code>cad/stl/</code></th><th>Walls</th><th>Infill</th><th>Brim</th><th>Filament</th><th>Time</th></tr></thead>
+      <tbody>
+        <tr><td>Bodycam outer shell</td><td><code>p1_rear_front_frame.stl</code><br><span class="muted">or p1_front_front_frame.stl</span></td><td class="num">5</td><td class="num">25%</td><td class="num">3 mm</td><td class="num">30–36 g</td><td class="num">2.0–2.3 h</td></tr>
+        <tr><td>Bodycam chest plate</td><td><code>p1_rear_back_plate.stl</code><br><span class="muted">or p1_front_back_plate.stl</span></td><td class="num">6</td><td class="num">30%</td><td class="num">3 mm</td><td class="num">30–35 g</td><td class="num">1.9–2.2 h</td></tr>
+        <tr><td>Relay box base</td><td><code>p2_base.stl</code></td><td class="num">5</td><td class="num">20%</td><td class="num">5 mm</td><td class="num">94–111 g</td><td class="num">6.1–7.2 h</td></tr>
+        <tr><td>Relay box lid</td><td><code>p2_lid.stl</code></td><td class="num">5</td><td class="num">25%</td><td class="num">3 mm</td><td class="num">33–38 g</td><td class="num">2.1–2.5 h</td></tr>
+        <tr><td>Screen retainer</td><td><code>p2_oled_retainer.stl</code></td><td class="num">5</td><td class="num">30%</td><td class="num">0</td><td class="num">4 g</td><td class="num">15 min</td></tr>
+        <tr><td>Finger clip tray</td><td><code>p3_tray.stl</code></td><td class="num">4</td><td class="num">25%</td><td class="num">3 mm</td><td class="num">4–5 g</td><td class="num">20 min</td></tr>
+        <tr><td>Finger clip cradle</td><td><code>p3_hood.stl</code></td><td class="num">4</td><td class="num">25%</td><td class="num">5 mm</td><td class="num">15–18 g</td><td class="num">1.0–1.2 h</td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">Times and weights are planning estimates calculated from part volume; no slicer was used. Your slicer's numbers win. Full details are in <code>cad/PRINT_SETTINGS.md</code>.</p>
+
+    <div class="figs three">
+      <figure><a class="frame" href="assets/p1_rear_front_frame.jpg" target="_blank" rel="noopener"><img src="assets/p1_rear_front_frame.jpg" alt="Render of the bodycam outer shell." loading="lazy"></a><figcaption>Outer shell: print outward face down.</figcaption></figure>
+      <figure><a class="frame" href="assets/p1_rear_back_plate.jpg" target="_blank" rel="noopener"><img src="assets/p1_rear_back_plate.jpg" alt="Render of the bodycam chest plate with GoPro fingers." loading="lazy"></a><figcaption>Chest plate: flat side down, fingers up.</figcaption></figure>
+      <figure><a class="frame" href="assets/p2_base.jpg" target="_blank" rel="noopener"><img src="assets/p2_base.jpg" alt="Render of the relay box base." loading="lazy"></a><figcaption>Relay base: bottom down, open side up.</figcaption></figure>
+      <figure><a class="frame" href="assets/p2_lid.jpg" target="_blank" rel="noopener"><img src="assets/p2_lid.jpg" alt="Render of the relay box lid." loading="lazy"></a><figcaption>Relay lid: labelled face down, posts up.</figcaption></figure>
+      <figure><a class="frame" href="assets/p2_oled_retainer.jpg" target="_blank" rel="noopener"><img src="assets/p2_oled_retainer.jpg" alt="Render of the OLED retainer plate." loading="lazy"></a><figcaption>Screen retainer: flat face down.</figcaption></figure>
+      <figure><a class="frame" href="assets/p3_hood.jpg" target="_blank" rel="noopener"><img src="assets/p3_hood.jpg" alt="Render of the finger clip cradle." loading="lazy"></a><figcaption>Finger cradle: closed fingertip end down.</figcaption></figure>
+    </div>
+
+    <ol class="steps">
+      <li><div><p><strong>Clean up.</strong> Remove brims, clear stringing from every hole and opening, and deburr any edge that touches the phone or a finger.</p></div></li>
+      <li><div><p><strong>Load the nuts.</strong> Most nuts slide sideways into a slot, so a thin printed wall sits between the nut and the screw head. That wall is what lets the screw clamp the parts together. Load them now:</p><ul class="plain"><li>Bodycam outer shell: four nuts, into the side slots in the four corner tabs.</li><li>Relay base: four nuts, into the corner slots from inside the box.</li><li>Relay lid: two nuts, into the side slots of the two retainer posts (the slot faces away from the screen window).</li><li>Finger tray: four nuts, pushed up into the pockets from underneath.</li></ul><p>Each nut should sit square and centred over its screw hole. If a slot is tight, clear it with a hobby knife rather than forcing the nut.</p></div></li>
+      <li><div><p><strong>Optional: fill the labels.</strong> Run a red paint pen into the recessed HANDOFF, HANDOFF RELAY, MARK and FINGER lettering and wipe the surface.</p></div></li>
+    </ol>
+  </section>
+
+  <!-- ============ STAGE 4 ============ -->
+  <section class="stage" id="s4">
+    <div class="stage-head">
+      <span class="num">Stage 4</span>
+      <h2>Set up the Raspberry Pi</h2>
+      <div class="stage-meta"><span>45 minutes</span><span>Pi 4 with its official power supply, microSD card, Mac</span></div>
+    </div>
+    <ol class="steps">
+      <li><div>
+        <p>Install Raspberry Pi Imager on the Mac (<code>brew install --cask raspberry-pi-imager</code>). Choose <strong>Raspberry Pi 4</strong>, then <strong>Raspberry Pi OS (other) → Raspberry Pi OS Lite (64-bit)</strong>, then your microSD card. When it asks about OS customisation, choose <strong>Edit settings</strong>:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Hostname</td><td><code>handoff-relay</code></td></tr>
+            <tr><td>Username / password</td><td><code>handoff</code> / a password the team knows</td></tr>
+            <tr><td>Wi-Fi</td><td>Dino's hotspot name and password, typed exactly</td></tr>
+            <tr><td>Wireless LAN country</td><td><code>US</code> (Wi-Fi stays off without it)</td></tr>
+            <tr><td>Services</td><td>Enable SSH with password authentication</td></tr>
+          </tbody>
+        </table></div>
+        <p>Before flashing: if Dino's hotspot name has a curly apostrophe (like "Dino’s iPhone"), rename the phone to something plain such as <code>dino-hotspot</code>. On an iPhone, turn on <strong>Maximize Compatibility</strong> in Personal Hotspot.</p>
+      </div></li>
+      <li><div>
+        <p>Put the card in the Pi, turn the hotspot on, and power the Pi with its official supply. The first boot takes 2–3 minutes. Join the Mac to the same hotspot, then:</p>
+        <div class="code"><pre>ssh handoff@handoff-relay.local</pre></div>
+        <p>Answer <code>yes</code> to the fingerprint question and enter the password. You should get a prompt like <code>handoff@handoff-relay:~ $</code>.</p>
+      </div></li>
+      <li><div>
+        <p>In a <strong>second</strong> Terminal tab on the Mac, copy the test scripts to the Pi:</p>
+        <div class="code"><pre>cd ~/Documents/Hackathons/HackUTD-2026/hardware/software
+rsync -av --exclude __pycache__ pi/ handoff@handoff-relay.local:~/handoff-pi/</pre></div>
+      </div></li>
+      <li><div>
+        <p>Back in the SSH tab, run the setup. It installs the libraries, turns on I2C and makes a Python environment. It's safe to run again.</p>
+        <div class="code"><pre>cd ~/handoff-pi
+bash setup_pi.sh</pre></div>
+        <p>If it says to reboot or log out, do that and SSH in again. From now on, every time you SSH in, start with:</p>
+        <div class="code"><pre>source ~/handoff-venv/bin/activate
+cd ~/handoff-pi</pre></div>
+      </div></li>
+      <li><div>
+        <p>Run the self-test and the health check:</p>
+        <div class="code"><pre>python3 -m lib.selftest
+python3 health_check.py</pre></div>
+      </div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <div class="code out"><span class="label">Expected</span><pre>21/21 checks passed
+...
+CPU temp    : 47.2 C   OK
+Power/clock : throttled=0x0   OK - no under-voltage or throttling since boot
+Wi-Fi       : connected to "dino-hotspot", signal 71%
+I2C bus 1   : none   PROBLEM      &lt;- expected until Stage 5</pre></div>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td><code>Could not resolve hostname handoff-relay.local</code></td><td>Wait 2 more minutes. Or find the Pi's address in the hotspot's device list and use <code>ssh handoff@172.20.10.x</code>.</td></tr>
+          <tr><td><code>Connection refused</code></td><td>SSH wasn't enabled in Imager. Re-flash with SSH on.</td></tr>
+          <tr><td>Pi never appears on the hotspot</td><td>Wi-Fi name or password typo, or no Wi-Fi country. Re-flash.</td></tr>
+          <tr><td><code>FAILED (line N). Is the Pi online?</code></td><td>The hotspot has no data. Check <code>ping -c 3 pypi.org</code> and re-run.</td></tr>
+          <tr><td>Any <code>FAIL</code> in the self-test</td><td>The copy was damaged. Re-run the rsync.</td></tr>
+          <tr><td><code>under-voltage</code></td><td>Use the official 5.1 V supply for bench work.</td></tr>
+        </tbody>
+      </table></div>
+      <p>To add your home Wi-Fi for bench work, see <code>software/README.md</code> section 4.</p>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 5 ============ -->
+  <section class="stage" id="s5">
+    <div class="stage-head">
+      <span class="num">Stage 5</span>
+      <h2>Wire and test the relay on the bench</h2>
+      <div class="stage-meta"><span>1 hour</span><span>Pi outside the box, so you can see everything</span></div>
+    </div>
+    <figure>
+      <a class="frame" href="assets/relay-wiring.png" target="_blank" rel="noopener"><img src="assets/relay-wiring.png" alt="Relay wiring diagram: the 40-pin header with used pins highlighted, the Qwiic chain from the SHIM through the OLED to the MAX30101, and the six button wires through the breadboard to pins 11, 9, 17, 15, 16 and 18." loading="lazy"></a>
+      <figcaption>The whole relay. Pin numbers are the Pi's physical header pins. Open full size to read it.</figcaption>
+    </figure>
+
+    <h3>5A. Heatsinks, SHIM and screen chain</h3>
+    <ol class="steps">
+      <li><div><p><strong>Turn the Pi off and unplug it.</strong> Wipe the chips with a dry tissue, peel the heatsink backing and press the largest heatsink onto the main processor (the large metal-topped chip near the centre), the others onto the memory and USB chips. Keep them within 12 mm of the board; the box is built for that.</p></div></li>
+      <li><div>
+        <div class="two">
+          <figure><a class="frame" href="assets/header-orientation.png" target="_blank" rel="noopener"><img src="assets/header-orientation.png" alt="Top view of the Pi 4 with the header along the top edge, pin 1 as the square pad at the left end of the inner row, and the SHIM outline over pins 1 to 6." loading="lazy"></a><figcaption>Pin 1 is the square pad at the end away from the USB ports, on the inner row.</figcaption></figure>
+          <div class="prose">
+            <p>Press the <strong>Qwiic SHIM</strong> down onto header pins 1–6, with its square pad over the Pi's pin 1. Push it all the way down to the base of the pins.</p>
+            <p>Check it twice: it should cover exactly the first three pairs of pins, with no pins showing between it and the corner.</p>
+          </div>
+        </div>
+      </div></li>
+      <li><div><p>Click a short Qwiic cable from the SHIM into either socket on the OLED. Click the <strong>500 mm</strong> cable into the OLED's other socket and into either socket on the MAX30101. The plugs only fit one way and click when seated.</p></div></li>
+      <li><div>
+        <p>Power the Pi, SSH in, activate the environment, and run:</p>
+        <div class="code"><pre>python3 i2c_scan.py
+python3 test_oled.py
+python3 test_max30101.py --oled</pre></div>
+        <p>For the sensor test, keep your finger <strong>off</strong> for the first 2 seconds (it measures the room). When asked, rest your fingertip pad lightly on the small window near the board's top edge, and keep still.</p>
+      </div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint A</span>
+      <div class="code out"><span class="label">i2c_scan.py</span><pre>Found 2 device(s):
+  0x3D  OLED screen, SSD1306 (default address)
+  0x57  MAX30101 pulse sensor (finger clip)
+RESULT: OK - sensor and OLED both answer.</pre></div>
+      <ul class="plain">
+        <li><code>test_oled.py</code>: the screen shows HANDOFF RELAY, a fake heart rate and a moving wave for 10 seconds, at 5–15 frames per second. 0x3C instead of 0x3D is also fine.</li>
+        <li><code>test_max30101.py</code>: <code>PART_ID 0x15</code>; the finger column flips to <code>YES</code> within a second of touching; the OLED status goes from <code>wait</code> to <code>pulse</code> and the terminal shows a heart rate 4–6 seconds later, matching your pulse within about 5 bpm (count at your wrist for 15 seconds, times 4); <code>0 lost</code>. Lift the finger and HR goes back to <code>--</code>: readings never outlive the pulse. SpO2 is marked experimental and isn't a medical reading.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td><code>Nothing answered on I2C bus 1.</code></td><td>SHIM not fully pressed down, on the wrong pins, or not lined up with pin 1. Power off and reseat it.</td></tr>
+          <tr><td><code>MAX30101 missing</code> but the OLED answers</td><td>Reseat the 500 mm cable at both ends until they click.</td></tr>
+          <tr><td>Screen picture shifted with a noise band</td><td>Your screen uses the SH1106 chip: put <code>HANDOFF_OLED_DRIVER=sh1106</code> in front of each command.</td></tr>
+          <tr><td>Finger stays <code>no</code></td><td>Finger not over the window, or LEDs too dim: add <code>--led-ma 12</code>.</td></tr>
+          <tr><td>Finger <code>YES</code> but no heart rate</td><td>Keep still, press lighter, warm a cold finger.</td></tr>
+          <tr><td><code>SAT</code> in the finger column</td><td>Too much light: add <code>--led-ma 3</code>.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <h3>5B. MARK button and light ring</h3>
+    <ol class="steps">
+      <li><div>
+        <p>The button's six wires end in a plug that clips onto the button's back and can be unplugged. The wires aren't labelled. Two go to the switch, one to the ring's common +, and one each to red, green and blue. Follow each wire to its pin on the button's back if the pins are marked. If they aren't, the helper script finds them using one 220 Ω resistor and two jumpers, and can't short anything:</p>
+        <div class="code"><pre>python3 identify_wires.py</pre></div>
+        <p>Follow its prompts. Put a tape label on each wire as it tells you (SW, SW, +, R, G, B).</p>
+      </div></li>
+      <li><div>
+        <figure><a class="frame" href="assets/breadboard-layout.png" target="_blank" rel="noopener"><img src="assets/breadboard-layout.png" alt="Breadboard layout: button wires in a3, a5, a7, a9, a11, a13; Pi jumpers in c3, c5, c7, h9, h11, h13; 220 ohm resistors bridging e9 to f9, e11 to f11 and e13 to f13." loading="lazy"></a><figcaption>Exact holes on the mini breadboard. Colours mark the function, not the wire colour.</figcaption></figure>
+        <p><strong>Pi off.</strong> Wire the breadboard exactly as shown. Keep it loose on the bench for now; you'll stick it in the box in Stage 6.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Button wire</th><th>Hole</th><th>Through</th><th>Pi jumper hole</th><th>Pi pin (female end)</th></tr></thead>
+          <tbody>
+            <tr><td>Switch 1</td><td><code>a3</code></td><td>row 3</td><td><code>c3</code></td><td><strong>11</strong> (GPIO17)</td></tr>
+            <tr><td>Switch 2</td><td><code>a5</code></td><td>row 5</td><td><code>c5</code></td><td><strong>9</strong> (GND)</td></tr>
+            <tr><td>Ring common +</td><td><code>a7</code></td><td>row 7</td><td><code>c7</code></td><td><strong>17</strong> (3.3 V)</td></tr>
+            <tr><td>Red</td><td><code>a9</code></td><td>220 Ω from <code>e9</code> to <code>f9</code></td><td><code>h9</code></td><td><strong>15</strong> (GPIO22)</td></tr>
+            <tr><td>Green</td><td><code>a11</code></td><td>220 Ω from <code>e11</code> to <code>f11</code></td><td><code>h11</code></td><td><strong>16</strong> (GPIO23)</td></tr>
+            <tr><td>Blue</td><td><code>a13</code></td><td>220 Ω from <code>e13</code> to <code>f13</code></td><td><code>h13</code></td><td><strong>18</strong> (GPIO24)</td></tr>
+          </tbody>
+        </table></div>
+        <p>Use female-to-male jumpers: the female end on the Pi pin, the male end in the breadboard hole. If a stranded button wire won't stay in a hole, twist its strands tight first.</p>
+      </div></li>
+      <li><div>
+        <p>Power on and run:</p>
+        <div class="code"><pre>python3 test_button.py</pre></div>
+      </div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint B</span>
+      <ul class="plain">
+        <li>Part 1: the ring shows red, green, blue, white and amber in turn, two rounds.</li>
+        <li>Part 2: pressing prints <code>PRESS</code> and turns the ring green, holding 1.5 seconds prints <code>HOLD</code> and turns it blue, releasing prints <code>RELEASE after … s</code>.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>Green and blue much dimmer than red</td><td>Expected with 220 Ω. Add a second 220 Ω in parallel for each: side by side across the same rows, e.g. <code>d11</code>–<code>g11</code> and <code>d13</code>–<code>g13</code>. That makes 110 Ω. Never a direct wire.</td></tr>
+          <tr><td>The wrong colour lights</td><td>Two colour wires swapped. Move them per <code>identify_wires.py</code>.</td></tr>
+          <tr><td>Ring stays lit after the script exits</td><td>Common wire on GND instead of pin 17, or the ring is common-cathode. Run <code>identify_wires.py</code>.</td></tr>
+          <tr><td><code>the button reads PRESSED before you touch it</code></td><td>A switch wire is on the wrong pin.</td></tr>
+          <tr><td>No <code>PRESS</code> lines</td><td>Switch wires aren't in rows 3 and 5, or the jumpers aren't on pins 11 and 9.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 6 ============ -->
+  <section class="stage" id="s6">
+    <div class="stage-head">
+      <span class="num">Stage 6</span>
+      <h2>Assemble the relay box</h2>
+      <div class="stage-meta"><span>45 minutes</span><span>10 M2.5×6 screws, 10 nuts, four 6 mm M/F standoffs, 2 Velcro straps, 1 zip tie</span></div>
+    </div>
+    <div class="figs">
+      <figure><a class="frame" href="assets/relay_exploded.jpg" target="_blank" rel="noopener"><img src="assets/relay_exploded.jpg" alt="Exploded view of the relay box: lid, button, OLED, retainer, Pi with heatsinks and SHIM, breadboard, base and power bank." loading="lazy"></a><figcaption>Exploded view, top to bottom: lid with button, OLED, retainer, Pi, breadboard, base, power bank.</figcaption></figure>
+      <figure><a class="frame" href="assets/relay_open.jpg" target="_blank" rel="noopener"><img src="assets/relay_open.jpg" alt="Relay box with the lid lifted: Pi on the left, breadboard and button bay on the right." loading="lazy"></a><figcaption>Inside: the Pi on the left, the breadboard and button bay on the right.</figcaption></figure>
+    </div>
+    <ol class="steps">
+      <li><div><p><strong>Unplug the power, both Qwiic cables and the six jumpers from the Pi. Leave the SHIM pressed onto pins 1–6.</strong> Check the four lid nuts are in the base's corner slots. Thread the two Velcro straps across the inside floor of the base, through the slots, before anything else goes in. They'll wrap around the power bank later.</p></div></li>
+      <li><div><p><strong>Standoffs.</strong> Stand four 6 mm male-female standoffs on the four floor bosses, threaded stud <strong>up</strong>. From underneath, drive an M2.5×6 screw up through each counterbored hole into the standoff's female end. Hand-tighten only: the floor above the screw head is thin. Run a fingernail over the base's bottom: no screw head may stick out.</p></div></li>
+      <li><div><p><strong>Pi.</strong> Lower the Pi onto the four studs, with its USB-C port facing the side opening, and put a nut on each stud on top of the board. Check the studs poke through far enough to take the full nut. If the screws bottom out in the standoffs before they're snug, see the fit notes in <code>cad/README.md</code> (P2).</p></div></li>
+      <li><div><p><strong>Breadboard.</strong> Move your Stage 5 wiring across unchanged. Peel the breadboard's backing and press it into its pocket in the right-hand bay.</p></div></li>
+      <li><div>
+        <figure><a class="frame" href="assets/p2_lid.jpg" target="_blank" rel="noopener"><img src="assets/p2_lid.jpg" alt="Relay lid render showing the screen window, the 16 mm button hole and recessed labels." loading="lazy"></a><figcaption>Lid, inside up: four round screen pads around the window, two posts for the retainer.</figcaption></figure>
+        <p><strong>Screen.</strong> Try the OLED in the lid first: its glass should sit inside the four round pads without touching them. If a pad touches the glass, sand that pad lightly; never force it. Then lay the OLED glass-side down on the pads, place the retainer behind it with its raised pads toward the board, and fix it with two M2.5×6 screws into the nuts in the side slots of the lid posts. Finger-tight only: the retainer clamps the board edges, not the glass.</p>
+      </div></li>
+      <li><div><p><strong>Button.</strong> Unplug the wire plug from the back of the button and take the nut off; the breadboard wiring stays as it is. Push the bare button through the 16 mm hole from the top, thread the nut on from below (finger-tight plus a quarter turn), then click the plug back onto the button.</p></div></li>
+      <li><div><p><strong>Cables.</strong> Plug the short Qwiic cable between the SHIM and the OLED (through the retainer's opening), and the 500 mm cable into the OLED's other socket. Run the 500 mm cable out through the notch under the <strong>FINGER</strong> arrow and tie it to the anchor eye beside the notch with a small zip tie. Reconnect the six jumpers to the Pi pins from Stage 5.</p></div></li>
+      <li><div><p><strong>Close.</strong> Lower the lid, checking no wire is pinched, and fix it with four M2.5×6 screws into the corner nuts.</p></div></li>
+      <li><div>
+        <figure><a class="frame" href="assets/step-powerbank.jpg" target="_blank" rel="noopener"><img src="assets/step-powerbank.jpg" alt="Relay box sitting on the power bank, strapped with two Velcro straps, with a short right-angle cable from the bank to the box." loading="lazy"></a><figcaption><span class="concept">Concept illustration</span> Power bank strapped flat under the box. The real cable has a USB-C plug at the box end.</figcaption></figure>
+        <p><strong>Power bank.</strong> Set the box on the power bank and wrap the two straps around it. Plug the right-angle cable into the bank's USB-A port and into the Pi's USB-C port through the side opening.</p>
+      </div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <div class="code"><pre>python3 health_check.py
+python3 i2c_scan.py
+python3 test_button.py</pre></div>
+      <ul class="plain">
+        <li>Everything passes exactly as on the bench, now on battery power: <code>throttled=0x0</code>, both I2C devices answer, the button and ring behave.</li>
+        <li>Leave it running for 10 minutes (for example <code>python3 test_max30101.py --oled</code>), then run <code>health_check.py</code> again: CPU temperature under 70 °C and still <code>throttled=0x0</code>.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td><code>under-voltage</code> on battery</td><td>Make sure you're using the short right-angle cable in the bank's USB-A port. Charge the bank.</td></tr>
+          <tr><td>CPU temperature <code>WARM</code> or <code>HOT</code></td><td>Check the heatsinks are stuck on and the vents aren't blocked.</td></tr>
+          <tr><td>The lid won't close</td><td>A cable or jumper is in the way. Reroute it; don't press the lid down onto it.</td></tr>
+          <tr><td>Box rocks on the bank</td><td>A screw head sticks out under the base. Re-seat it in its counterbore.</td></tr>
+        </tbody>
+      </table></div>
+      <figure><a class="frame" href="assets/relay_assembled.jpg" target="_blank" rel="noopener"><img src="assets/relay_assembled.jpg" alt="Finished relay box with the screen, MARK button and labels." loading="lazy"></a><figcaption>Finished relay box.</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 7 ============ -->
+  <section class="stage" id="s7">
+    <div class="stage-head">
+      <span class="num">Stage 7</span>
+      <h2>Build the finger clip</h2>
+      <div class="stage-meta"><span>20 minutes</span><span>4 M2.5×6 screws, 4 nuts, 1 Velcro strap, black electrical tape</span></div>
+    </div>
+    <div class="figs">
+      <figure><a class="frame" href="assets/finger_clip_exploded.jpg" target="_blank" rel="noopener"><img src="assets/finger_clip_exploded.jpg" alt="Exploded view of the finger clip: cradle with visor on top, sensor board in the middle, tray at the bottom." loading="lazy"></a><figcaption>Cradle with visor, sensor board, tray.</figcaption></figure>
+      <figure><a class="frame" href="assets/finger_clip_strapped.jpg" target="_blank" rel="noopener"><img src="assets/finger_clip_strapped.jpg" alt="Finger clip render with a fingertip in the cradle under the visor and the strap over the finger." loading="lazy"></a><figcaption>The strap goes over the finger directly above the sensor, under the visor.</figcaption></figure>
+      <figure><a class="frame" href="assets/finger-clip.jpg" target="_blank" rel="noopener"><img src="assets/finger-clip.jpg" alt="A hand resting palm down on a table with the index finger strapped into the finger clip and the cable leaving to the side." loading="lazy"></a><figcaption><span class="concept">Illustration</span> In use: palm down, fingertip under the visor, strap over the finger.</figcaption></figure>
+    </div>
+    <ol class="steps">
+      <li><div><p>Check the four nuts are seated under the tray. Plug the 500 mm Qwiic cable into the sensor board first; the clip is hard to reach once it's closed.</p></div></li>
+      <li><div><p>Lay the board on the tray's seats <strong>sensor-side up</strong>, with the sensor window (near the board's top edge) toward the visor end.</p></div></li>
+      <li><div><p>Put the cradle on top and fix it with four M2.5×6 screws, gently and evenly. The corner pads hold the board; nothing presses on the sensor.</p></div></li>
+      <li><div><p>Look into the cradle: the sensor window sits flush with the floor. Cut thin strips of black electrical tape and seal the hairline gap around the window. <strong>Don't cover the window itself.</strong></p></div></li>
+      <li><div><p>Thread the black Velcro strap through the two low slots in the cradle walls. It goes <strong>over the finger directly above the sensor, under the visor</strong>, and around under the tray. Never route it over the top of the visor.</p></div></li>
+      <li><div><p>Run the cable out through the tray's side slot and add a zip tie for strain relief, away from the strap.</p></div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <p>Start the test with the clip <strong>empty</strong>. The sensor measures the room for its first 2 seconds, and a finger already in place would spoil that.</p>
+      <div class="code"><pre>python3 test_max30101.py --oled</pre></div>
+      <p>When it asks for your finger, slide a fingertip in, palm side down, until it touches the stop under the visor. Close the strap with light, even pressure, enough that the clip stays on a relaxed hand lying on the table.</p>
+      <ul class="plain">
+        <li>The finger column shows <code>YES</code>, a heart rate appears within about 6 seconds, and it matches a 15-second wrist count times 4 within about 5 bpm.</li>
+        <li>Shining a phone flashlight at the clip doesn't change the reading much.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>No heart rate, but finger <code>YES</code></td><td>Strap too tight (it squeezes the blood out). Loosen it slightly and keep still.</td></tr>
+          <tr><td>Reading jumps when light changes</td><td>Seal the tape gap around the window better; check the strap covers the top of the finger.</td></tr>
+          <tr><td>Finger won't fit under the visor</td><td>Raise <code>visor_clearance</code> in <code>cad/p3_finger_clip.scad</code> (finger thickness + strap thickness + at least 0.8 mm), run <code>cad/.venv/bin/python cad/verify.py</code>, and reprint the cradle.</td></tr>
+          <tr><td>Finger slides around in the channel</td><td>Lower <code>channel_flat_width</code> and <code>visor_clearance</code> for a smaller finger, run <code>verify.py</code> and reprint; or add a thin black foam strip along the walls.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 8 ============ -->
+  <section class="stage" id="s8">
+    <div class="stage-head">
+      <span class="num">Stage 8</span>
+      <h2>Assemble and wear the bodycam</h2>
+      <div class="stage-meta"><span>20 minutes</span><span>4 M2.5×6 screws, 4 nuts, harness and thumbscrew</span></div>
+    </div>
+    <div class="figs">
+      <figure><a class="frame" href="assets/bodycam_exploded.jpg" target="_blank" rel="noopener"><img src="assets/bodycam_exploded.jpg" alt="Exploded view of the bodycam: outer shell with camera window and vents, phone, chest plate." loading="lazy"></a><figcaption>Outer shell, phone, chest plate.</figcaption></figure>
+      <figure><a class="frame" href="assets/bodycam_assembled.jpg" target="_blank" rel="noopener"><img src="assets/bodycam_assembled.jpg" alt="Assembled rear-mode bodycam with the camera bar showing through its window." loading="lazy"></a><figcaption>Rear mode, assembled. Front mode looks like <a href="assets/bodycam_front_assembled.jpg" target="_blank" rel="noopener">this</a>.</figcaption></figure>
+    </div>
+    <ol class="steps">
+      <li><div><p>The four nuts should already be in the side slots of the <strong>outer shell's</strong> corner tabs (the piece with the HANDOFF lettering and vents).</p></div></li>
+      <li><div>
+        <div class="two">
+          <figure><a class="frame" href="assets/wear-harness.jpg" target="_blank" rel="noopener"><img src="assets/wear-harness.jpg" alt="Paramedic wearing the chest harness with the bodycam case mounted landscape in the centre of the chest." loading="lazy"></a><figcaption><span class="concept">Illustration</span> Worn: buckle on the sternum, case sideways, tilted down.</figcaption></figure>
+          <div class="prose"><p>Put the harness on first, without the case. Adjust the shoulder and chest straps so the base sits flat on your sternum.</p><p><strong>In rear mode you can't touch or see the screen once the case is closed.</strong> So the next two steps are short test passes that each start the phone first, then close the case with just two diagonal screws. The final close with all four screws comes last.</p></div>
+        </div>
+      </div></li>
+      <li><div>
+        <p><strong>Test pass A: framing and voice.</strong></p>
+        <ul class="plain">
+          <li>Turn media volume all the way up. Open the test page (the Stage 1 server can stay running), open the <strong>Speaker</strong> tab and tap <strong>Say</strong> with the phone lying in the outer shell. It must be clearly audible at arm's length. The speaker fires out of the case's end slot, which the chest plate doesn't cover.</li>
+          <li>Open the Pixel's own <strong>Camera</strong> app, choose <strong>Video</strong>, and pick <strong>0.5×</strong> (rear mode) or the front camera (front mode). Start recording.</li>
+          <li>Lay the phone in the outer shell. <strong>Rear mode:</strong> back down, so the camera bar drops into its window. <strong>Front mode:</strong> screen down. No button should be pressed. Put the <strong>chest plate</strong> (the piece with the two GoPro fingers) on top and fix two diagonal M2.5×6 screws.</li>
+        </ul>
+        <div class="two">
+          <figure><a class="frame" href="assets/step-thumbscrew.jpg" target="_blank" rel="noopener"><img src="assets/step-thumbscrew.jpg" alt="Hands sliding the case's two fingers into the harness buckle and tightening the thumbscrew." loading="lazy"></a><figcaption><span class="concept">Concept illustration</span> Two case fingers between the buckle's three prongs, thumbscrew through all five.</figcaption></figure>
+          <div class="prose"><p>Slide the case's two fingers between the buckle's three prongs, push the thumbscrew through, tilt the case about 15° downward so it looks at the patient instead of the horizon, and tighten the thumbscrew firmly by hand. Slide the buckle into the harness base until it clicks.</p><p>Kneel over the manikin or a cushion and mime compressions for 20 seconds. Then take the case off, open it, stop the recording and watch it.</p></div>
+        </div>
+      </div></li>
+      <li><div>
+        <p><strong>Test pass B: compression counting by ear.</strong> Open the test page and tap <strong>Request screen wake lock</strong> (Screen tab). In the <strong>Motion</strong> tab, tick <strong>Speak coaching</strong>, turn the <strong>Metronome</strong> on at 110 and tap <strong>Start motion test</strong>. Close the case with two screws, mount it and kneel over a firm cushion:</p>
+        <ul class="plain">
+          <li>Compress slowly, about 80 per minute: within a few seconds the phone says <strong>"Push faster."</strong></li>
+          <li>Compress on the metronome beat: it stays quiet, because the rate is in the 100–120 range.</li>
+          <li>Stop for more than 10 seconds: it says <strong>"Resume compressions."</strong></li>
+        </ul>
+        <p>Never do compressions on a person.</p>
+      </div></li>
+      <li><div><p><strong>Final close.</strong> Fit all four M2.5×6 screws from the chest side, tightening gently and evenly in a cross pattern. Before closing for the event, start whatever the phone needs to be running, since you can't reach the screen afterwards in rear mode.</p></div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <ul class="plain">
+        <li><strong>Framing:</strong> the pass A recording shows both your hands and the patient's chest, with no dark corners. Re-adjust the tilt if it shows the floor or the horizon.</li>
+        <li><strong>Compressions:</strong> in pass B you heard "Push faster." when slow, silence on the beat and "Resume compressions." after a pause. In front mode a helper can also watch the big number settle at about 105–115 on the beat.</li>
+        <li><strong>Voice:</strong> <strong>Say</strong> and the coaching phrases are clearly audible at arm's length through the case.</li>
+        <li><strong>Heat:</strong> after 10 minutes in the case, it's warm at most. If the phone feels hot, take it out and let it cool.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td>Rate jumps around or counts double</td><td>The case moves in the harness: tighten the thumbscrew and the straps.</td></tr>
+          <tr><td>Dark corners on the ultra-wide picture</td><td>The camera window clips the lens. Raise <code>camera_margin</code> in <code>cad/common.scad</code> and reprint the outer shell.</td></tr>
+          <tr><td>A phone button gets pressed</td><td>Raise <code>phone_button_length</code> or move <code>phone_button_start</code>, and reprint.</td></tr>
+          <tr><td>Speech silent but Beep works</td><td>Android Settings → search "Text-to-speech output" → choose Google.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ STAGE 9 ============ -->
+  <section class="stage" id="s9">
+    <div class="stage-head">
+      <span class="num">Stage 9</span>
+      <h2>Test everything together on the hotspot</h2>
+      <div class="stage-meta"><span>20 minutes</span><span>Both devices, Dino's phone, MacBook</span></div>
+    </div>
+    <ol class="steps">
+      <li><div><p>Dino turns on the hotspot. Join the Mac to it. The relay joins by itself when powered, and the Pixel joins like any Wi-Fi.</p></div></li>
+      <li><div>
+        <p>On the Mac, set up the receiver once, then start it. It prints the Mac's address and the exact command for the Pi:</p>
+        <div class="code"><pre>cd ~/Documents/Hackathons/HackUTD-2026/hardware/software/mac
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 receiver.py</pre></div>
+        <p>Click <strong>Allow</strong> if macOS asks about incoming connections. Next time, only the <code>source</code> and <code>python3 receiver.py</code> lines are needed.</p>
+      </div></li>
+      <li><div>
+        <p>SSH into the relay and start the stream, using the address the receiver printed. Keep your finger off the sensor for the first 2 seconds:</p>
+        <div class="code"><pre>python3 stream_test.py 172.20.10.4</pre></div>
+      </div></li>
+      <li><div><p>Put a finger in the clip and press MARK a few times.</p></div></li>
+      <li><div><p>Take the Pixel out of the case for this step, and join it to the hotspot. The phone page server from Stage 1 listens on every network, so if it's still running in its Terminal tab, leave it. If you closed it, start it again in its own tab with <code>bash software/mac/serve_phone_test.sh</code> (press Ctrl-C on any old copy first, or it reports that the address is in use). Update the Chrome flag to the Mac's new hotspot address and open the page.</p></div></li>
+    </ol>
+    <div class="check">
+      <span class="tag">Checkpoint</span>
+      <div class="code out"><span class="label">Mac receiver</span><pre>[13:52:22] handoff-relay (172.20.10.3)   25 msg/s  HR  --  acquiring   ...  missing 0  arrival gap   42 ms  last   14 ms ago
+[13:52:26] handoff-relay (172.20.10.3)   25 msg/s  HR  72  pulse       ...  missing 0  arrival gap   41 ms  last   23 ms ago
+[13:52:30] BUTTON       handoff-relay (172.20.10.3): PRESS
+[13:52:30] BUTTON       handoff-relay (172.20.10.3): RELEASE, held 0.3 s</pre></div>
+      <ul class="plain">
+        <li>Run it for 2 minutes. Pass if <code>msg/s</code> stays at 24–26, <code>missing 0</code>, <code>arrival gap</code> under about 150 ms, <code>last … ago</code> under about 100 ms, and no <code>&lt;&lt; STALL</code> lines. When you stop, the <code>DISCONNECTED</code> line's worst arrival gap should be under 500 ms.</li>
+        <li>Button presses arrive within a fraction of a second.</li>
+        <li>The relay's ring is green and its screen shows <code>LINK OK</code> with the heart rate.</li>
+        <li>The phone test page loads over the hotspot with every chip green.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>If you see</th><th>Do this</th></tr></thead>
+        <tbody>
+          <tr><td><code>Connect call failed</code> on the Pi</td><td>Receiver not running, or wrong address. Use the one it printed.</td></tr>
+          <tr><td><code>No route to host</code> or a handshake timeout</td><td>Mac and Pi aren't on the same hotspot, or the hotspot isolates devices.</td></tr>
+          <tr><td>Pi says connected, Mac shows nothing</td><td>macOS firewall: allow Python in System Settings → Network → Firewall → Options.</td></tr>
+          <tr><td><code>&lt;&lt; STALL</code> with <code>sender gap</code> still about 40 ms</td><td>The network stalled. Move the hotspot closer, and turn off the Pi's Wi-Fi power saving with <code>sudo iw wlan0 set power_save off</code>, then test again.</td></tr>
+          <tr><td><code>&lt;&lt; STALL</code> with a large <code>sender gap</code></td><td>The Pi itself paused: run <code>health_check.py</code> to check for under-voltage.</td></tr>
+          <tr><td>Below about 22 msg/s, or arrival gaps of 100–300 ms</td><td>Weak Wi-Fi or power saving; same fixes as the first stall row.</td></tr>
+        </tbody>
+      </table></div>
+      <p>This proves the hardware and network. Connecting the stream and the bodycam to the real dashboard is the hackathon work.</p>
+    </div>
+  </section>
+
+  <!-- ============ SAFETY ============ -->
+  <section class="stage" id="safety">
+    <div class="stage-head">
+      <span class="num">Safety</span>
+      <h2>Safety notes</h2>
+    </div>
+    <div class="two">
+      <div class="warn"><span class="tag">Electrical</span><ul class="plain">
+        <li>Power the Pi off before changing any wire or cable.</li>
+        <li>Line up the SHIM's square pad with pin 1. Offset or flipped, it shorts 5 V to ground.</li>
+        <li>Never connect 5 V to a GPIO pin; the Pi's pins are 3.3 V only.</li>
+        <li>Every LED colour needs its resistor. Never replace one with a plain wire.</li>
+      </ul></div>
+      <div class="warn"><span class="tag">Power bank</span><ul class="plain">
+        <li>Don't crush, puncture or heat it. Stop using it if it swells.</li>
+        <li>Charge it on a hard surface while you're awake, not on a bed.</li>
+        <li>Flying to Dallas: power banks go in carry-on only. At 10,000 mAh (about 37 Wh) it's under the 100 Wh limit.</li>
+      </ul></div>
+      <div class="warn"><span class="tag">Heat</span><ul class="plain">
+        <li>The Pi's heatsinks can reach 60–70 °C. Keep the vents clear and print the box in PETG.</li>
+        <li>Take the phone out of the case if it gets hot to the touch.</li>
+        <li>3D printing: ventilate when printing PETG, and keep fingers off the hot nozzle and bed.</li>
+      </ul></div>
+      <div class="warn"><span class="tag">Medical</span><ul class="plain">
+        <li>The finger sensor is not a medical device, and the SpO2 number is experimental. All demo data is synthetic.</li>
+        <li>Never do chest compressions on a person. Use a manikin or a firm cushion.</li>
+        <li>Don't strap the finger clip tight enough to cut off circulation.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ============ STILL TO CONFIRM ============ -->
+  <section class="stage" id="gates">
+    <div class="stage-head">
+      <span class="num">Honest limits</span>
+      <h2>What only the real parts can confirm</h2>
+    </div>
+    <div class="prose">
+      <p>The 3D parts passed 111 automated fit, clearance and hardware checks against modelled parts, and the software passed its tests with simulated sensors. Neither has met the real hardware yet. These are the things the checkpoints above are designed to catch:</p>
+    </div>
+    <ul class="plain">
+      <li>The Pixel's camera bar size and position, its corner radius and button positions, and whether the case darkens the ultra-wide picture's corners.</li>
+      <li>The case's fit in your harness buckle, and how well the joint holds under movement.</li>
+      <li>Whether the kit's nylon screws engage the standoffs fully, whether the screw heads sit inside their counterbores, and whether the thin printed walls behind the side-loaded nuts print cleanly.</li>
+      <li>The heatsinks' real height (the box allows 12 mm), and cable routing inside the box with every wire installed.</li>
+      <li>The OLED glass fit between its four pads (designed with 0.4 mm to spare), and whether the screen uses the SSD1306 or SH1106 chip.</li>
+      <li>The button's real body, nut and plug sizes, and whether its ring is really common-anode.</li>
+      <li>Finger clip comfort, light-blocking and heart-rate accuracy on a real finger.</li>
+      <li>Wi-Fi performance on Dino's hotspot, and which cameras Chrome exposes on your Pixel.</li>
+      <li>Print times and support-free printing on your printer; no slicer was used.</li>
+    </ul>
+  </section>
+
+  <!-- ============ FILES ============ -->
+  <section class="stage" id="files">
+    <div class="stage-head">
+      <span class="num">Files</span>
+      <h2>Where everything is</h2>
+    </div>
+    <p class="prose">Everything is in <code>~/Documents/Hackathons/HackUTD-2026/hardware/</code> on your Mac.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Folder</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td><code>cad/</code></td><td>Editable OpenSCAD sources (<code>common.scad</code>, <code>p1_bodycam.scad</code>, <code>p2_relay.scad</code>, <code>p3_finger_clip.scad</code>), <code>README.md</code> with every adjustable dimension, <code>PRINT_SETTINGS.md</code>, <code>VERIFY.md</code> and <code>verify.py</code></td></tr>
+        <tr><td><code>cad/stl/</code></td><td>The 12 ready-to-print STL files</td></tr>
+        <tr><td><code>renders/</code></td><td>22 renders of every part and assembly; open <code>renders/index.html</code> for the gallery</td></tr>
+        <tr><td><code>diagrams/</code></td><td>Wiring, header, breadboard, network and camera-mode diagrams (SVG and PNG), plus the script that draws them</td></tr>
+        <tr><td><code>illustrations/</code></td><td>The concept illustrations and their prompts</td></tr>
+        <tr><td><code>software/</code></td><td>Pi setup and test scripts, the Mac receiver, the phone test page, and <code>README.md</code> with every expected output and fix</td></tr>
+        <tr><td><code>reference/</code></td><td>Official dimension drawings and product photos</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    <p>Handoff build guide, Phase 2. 3D design by GPT Astra; illustrations and diagrams by GPT Terra; device software by Claude Opus; reviewed by GPT Sol; assembled by Claude.</p>
+    <p>Not a medical device. All demo data is synthetic.</p>
+  </footer>
+</div>
+
+<script>
+// Copy buttons on command blocks
+document.querySelectorAll(".code:not(.out)").forEach((box, i) => {
+  const btn = document.createElement("button");
+  btn.className = "copy"; btn.type = "button"; btn.textContent = "Copy"; btn.id = "copy-" + i;
+  btn.addEventListener("click", () => {
+    const text = box.querySelector("pre").innerText;
+    const done = () => { btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy", 1500); };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(box.querySelector("pre")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Selected"; };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  });
+  box.appendChild(btn);
+});
+// Checklists remembered per viewer
+const KEY = "handoff-guide-v1";
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) {}
+const boxes = [...document.querySelectorAll(".checklist input[type=checkbox]")];
+function progress() {
+  const n = boxes.filter(b => b.checked).length;
+  const el = document.getElementById("prog-start");
+  if (el) el.textContent = `${n} of ${boxes.length} tools and parts ready`;
+}
+boxes.forEach(b => {
+  if (saved[b.id]) b.checked = true;
+  b.addEventListener("change", () => { saved[b.id] = b.checked; try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} progress(); });
+});
+progress();
+// Highlight the current stage in the rail
+const links = [...document.querySelectorAll("#rail a")];
+const map = new Map(links.map(a => [a.getAttribute("href").slice(1), a]));
+if ("IntersectionObserver" in window) {
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(a => a.classList.remove("on"));
+        const a = map.get(e.target.id);
+        if (a) { a.classList.add("on"); a.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+      }
+    });
+  }, { rootMargin: "-40% 0px -55% 0px" });
+  document.querySelectorAll("section.stage").forEach(s => io.observe(s));
+}
+</script>
