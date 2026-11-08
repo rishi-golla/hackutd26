@@ -11,7 +11,11 @@ const REREQUEST_MS = 10000;
 
 type VideoState = 'connecting' | 'live' | 'stale';
 
-export default function LiveVideo() {
+/**
+ * The live video. Small by default; `expanded` makes it large. The same <video> element is moved, never
+ * remounted, so the stream keeps playing.
+ */
+export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   const { getConnection, isActive } = useSpacetimeDB();
   const [signals] = useTable(tables.rtcSignal);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -126,11 +130,36 @@ export default function LiveVideo() {
   useEffect(() => () => pcRef.current?.close(), []);
 
   return (
-    <div className={`video video--${state}`}>
+    <button
+      type="button"
+      className={`video video--${state}${expanded ? ' video--expanded' : ''}`}
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={expanded ? 'Minimize live video' : 'Expand live video'}
+    >
       <video ref={videoRef} autoPlay playsInline muted />
       <span className="video__badge">
         {state === 'live' ? 'LIVE' : state === 'stale' ? 'STALE · no video for 3 s' : 'connecting…'}
       </span>
-    </div>
+      <span className="video__toggle" aria-hidden="true">
+        {expanded ? <MinimizeIcon /> : <ExpandIcon />}
+      </span>
+    </button>
+  );
+}
+
+function ExpandIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
+    </svg>
+  );
+}
+
+function MinimizeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />
+    </svg>
   );
 }

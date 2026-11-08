@@ -16,6 +16,10 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~20:15 (Josh): hospital dashboard redesign.**
+  - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
+  - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
+  - **Mockup:** the §14 mockup predates this layout; the code in `web/src/routes/hospital/` is the reference.
 - **Sat ~20:00 (Rishi): W6 built in `agent/`** (patient identified or name + birth date said → EHR search →
   `patient_record` + spoken summary, cached copy if the EHR is down). It runs in the workflow agent's process
   because that already has the Nemotron tool loop and the trace, and an HTTPS page can't call the plain-HTTP EHR.
@@ -105,7 +109,8 @@ section and add a change-log line.
    about one frame a second; the phone sends no separate frames. (Alan, ~18:30)
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
    (Josh, 17:42)
-3. **No ER Acknowledge.** The hospital dashboard's only button is **Generate Handoff**. The pre-arrival alert is
+3. **No ER Acknowledge.** The hospital dashboard's only *action* is **Generate Handoff**. View-only controls are
+   fine, such as expanding the live-video thumbnail or a chip's evidence (Josh, ~20:15). The pre-arrival alert is
    display-only. There is no "ER acknowledged" callout. No demo controls on `/hospital`. (Josh, 17:42)
 4. **The mock EHR is a FHIR R4 server** with five synthetic patients. (Josh, 17:42)
 5. **Keep it simple.** Build the smallest version that meets the "done when" check. Simulated data first: a
@@ -1079,7 +1084,7 @@ is **Generate Handoff**. No demo controls here.
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
-| H1 | Header: unit, status, destination, ETA | — |
+| H1 | Header: unit, status, destination, ETA (hidden once arrived or closed) | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
 | H3 | Vitals tiles with 5-minute trend lines, a pulse waveform, a CPR panel and dose timers | A missing reading shows "no data", never a stale number; "Epi due" matches the bodycam to the second |
 | H4 | Timeline with source chips; clicking a chip shows the evidence (transcript line, frame, vitals at that moment) | Every demo event has a chip; the epi event has two |
@@ -1531,7 +1536,7 @@ its sources. The header always says it's a prototype. No QR code.
 
 Example content from a synthetic run. In the demo, the numbers come from the judge's own CPR (D4). Shown on the
 hospital screen. Stored as JSON in `report.contentJson` (MIST lines with source ids); the format and source ids are
-in `agent/README.md`. The dashboard renders it in place of the video and tiles once it's ready.
+in `agent/README.md`. Once it's ready, the dashboard shows it in place of the vitals and the timeline; the live video stays in the side column.
 
 ## 21. Pre-arrival alert (ER chat optional)
 
