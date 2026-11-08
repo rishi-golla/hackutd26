@@ -25,7 +25,7 @@ export const TOOLS: ToolDef[] = [
       parameters: {
         type: 'object',
         properties: {
-          kind: { type: 'string', enum: ['airway', 'procedure', 'finding', 'mark'], description: 'airway = airway device placed; procedure = IV/IO access, pulse check, suction, splint, monitor, etc.; finding = something observed or reported (breathing, skin, pupils, bleeding, pain, injuries, mental status, history from a bystander, pill bottles, scene hazards); mark = a MARK note' },
+          kind: { type: 'string', enum: ['airway', 'procedure', 'finding', 'mark', 'cpr_started'], description: 'cpr_started = the medic says CPR or compressions are starting (label "CPR started"); airway = airway device placed; procedure = IV/IO access, pulse check, suction, splint, monitor, etc.; finding = something observed or reported (breathing, skin, pupils, bleeding, pain, injuries, mental status, history from a bystander, pill bottles, scene hazards); mark = a MARK note' },
           label: { type: 'string', description: 'Short timeline label, e.g. "Airway placed (i-gel)", "IO access right tibia", "Breathing shallow", "Skin pale and sweaty", "Pill bottle by the bed"' },
           detail: { type: 'string', description: 'The medic\'s words' },
         },
@@ -107,10 +107,22 @@ const DUPLICATE_WINDOW_MS = 10 * 60_000;
 const sameLabel = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === b.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 export const STATUS_WORDS: Record<string, RegExp> = {
-  arrest: /\b(no pulse|pulseless|cardiac arrest|in arrest|start(ing|ed)? (cpr|compressions)|begin(ning)? compressions|coding)\b/i,
+  arrest: /\b(no pulse|pulseless|cardiac arrest|in arrest|coding)\b/i,
   rosc: /\b(rosc|pulse (is |came )?back|got a pulse|we have a pulse|return of (spontaneous )?circulation)\b/i,
   en_route: /\b(transport\w*|en route|loading|leaving (the )?scene|rolling|heading to)\b/i,
 };
+/** CPR starting is not a status (spec change log Sun ~02:15): it is `log_event('cpr_started')`, which the module
+ *  turns into the CPR start (cycle timer, CPR stats, and the arrest if there isn't one yet). */
+export const CPR_START = /\b(start(?:ing|ed)?|begin(?:ning)?|initiat(?:e|ing|ed))\s+(?:chest\s+)?(cpr|compressions)\b/i;
+
+/** Log the CPR start once per 10 minutes. Returns false when it was already on the timeline. */
+export async function logCprStarted(conn: Conn, utterance: string): Promise<boolean> {
+  const s = readState(conn);
+  if (s.events.some(e => e.kind === 'cpr_started' && Date.now() - tsMs(e.ts) < DUPLICATE_WINDOW_MS)) return false;
+  await conn.reducers.logEvent({ kind: 'cpr_started', label: 'CPR started', sourceKind: 'voice', sourceDetail: utterance.slice(0, 200) });
+  await step(conn, 'log_event', 'cpr_started: CPR started (medic said so)');
+  return true;
+}
 
 const j = (v: unknown) => JSON.stringify(v);
 
@@ -140,6 +152,14 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
     }
     case 'log_event': {
       const kind = String(args.kind ?? '');
+      if (kind === 'cpr_started') {
+        if (!inc) return j({ error: 'no active incident' });
+        if (!CPR_START.test(ctx.utterance)) {
+          await step(conn, 'log_event', `Refused cpr_started: the medic didn't say CPR is starting ("${ctx.utterance.slice(0, 60)}")`);
+          return j({ error: 'the medic did not say CPR or compressions are starting; do nothing' });
+        }
+        return j((await logCprStarted(conn, ctx.utterance)) ? { ok: true, note: 'CPR start logged. Do not speak about it.' } : { error: 'CPR start already on the timeline' });
+      }
       if (!['airway', 'procedure', 'finding', 'mark'].includes(kind)) {
         await step(conn, 'log_event', `Refused kind "${kind}": medications and shocks come only from the read-back or the camera`);
         return j({ error: 'only airway, procedure, finding or mark; medications and shocks are logged by the read-back system' });

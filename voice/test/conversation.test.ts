@@ -220,6 +220,20 @@ test('a plainly stated status change is set at once with no model call', async (
   });
 });
 
+test('"starting compressions" starts CPR through cpr_started, never as an arrest status', async () => {
+  const { conn, calls } = fakeConn({ incident: [{ id: 1n, unit: 'Medic 12', status: 'on_scene', demoMode: true, startedAt: nowTs(), updatedAt: nowTs() }] });
+  await withModel([], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Starting compressions now', 'pipecat');
+    await settle(() => callsTo(calls, 'logEvent').length > 0);
+    assert.deepEqual(callsTo(calls, 'logEvent').map(c => [c.args.kind, c.args.label]), [['cpr_started', 'CPR started']]);
+    assert.equal(callsTo(calls, 'setStatus').length, 0, 'the module sets the arrest itself');
+    assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'Copy, CPR started.');
+    assert.equal(requests.length, 0);
+  });
+});
+
 test('a question still gets an answer when the model spends its tool rounds', async () => {
   const { conn, calls } = arrest();
   const look = { tool_calls: [toolCall('get_timeline', {})] };

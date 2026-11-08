@@ -15,7 +15,7 @@ import { cachedMatch, fetchRecord, searchPatients, spokenRecordSummary } from '.
 import { readState, summarize, tsMs } from './state';
 import type { Policy } from './policy';
 import type { Speaker } from './speaker';
-import { runTool, STATUS_WORDS, toolsFor, type ToolContext } from './tools';
+import { CPR_START, logCprStarted, runTool, STATUS_WORDS, toolsFor, type ToolContext } from './tools';
 import { spoken, spokenUnit } from './spoken';
 import { seenEvent, type SeenFinding } from './seen';
 import type { Event, Incident, Transcript } from './module_bindings/types';
@@ -271,9 +271,17 @@ export class Brain {
     // unhandled when Nemotron ran out of tool rounds, Sun ~02:00). Questions and history ("had an arrest") don't count.
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const inc = activeIncident(this.conn);
-    const status = inc && !phoneHandled && !/\?\s*$/.test(text) && !/\b(?:history of|previous|prior|had an?|last)\b/i.test(text)
-      ? (['arrest', 'rosc', 'en_route'] as const).find(s => STATUS_WORDS[s].test(text))
-      : undefined;
+    const plain = !!inc && !phoneHandled && !/\?\s*$/.test(text) && !/\b(?:history of|previous|prior|had an?|last)\b/i.test(text);
+    // "Starting compressions" starts CPR (and the arrest if needed) through log_event('cpr_started'); never a status.
+    if (plain && CPR_START.test(text)) {
+      try {
+        if (await logCprStarted(this.conn, text)) await this.policy.say('Copy, CPR started.', 1, 'control');
+      } catch (err) {
+        await step(this.conn, 'log_event', `cpr_started failed: ${(err as Error).message.slice(0, 80)}`);
+      }
+      if (wordCount <= 6) return;
+    }
+    const status = plain ? (['arrest', 'rosc', 'en_route'] as const).find(s => STATUS_WORDS[s].test(text)) : undefined;
     if (inc && status && inc.status !== status) {
       try {
         await this.conn.reducers.setStatus({ status, sourceKind: 'voice', sourceDetail: text.slice(0, 200) });
