@@ -73,7 +73,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'speak',
-      description: 'Say something to the medic. At most 15 words; only facts from the state and tool results. Advisory protocol wording ("Consider…"), never an order.',
+      description: 'Say something to the medic, once per line, only when the line was meant for you. At most 30 words, plain conversational wording; facts about the patient and incident only from the state and tool results. Advisory protocol wording ("Consider…"), never an order.',
       parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
     },
   },
@@ -97,6 +97,8 @@ export type ToolContext = {
   valid: () => boolean;
   /** What the medic said this turn; status changes must be stated in it, not inferred. */
   utterance: string;
+  /** Reads an action (procedure, airway) back and asks "Log it?"; the brain owns the pending confirmation. */
+  confirmAction: (kind: string, label: string) => Promise<void>;
 };
 
 /** Actions are read back and confirmed like medications; findings and marks are logged quietly. */
@@ -166,7 +168,11 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       }
       await conn.reducers.logEvent({ kind, label, sourceKind: 'voice', sourceDetail: String(args.detail ?? label).slice(0, 200) });
       await step(conn, 'log_event', `${kind}: ${label}`);
-      return j({ ok: true });
+      if (CONFIRMED_KINDS.has(kind)) {
+        await ctx.confirmAction(kind, label);
+        return j({ ok: true, note: 'logged as unconfirmed; the medic was read it back and asked "Log it?" automatically. Do not speak about it.' });
+      }
+      return j({ ok: true, note: 'logged quietly. Do not acknowledge it out loud.' });
     }
     case 'set_status': {
       const status = String(args.status ?? '');
