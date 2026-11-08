@@ -34,12 +34,13 @@ export type CallSummary = {
 };
 
 /** The selected incident from ?incident=<id>; without one, the newest incident (closed or not). */
-export function selectedIncidentId(): bigint | undefined {
+export function selectedIncidentId(): bigint | null | undefined {
   const raw = new URLSearchParams(window.location.search).get('incident');
-  return raw && /^\d+$/.test(raw) ? BigInt(raw) : undefined;
+  if (raw === null) return undefined;
+  return /^\d+$/.test(raw) ? BigInt(raw) : null;
 }
 
-export function useHospital(selected?: bigint) {
+export function useHospital(selected?: bigint | null) {
   const { isActive, getConnection } = useSpacetimeDB();
   const now = useNow();
   const [incidents] = useTable(tables.incident);

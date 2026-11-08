@@ -3,7 +3,7 @@
 // bodycam streams live frames only, so the video is live and the phase bar is drawn from the status events.
 import { useState } from 'react';
 import { LiveView } from './PatientPage';
-import { Card, Icon, StatusPill, Timeline, hhmm, patientLine, time } from './ui';
+import { Card, Icon, SpokenTranscript, StatusPill, Timeline, hhmm, patientLine, time } from './ui';
 import type { HospitalData } from './useHospital';
 import { mmss, STATUS_TEXT, statusPhases, statusTone } from './vitals';
 
@@ -85,16 +85,7 @@ export default function TracingPage({ data }: { data: HospitalData }) {
             ))}
           </div>
           <div className="tabs__body">
-            {tab === 'transcript' && (data.spoken.length === 0 ? <p className="empty">Nothing said yet. The medic's words and Handoff's replies appear here.</p> : (
-              <ol className="said">
-                {data.spoken.map(l => (
-                  <li key={l.key} className={l.who === 'handoff' ? 'said--agent' : undefined}>
-                    <span className="said__time">{time(l.t)}</span>
-                    <div><b>{l.who === 'medic' ? 'Paramedic' : 'Handoff'}</b><p>{l.text}{l.queued && <span className="muted"> (queued, not spoken yet)</span>}</p></div>
-                  </li>
-                ))}
-              </ol>
-            ))}
+            {tab === 'transcript' && <SpokenTranscript lines={data.spoken} />}
             {tab === 'overview' && (
               <div className="overview">
                 <div className="overview__grid">

@@ -157,6 +157,33 @@
 .ha .feed__time { color: var(--text-3); font-size: calc(9 * var(--u)); }
 .ha .feed__text b { font-weight: 550; }
 
+/* Patient directory: each full row opens the corresponding encounter. */
+.ha .patient-directory { padding: calc(8 * var(--u)) calc(16 * var(--u)); }
+.ha .patient-directory__columns, .ha .patient-directory__row {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 18px;
+  align-items: center; gap: calc(14 * var(--u)); padding: calc(14 * var(--u)) calc(10 * var(--u));
+}
+.ha .patient-directory__columns { color: var(--text-3); font-size: calc(10 * var(--u)); }
+.ha .patient-directory__list { margin: 0; padding: 0; list-style: none; }
+.ha .patient-directory__list li { border-top: 1px solid var(--line); }
+.ha .patient-directory__row { color: var(--text); text-decoration: none; border-radius: 12px; font-size: calc(12 * var(--u)); }
+.ha .patient-directory__row:hover { background: var(--violet-soft); }
+.ha .patient-directory__identity { display: flex; align-items: center; gap: calc(10 * var(--u)); min-width: 0; }
+.ha .patient-directory__identity b { font-weight: 600; overflow-wrap: anywhere; }
+.ha .patient-directory__row small { display: block; color: var(--text-3); font-size: calc(10 * var(--u)); margin-top: 3px; }
+.ha .patient-directory__avatar { display: grid; place-items: center; flex: none; width: calc(34 * var(--u)); height: calc(34 * var(--u)); border-radius: 50%; background: var(--violet-soft); }
+.ha .patient-directory__date { font-size: calc(11 * var(--u)); }
+.ha .patient-directory__row > .icon { color: var(--text-3); }
+.ha .patient-directory__row > .pill { justify-self: start; }
+.ha .patient-log-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.ha .patient-log-picker label { color: var(--text-2); font-size: calc(11 * var(--u)); }
+.ha .patient-log-picker select { min-width: 0; max-width: 100%; padding: 10px 12px; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+.ha .patient-log-picker a { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--text-2); text-decoration: none; font-size: calc(11 * var(--u)); }
+.ha .patient-log-picker a:hover { color: var(--violet); }
+.ha .patient-logs { padding: 0; max-height: calc(100dvh - 200px); min-height: 260px; }
+.ha .patient-logs .tabs { justify-content: flex-start; }
+.ha .patient-logs .tabs__body { padding: 0 calc(18 * var(--u)) calc(16 * var(--u)); }
+
 /* Patient: three nearly equal columns, each composed of compact panels. */
 .ha--patient .main { padding-left: calc(12 * var(--u)); gap: calc(25 * var(--u)); }
 .ha .page__head--patient { padding: 0 calc(9 * var(--u)); align-items: flex-end; min-height: calc(88 * var(--u)); }
@@ -330,4 +357,16 @@
   .ha .patient .video-slot { height: 210px; }
   .ha .patient .card--grow { max-height: 320px; }
   .ha .patient .card--messages { min-height: 120px; }
+  .ha .patient-directory { padding: 6px 10px; }
+  .ha .patient-directory__columns { display: none; }
+  .ha .patient-directory__row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 14px 8px; }
+  .ha .patient-directory__identity { grid-column: 1; grid-row: 1; }
+  .ha .patient-directory__row > .pill { grid-column: 2; grid-row: 1; }
+  .ha .patient-directory__unit { grid-column: 1; grid-row: 2; padding-left: 44px; }
+  .ha .patient-directory__date { grid-column: 1; grid-row: 3; padding-left: 44px; }
+  .ha .patient-directory__row > .icon { grid-column: 2; grid-row: 2 / 4; justify-self: end; }
+  .ha .patient-logs { max-height: 640px; }
+  .ha .patient-logs .tabs { gap: 1px; margin: 8px; }
+  .ha .patient-logs .tabs button { padding: 8px; gap: 5px; font-size: 10px; }
+  .ha .nav { flex-wrap: wrap; }
 }

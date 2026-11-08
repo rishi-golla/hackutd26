@@ -573,6 +573,14 @@ section and add a change-log line.
 25. **The hospital dashboard is three pages behind one sidebar** (Rishi, Sun ~07:00; hospital lane, needs Josh's
     OK before merge). Replaces the Sat ~21:30 five-panel `/hospital` (§14). Light theme with a dark-mode switch.
     The original five-panel dashboard remains at `/hospital/classic`, with its own stylesheet and a sidebar link.
+    - **Patient list (Rishi):** the Patients sidebar opens `/hospital/patients`, a list of encounters with name,
+      age when known, unit, status and call start date. Each row opens `/hospital/patient?incident=<id>`.
+      Details link back to the list. Unknown patients remain selectable; repeated encounters for the same
+      patient stay separate to preserve their own clinical records. No additional database writes.
+    - **Patient logs (Rishi):** `/hospital/logs` is a sidebar destination with a patient encounter picker and
+      Care events / Transcript / Agent activity tabs. It preserves the selected incident from patient details
+      and Tracing. Care events include recorded clinical events and ER alerts; transcript and decision rows
+      reuse their existing queued/error/completion labels. Switching the picker never combines incidents.
     - **Pages:** `/hospital` Live Operations (every call, the next arrival, the activity feed), `/hospital/patient`
       (one patient: live view, vitals, record, care timeline with the decision log, ER messages, the handoff
       report) and `/hospital/tracing` (one session: live view, a status-phase bar, session events, and Transcript /
@@ -1517,15 +1525,17 @@ What the ER sees, on the Mac and any second screen. Judges see the agent act and
 updates through the event timeline. Its only action is **Generate Handoff**; expanding a decision is view-only.
 No demo controls here.
 
-**Layout (decision 25):** three pages with a narrow sidebar, light lavender surfaces, DM Sans, and a persisted
+**Layout (decision 25):** pages with a narrow sidebar, light lavender surfaces, DM Sans, and a persisted
 dark-mode switch. The original dark five-panel dashboard is kept at `/hospital/classic` for fallback. Its
 original Inter typography, video, status, vitals, timeline and patient panels remain available there.
 
 | Page | Content |
 | --- | --- |
 | **Live Operations**, `/hospital` | Compact cards for active calls, next arrival, pending read-backs and today's calls. Live ambulance view and current patient above a larger calls table and activity feed. Clicking a call opens its patient page. Counts and ETA come from database rows; no capacity, GPS map, fleet or trend data is invented. |
+| **Patients**, `/hospital/patients` | Selectable list of patient encounters, newest first, with name and age when known, record source, unit, status and call start date. Unknown patients appear as "Not identified"; each encounter opens its own detail page. |
 | **Patient**, `/hospital/patient` | Name, age, actual record reference, unit, status and ETA. Three columns: live video and latest medic transcripts above the care timeline; vitals and EHR clinical details; ER communication log and handoff report. A ready report opens in the video panel with a Live / Report switch. |
 | **Tracing**, `/hospital/tracing` | Selected call, unit, start and duration; live video and a phase bar from recorded status events above session events. Transcript / Overview / Logs tabs show spoken or queued lines, counts, and the decision timeline. No video recording or playback controls. |
+| **Logs**, `/hospital/logs` | Patient encounter picker and Care events / Transcript / Agent activity tabs, filtered to the selected incident. Includes a link back to that patient's details. |
 
 `?incident=<id>` selects a call. Missing IDs never silently fall back to another patient. Without a selection,
 the newest call is shown. Historical or closed calls never show another incident's current vitals or camera.

@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import type { PatientRecord } from '../../module_bindings/types';
 import { LiveThought, ThoughtRow } from './ThoughtRows';
-import type { HospitalData } from './useHospital';
+import type { HospitalData, SpokenLine } from './useHospital';
 import { ageOn, STATUS_TEXT, statusTone, type Reading } from './vitals';
 
 // Lucide icons (ISC), the one icon set on the dashboard.
@@ -105,6 +105,20 @@ export function PatientFacts({ record, patientRef }: { record?: PatientRecord; p
       <dt><Icon name="heart" size={16} />Code status</dt>
       <dd>{record.codeStatus || 'Not recorded'}</dd>
     </dl>
+  );
+}
+
+export function SpokenTranscript({ lines }: { lines: SpokenLine[] }) {
+  if (!lines.length) return <p className="empty">No transcript recorded for this call.</p>;
+  return (
+    <ol className="said">
+      {lines.map(line => (
+        <li key={line.key} className={line.who === 'handoff' ? 'said--agent' : undefined}>
+          <span className="said__time">{time(line.t)}</span>
+          <div><b>{line.who === 'medic' ? 'Paramedic' : 'Handoff'}</b><p>{line.text}{line.queued && <span className="muted"> (queued, not spoken yet)</span>}</p></div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

@@ -48,7 +48,11 @@ export default function PatientPage({ data }: { data: HospitalData }) {
     <>
       <header className="page__head page__head--patient">
         <div>
-          <p className="crumbs"><a href="/hospital" onClick={e => { e.preventDefault(); go('/hospital'); }}>Live Operations</a><Icon name="arrow" size={14} />{record?.name ?? 'Patient'}</p>
+          <p className="crumbs"><a href="/hospital/patients" onClick={e => {
+            if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            go('/hospital/patients');
+          }}>Back to patients</a><Icon name="arrow" size={14} />{record?.name ?? 'Patient'}</p>
           <h1>{record?.name ?? (incident?.patientRef ? 'Pulling the record…' : 'Patient not identified')}</h1>
           <p className="sub">{record ? `${age !== undefined ? `${age} years · ` : ''}born ${record.birthDate} · ${record.patientRef}` : incident ? `${incident.unit} · incident ${incident.id}` : 'No incident yet'}</p>
         </div>
