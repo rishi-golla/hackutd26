@@ -1,0 +1,23 @@
+.gitignore
+  s_1f2d558adbb4e5::t_e19cce15f9c44a 32-34
+docs/context/SPEC.md
+  s_1f2d558adbb4e5::t_6eb99a40504ea6 725
+web/public/recordings/patient-1000039274.trace.json
+  s_1f2d558adbb4e5::t_26af1f4e92247d 1-232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "47d07d615bdf87294682fc88e172ec67f2084974",
+  "prompts": {},
+  "sessions": {
+    "s_1f2d558adbb4e5": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_1f2d558adbb4e5",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
