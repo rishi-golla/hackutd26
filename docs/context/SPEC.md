@@ -18,6 +18,14 @@ necessarily when the decision was made.
 
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
+- **Sun ~05:50 (Alan): model advisories off for the demo** (`VOICE_PROACTIVE=off` in the demo laptop's
+  `voice/.env.local`; decision 21 default unchanged). In the first full phone run the unprompted Nemotron advisories
+  ("Note: warfarin and metoprolol on board", "Consider checking pulse after CPR cycle") were low value and talked over
+  the medic's drug lines, and every one of them took a slot in the one-at-a-time speech queue, so answers felt slow.
+  What still speaks: read-backs and "Log it?", the allergy and dose warnings, "Record found…", answers when spoken
+  to, the `tick_rules` callouts, and the deterministic vitals-trend note (its own 5 s timer runs when advisories are
+  off). Also seen: a second voice worker (older code) on Maincloud answered the same question a second time;
+  decision 18 (one voice worker per database) has to be enforced by hand before a demo.
 - **Sun ~05:00 (Alan): the agent speaks only when spoken to, watches the vitals trend, and sees what the camera
   sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` plus one caption for the new `trend` step in
   `web/src/routes/hospital/thoughts.ts` (hospital lane, for Josh's OK); no table, reducer or audio-link changes). Found
