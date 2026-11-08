@@ -1,0 +1,14 @@
+web/src/routes/hospital/HospitalApp.tsx
+  h_f876d4e77222e2 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "771dbc008e498195e75d9363f5d1935c2befe055",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
