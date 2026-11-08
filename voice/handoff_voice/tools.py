@@ -22,8 +22,11 @@ class Grounding:
         self.state = state
         self._items: list[tuple[float, str]] = []
 
-    def add(self, text: str) -> None:
-        self._items.append((time.time(), text))
+    def add(self, text: str, continues: bool = False) -> None:
+        if continues and self._items:
+            self._items[-1] = (time.time(), self._items[-1][1] + text)
+        else:
+            self._items.append((time.time(), text))
         self._items = self._items[-40:]
 
     def heard_or_seen(self) -> str:

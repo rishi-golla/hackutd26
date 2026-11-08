@@ -55,6 +55,8 @@ class RivaSTT(NvidiaSTTService):
     async def push_frame(self, frame: Frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):
         if isinstance(frame, TranscriptionFrame):
             frame.finalized = True
+            # Riva marks a new word with a leading space; "fourte" + "enth" must join without one.
+            frame.includes_inter_frame_spaces = True
         await super().push_frame(frame, direction)
 
 
@@ -65,6 +67,14 @@ class Transcripts(FrameProcessor):
         super().__init__()
         self.stdb, self.grounding = stdb, grounding
         self.last_final_at = 0.0
+        self._line = ""
+        self._flush_task: asyncio.Task | None = None
+
+    async def _flush_later(self) -> None:
+        await asyncio.sleep(1.0)
+        line, self._line = self._line.strip(), ""
+        if line:
+            await self.stdb.call("add_transcript", line)
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -72,9 +82,14 @@ class Transcripts(FrameProcessor):
             logger.debug(f"interim: {frame.text}")
         if isinstance(frame, TranscriptionFrame) and frame.text.strip():
             self.last_final_at = time.time()
-            logger.info(f"heard: {frame.text}")
-            self.grounding.add(frame.text)
-            asyncio.create_task(self.stdb.call("add_transcript", frame.text.strip()))
+            logger.info(f"heard: {frame.text!r}")
+            continues = bool(self._line) and not frame.text[:1].isspace()
+            self.grounding.add(frame.text, continues=continues)
+            # One transcript row per spoken phrase: word fragments 1 s apart or less are joined.
+            self._line += frame.text
+            if self._flush_task:
+                self._flush_task.cancel()
+            self._flush_task = asyncio.create_task(self._flush_later())
         await self.push_frame(frame, direction)
 
 
