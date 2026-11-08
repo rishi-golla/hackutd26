@@ -34,22 +34,22 @@ export default function TracingPage({ data }: { data: HospitalData }) {
       <section className="card session">
         <span className="session__avatar"><Icon name="user" size={22} /></span>
         <div className="session__who">
-          <b>{patientLine(record) ?? 'Patient not identified'}</b>
+          <b>{patientLine(record) ?? data.recording?.label ?? 'Patient not identified'}</b>
           <span className="muted">{record ? record.patientRef : incident ? `Incident ${incident.id}` : 'No incident'}</span>
         </div>
         <dl className="head-facts">
           <div><dt>Session</dt><dd>{incident ? <span className={`pill pill--${data.open ? 'green' : 'grey'}`}>{data.open ? 'In progress' : 'Closed'}</span> : '—'}</dd></div>
           {data.open && <div><dt>Status</dt><dd><StatusPill status={incident?.status} /></dd></div>}
-          <div><dt>Unit</dt><dd><b>{incident?.unit ?? '—'}</b></dd></div>
-          <div><dt>Started</dt><dd><b>{incident ? hhmm(start) : '—'}</b></dd></div>
-          <div><dt>{data.open ? 'Elapsed' : 'Duration'}</dt><dd><b>{incident ? mmss(data.elapsedS) : '—'}</b></dd></div>
+          <div><dt>{data.recordingOnly ? 'Source' : 'Unit'}</dt><dd><b>{incident?.unit ?? '—'}</b></dd></div>
+          <div><dt>{data.recordingOnly ? 'Imported' : 'Started'}</dt><dd><b>{incident ? hhmm(start) : '—'}</b></dd></div>
+          <div><dt>{data.open ? 'Elapsed' : 'Duration'}</dt><dd><b>{incident && !data.recordingOnly ? mmss(data.elapsedS) : '—'}</b></dd></div>
         </dl>
       </section>
 
       <div className="tracing">
         <div className="col">
           <section className="card card--video card--bare"><SessionVideo data={data} /></section>
-          {phases.length > 0 && (
+          {!data.recordingOnly && phases.length > 0 && (
             <div className="phases" aria-label="Status over time">
               <div className="phases__bar">
                 {phases.map(p => (

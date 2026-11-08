@@ -6,7 +6,7 @@ import { tables, type DbConnection } from '../../module_bindings';
 import type { AgentStep, ErMessage, Event, Hospital, Incident, PatientRecord, Report, Timer, Vitals } from '../../module_bindings/types';
 import { tsMs } from '../../db/time';
 import { groupThoughts, liveThoughts, type Thought } from './thoughts';
-import { recordingFor } from './recordings';
+import { isRecordedEncounter, recordingFor, type Recording } from './recordings';
 import { CPR_STALE_MS, etaMinutes, NONE, readingOf, REPORT_SLOW_MS, selectVitals, VITALS_STALE_MS, type Reading } from './vitals';
 
 export function useNow(intervalMs = 500) {
@@ -29,6 +29,8 @@ export type SpokenLine = { key: string; t: number; who: 'medic' | 'handoff'; tex
 export type CallSummary = {
   incident: Incident;
   record?: PatientRecord;
+  recording?: Recording;
+  recordingOnly: boolean;
   destination?: Hospital;
   latest?: Event;
   flagged: number;
@@ -119,8 +121,9 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
   // H7: one report per incident.
   const reportReady = report?.status === 'ready' && !!report.contentJson;
   const writing = report?.status === 'requested';
-  // requestReport targets the newest incident; it has no incident argument. Never let an older call invoke it.
-  const canGenerate = isActive && !!incident && incident.id === sorted[0]?.id;
+  // requestReport targets the newest clinical incident. Video-only imports cannot redirect it.
+  const recordingOnly = isRecordedEncounter(incident);
+  const canGenerate = isActive && !!incident && !recordingOnly && incident.id === sorted.find(i => !isRecordedEncounter(i))?.id;
   const [requestError, setRequestError] = useState<string>();
   useEffect(() => setRequestError(undefined), [incId, report?.status]);
   const generate = () => {
@@ -142,6 +145,8 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
     return {
       incident: i,
       record: records.find(r => r.incidentId === i.id),
+      recording: recordingFor(evs),
+      recordingOnly: isRecordedEncounter(i),
       destination: hospitals.find(h => h.id === i.destinationId),
       latest: [...evs].sort(byNewest)[0],
       flagged: evs.filter(e => e.status === 'flagged').length,
@@ -156,7 +161,7 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
 
   return {
     isActive, now, incident, open, canShowLive, hasLiveCall: isActive && activeId !== undefined, canGenerate, record, report, destination, thoughts, live, liveSet, timeline, spoken,
-    events: incEvents, messages: incMessages, steps: incSteps, recording, recordedVitals,
+    events: incEvents, messages: incMessages, steps: incSteps, recording, recordingOnly, recordedVitals,
     hr, spo2, tempC: v?.tempC, vitalsAt, sensorStatus: v?.status, vitalsSimulated: !!v?.simulated, cprRate, epi, inArrest, elapsedS, etaMin,
     reportReady, writing, generate, reportProblem, calls, activity, unitOf: (id: bigint) => sorted.find(i => i.id === id)?.unit,
   };

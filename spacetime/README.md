@@ -58,6 +58,17 @@ An empty `url` removes the reference. The server validates the encounter and URL
 wins. This works for closed encounters without reopening them. No video bytes or inferred clinical values
 are inserted. Patient and Tracing play the hosted file directly; the host must allow browser playback.
 
+Local demo videos may be copied to gitignored `web/public/recordings/` and referenced as
+`/recordings/<filename>.mp4` or `.webm` (filename characters: letters, numbers, underscore, hyphen).
+They play only from a dashboard host that serves those files.
+
+`demo_control("import_recording", JSON {url, label})` imports a separate closed encounter directly, without
+starting or closing a live call. It uses the reserved source label `unit = "Recorded session"`, stores no
+patient identity/clinical facts, and deduplicates imports by URL. Its dates represent import time, not video
+capture time. `latestIncident` and `request_report` exclude these imported encounters so the active clinical
+call remains the report target. The hospital UI likewise excludes them from report eligibility and classic
+clinical displays.
+
 ## Deployment order for camera sessions
 
 Publish the module first, preserving all existing rows (`--delete-data=never`). Then apply the session changes
@@ -152,9 +163,9 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Bodycam (W6) | `savePatientRecord({...})`, `addCallout({text, priority})`, `logAgentStep({workflow, tool, summary})` | |
 | Bodycam / hospital | `sendRtcSignal({sessionId, sender, kind, payload})` | WebRTC handshake, below |
 | Monitor | `monitorTap({button})` | `EPI` `AMIO` `SHOCK` `AIRWAY` `ROSC` `MARK`. A tap carries no dose: it logs "Epinephrine (tap)" and the read-back adds the dose when they merge |
-| Monitor | `demoControl({action, arg})` | `start` `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_slow` `cpr_good` `cpr_clear` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS `url`, optional `label`; empty URL removes the reference) |
+| Monitor | `demoControl({action, arg})` | `start` `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_slow` `cpr_good` `cpr_clear` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS or scoped local `url`, optional `label`; empty URL removes it), `import_recording` (arg JSON: `url`, optional `label`; creates a separate closed video-only encounter) |
 | Any (caller not decided) | `synthesizeSeizure({active})` / HTTP `synthesize_seizure` `[true]` or `[false]` | Overrides the relay's sensor data with a hardcoded seizure. See "Synthetic seizure" below |
-| Hospital | `requestReport()` | the Generate Handoff button; works on the newest incident even after close |
+| Hospital | `requestReport()` | the Generate Handoff button; works on the newest clinical incident even after close; ignores closed video-only imports |
 | Agent | `setDestination({hospitalId, etaMin})`, `erMessageOut({text})`, `saveReport({incidentId, contentJson})`, `logAgentStep(...)` | |
 
 Most reducers act on the **active incident**: the newest one whose status isn't `closed`. Rows written when

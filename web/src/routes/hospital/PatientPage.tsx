@@ -47,7 +47,7 @@ export function SessionVideo({ data }: { data: HospitalData }) {
   const recorded = !!recording && (!data.canShowLive || preferRecording);
   return <div className="session-media">
     {recording && <div className="session-media__head">
-      <span>{recorded ? 'Recorded video' : 'Live camera'}</span>
+      <span>{recorded ? `Recorded video${recording.url.startsWith('/') ? ' · demo laptop' : ''}` : 'Live camera'}</span>
       {data.canShowLive && <button type="button" onClick={() => setPreferRecording(value => !value)}>{recorded ? 'Show live camera' : 'Watch recording'}</button>}
     </div>}
     {recorded && recording ? <div className="video-slot recorded-video">
@@ -72,13 +72,13 @@ export default function PatientPage({ data }: { data: HospitalData }) {
             if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
             e.preventDefault();
             go('/hospital/patients');
-          }}>Back to patients</a><Icon name="arrow" size={14} />{record?.name ?? 'Patient'}</p>
-          <h1>{record?.name ?? (incident?.patientRef ? 'Pulling the record…' : 'Patient not identified')}</h1>
+          }}>Back to patients</a><Icon name="arrow" size={14} />{record?.name ?? (data.recordingOnly ? 'Recorded video' : 'Patient')}</p>
+          <h1>{record?.name ?? data.recording?.label ?? (incident?.patientRef ? 'Pulling the record…' : 'Patient not identified')}</h1>
           <p className="sub">{record ? `${age !== undefined ? `${age} years · ` : ''}born ${record.birthDate} · ${record.patientRef}` : incident ? `${incident.unit} · incident ${incident.id}` : 'No incident yet'}</p>
         </div>
         <dl className="head-facts">
           <div><dt>ETA</dt><dd>{data.etaMin !== undefined ? <b>{data.etaMin} min</b> : '—'}{data.destination && <small>{data.destination.name}</small>}</dd></div>
-          <div><dt>Unit</dt><dd><b>{incident?.unit ?? '—'}</b></dd></div>
+          <div><dt>{data.recordingOnly ? 'Source' : 'Unit'}</dt><dd><b>{incident?.unit ?? '—'}</b></dd></div>
           <div><dt>Status</dt><dd><StatusPill status={incident?.status} /></dd></div>
         </dl>
       </header>
@@ -115,7 +115,8 @@ export default function PatientPage({ data }: { data: HospitalData }) {
             </div>
           </Card>
           <Card title="Clinical Details" icon="clipboard" right={record && <span className="small muted">{record.source === 'cached' ? 'Cached copy' : 'From EHR'}</span>}>
-            <PatientFacts record={record} patientRef={incident?.patientRef} />
+            {data.recordingOnly && !record ? <p className="empty">No patient identity or clinical record was supplied with this video.</p>
+              : <PatientFacts record={record} patientRef={incident?.patientRef} />}
           </Card>
         </div>
 

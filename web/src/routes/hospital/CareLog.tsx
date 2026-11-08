@@ -14,7 +14,7 @@ function presentation(kind: string) {
   if (kind.startsWith('status_')) return { label: 'Session', icon: 'pulse', tone: 'blue' };
   if (kind === 'patient_identified') return { label: 'Patient', icon: 'user', tone: 'green' };
   if (kind === 'er_alert') return { label: 'Communication', icon: 'message', tone: 'blue' };
-  if (kind === 'session_recording') return { label: 'Recording', icon: 'video', tone: 'grey' };
+  if (kind === 'session_recording' || kind === 'recording_imported') return { label: 'Recording', icon: 'video', tone: 'grey' };
   if (kind.includes('alarm')) return { label: 'Alert', icon: 'alert', tone: 'amber' };
   return { label: 'Care event', icon: 'clipboard', tone: 'grey' };
 }

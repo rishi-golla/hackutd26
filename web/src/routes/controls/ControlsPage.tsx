@@ -7,6 +7,7 @@ import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables, type DbConnection } from '../../module_bindings';
 import type { Incident } from '../../module_bindings/types';
 import { tsMs } from '../../db/time';
+import { isRecordedEncounter, parseRecordingUrl } from '../hospital/recordings';
 import './controls.css';
 
 /** The five synthetic patients in the mock EHR (ehr/README.md). */
@@ -93,7 +94,7 @@ export default function ControlsPage() {
 
   // The open incident (the backend's "active" one), else the newest so a closed run still reads back.
   const active: Incident | undefined = useMemo(() => [...incidents].filter(i => i.status !== 'closed').sort(byNewest)[0], [incidents]);
-  const latest: Incident | undefined = useMemo(() => [...incidents].sort(byNewest)[0], [incidents]);
+  const latest: Incident | undefined = useMemo(() => incidents.filter(i => !isRecordedEncounter(i)).sort(byNewest)[0], [incidents]);
   const shown = active ?? latest;
   const cpr = cprRows.find(c => c.incidentId === active?.id);
   const cprOverride = cpr?.source === 'override' ? cpr.rate : undefined;
@@ -265,14 +266,16 @@ export default function ControlsPage() {
             {records.find(record => record.incidentId === incident.id)?.name ?? 'Unidentified patient'} · {incident.unit} · Call {String(incident.id)}
           </option>)}
         </select>
-        <input className="ctl__select" aria-label="Direct HTTPS video URL" type="url" placeholder="Direct HTTPS MP4 or WebM URL"
+        <input className="ctl__select" aria-label="Video URL or local recording path" type="text" inputMode="url" placeholder="HTTPS URL or /recordings/file.mp4"
           value={recordingUrl} onChange={e => setRecordingUrl(e.target.value)} />
         <input className="ctl__select" aria-label="Recording title" placeholder="Recording title" value={recordingLabel} onChange={e => setRecordingLabel(e.target.value)} />
-        <Btn disabled={off || !recordingIncident || !recordingUrl.startsWith('https://')}
+        <Btn disabled={off || !recordingIncident || !parseRecordingUrl(recordingUrl.trim())}
           onClick={() => demo('attach_recording', 'Attach recorded video', JSON.stringify({ incidentId: recordingIncident, url: recordingUrl, label: recordingLabel }))}>Attach video</Btn>
+        <Btn disabled={off || !parseRecordingUrl(recordingUrl.trim())}
+          onClick={() => demo('import_recording', 'Add recorded patient', JSON.stringify({ url: recordingUrl, label: recordingLabel }))}>Add as new patient</Btn>
         <Btn disabled={off || !recordingIncident}
           onClick={() => demo('attach_recording', 'Remove recording link', JSON.stringify({ incidentId: recordingIncident, url: '' }))}>Remove video link</Btn>
-        <p className="ctl__hint">Link an existing hosted video to this encounter. Playback does not generate vitals or clinical events.</p>
+        <p className="ctl__hint">Attach to a selected encounter, or add a separate recorded patient. Local files must be in the demo laptop’s recordings folder. Playback does not generate clinical facts.</p>
       </Group>
 
       <section className="ctl__reset">

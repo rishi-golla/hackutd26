@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Rishi): local patient recording** (decision 26 extended). User supplied `1000039274.mp4` and chose
+  serving it from the demo laptop. `/recordings/<filename>.mp4|webm` is allowed as a strict same-origin
+  reference; media files stay gitignored. A video-only import creates a closed, unidentified encounter,
+  labelled from its recording title. Its timestamps are import time, not the unprovided capture time.
+  Imports do not redirect live care or report generation.
 - **Sun (Rishi): decision 26 deployed.** Published the module to Maincloud preserving existing rows.
   Applied only session-ID/frame-registration changes to the Pi's existing phone page and hub; updated the
   bridge and restarted both services. The Pi's older phone UI and its hub trailing-slash handling remain
@@ -656,7 +661,18 @@ section and add a change-log line.
       Patient and Tracing use native video playback labelled "Recorded video"; live video stays separate.
       Unsupported/expired links show a load error. Playback creates no clinical facts and is not synchronized
       to historical vitals unless independently timestamped. This is attachment/playback, not automatic video
-      recording. No user videos have been supplied yet; do not insert synthetic cases or stock clips as real care.
+      recording. Do not insert synthetic cases or stock clips as real care.
+      **Local-file extension (Rishi):** a supplied clip can instead live in gitignored `web/public/recordings/`,
+      served by this laptop's dashboard. Permit only `/recordings/[a-zA-Z0-9_-]+.(mp4|webm)` relative references,
+      alongside HTTPS URLs. `demo_control("import_recording", JSON {url,label})` atomically creates a closed
+      encounter with reserved source `unit = "Recorded session"`, no patient identity and no clinical facts.
+      Importing the same URL twice is idempotent. These closed imports are excluded from `latestIncident`,
+      classic/current clinical displays and report eligibility; real live calls remain the report target.
+      Patient directory and Tracing identify import dates as such and do not invent a clinical duration/phase.
+      The title identifies the recording, not a verified patient name. Actual playback requires the laptop
+      serving that asset; videos are not committed to Git or uploaded to public storage.
+      `/controls` → Patient recording accepts these local paths and offers "Add as new patient" as well as
+      attachment to an existing encounter. Starting a real call with the reserved unit label is rejected.
     - **Log layout:** a date/time rail with event categories and confirmation badges, separate Vitals,
       Transcript and Agent activity categories, and bounded batches for long histories.
 
@@ -1609,7 +1625,8 @@ The record is labelled "from EHR" or "cached copy", and allergies are highlighte
 "awaiting confirmation" labels. Up to two live decision lines precede the timeline and completed decisions
 expand into their recorded updates; reduced motion disables their transitions.
 
-Generate Handoff remains the only clinical write action. It is enabled only for the newest incident because
+Generate Handoff remains the only clinical write action. It is enabled only for the newest clinical incident
+(closed video-only imports are excluded) because
 the reducer has no incident argument. Existing reports for older calls remain readable with their source
 chips. Failed, queued and overdue requests are labelled without claiming success.
 
@@ -2250,7 +2267,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Agents | `log_agent_step({workflow, tool, summary})` | Trace step |
 | Bodycam / hospital | `send_rtc_signal({sessionId, sender, kind, payload})` | §22.5 |
 | Controls | `demo_control({action, arg})` | Actions in §8 |
-| Hospital | `request_report()` | The Generate Handoff button; works on the newest incident even after close |
+| Hospital | `request_report()` | The Generate Handoff button; works on the newest clinical incident even after close; excludes closed video-only imports |
 | Agent (W1) | `set_destination({hospitalId, etaMin})` | Sets `destinationId` and `etaAt`; logs a `destination` event |
 | Agent (W1, W4) | `er_message_out({text})` | Display-only alert |
 | Agent (W4) | `save_report({incidentId, contentJson})` | Status `ready`; closes the incident |

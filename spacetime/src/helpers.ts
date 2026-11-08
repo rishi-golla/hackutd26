@@ -21,10 +21,16 @@ export function activeIncident(ctx: Ctx) {
   return best ?? undefined;
 }
 
-/** The newest incident, closed or not (the dashboard and Generate Handoff use it after close). */
+/** Reserved source label for closed, video-only imports; not a clinical unit. */
+export const RECORDED_UNIT = 'Recorded session';
+
+/** The newest clinical incident, closed or not. Imported videos cannot redirect clinical workflows. */
 export function latestIncident(ctx: Ctx) {
   let best: ReturnType<typeof ctx.db.incident.id.find> = null;
-  for (const row of ctx.db.incident.iter()) if (!best || row.id > best.id) best = row;
+  for (const row of ctx.db.incident.iter()) {
+    if (row.status === 'closed' && row.unit === RECORDED_UNIT) continue;
+    if (!best || row.id > best.id) best = row;
+  }
   return best ?? undefined;
 }
 
@@ -226,6 +232,7 @@ export function startCpr(ctx: Ctx, sourceKind: string, sourceDetail: string) {
 }
 
 export function beginIncident(ctx: Ctx, unit: string, sourceKind: string) {
+  if (unit === RECORDED_UNIT) throw new SenderError('Recorded session is reserved for video imports');
   const existing = activeIncident(ctx);
   if (existing) return existing;
   const row = ctx.db.incident.insert({
@@ -360,4 +367,3 @@ export function ensureSeedAndTick(ctx: Ctx) {
     ctx.db.tickSchedule.insert({ scheduledId: 0n, scheduledAt: ScheduleAt.interval(SEC) });
   }
 }
-

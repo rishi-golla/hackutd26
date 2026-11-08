@@ -13,13 +13,13 @@ export default function PatientsPage({ data }: { data: HospitalData }) {
       </header>
       <section className="card patient-directory" aria-label="Patient encounters">
         <div className="patient-directory__columns" aria-hidden="true">
-          <span>Patient</span><span>Unit</span><span>Status</span><span>Call started</span><span />
+          <span>Patient</span><span>Unit / source</span><span>Status</span><span>Encounter date</span><span />
         </div>
         {data.calls.length === 0 ? (
           <p className="empty">{data.isActive ? 'No patients yet. They will appear when a call starts.' : 'Connecting to patient records…'}</p>
         ) : (
           <ul className="patient-directory__list">
-            {data.calls.map(({ incident, record }) => {
+            {data.calls.map(({ incident, record, recording, recordingOnly }) => {
               const started = new Date(tsMs(incident.startedAt));
               const href = `/hospital/patient?incident=${incident.id}`;
               return (
@@ -33,15 +33,15 @@ export default function PatientsPage({ data }: { data: HospitalData }) {
                     <div className="patient-directory__identity">
                       <span className="patient-directory__avatar"><Icon name="user" /></span>
                       <div>
-                        <b>{patientLine(record) ?? 'Not identified'}</b>
-                        <small>Call {String(incident.id)}{record ? ` · ${record.source === 'cached' ? 'Cached copy' : 'From EHR'}` : ' · Awaiting identification'}</small>
+                        <b>{patientLine(record) ?? recording?.label ?? 'Not identified'}</b>
+                        <small>{recordingOnly ? 'Recorded video · patient not identified' : `Call ${incident.id}${record ? ` · ${record.source === 'cached' ? 'Cached copy' : 'From EHR'}` : ' · Awaiting identification'}`}</small>
                       </div>
                     </div>
                     <span className="patient-directory__unit">{incident.unit}</span>
                     <StatusPill status={incident.status} />
                     <time dateTime={started.toISOString()} className="patient-directory__date">
                       {started.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                      <small>{started.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small>
+                      <small>{recordingOnly ? 'Imported ' : ''}{started.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small>
                     </time>
                     <Icon name="arrow" size={16} />
                   </a>

@@ -70,6 +70,30 @@ class SessionIntegrationTest(unittest.TestCase):
         self.assertEqual(len(self.rows("SELECT id FROM event WHERE kind = 'session_recording'")), 2)
         self.assertEqual(self.rows("SELECT id FROM vitals"), [], "playback references cannot invent vitals")
 
+    def test_video_import_is_idempotent_and_cannot_redirect_live_care_or_reports(self):
+        self.call("start_bodycam_session", ["bodycam-test", "still-live", "Test Unit"])
+        active = self.rows("SELECT id FROM incident")[0][0]
+        data = json.dumps({"url": "/recordings/patient-01.mp4", "label": "Recorded patient 01"})
+        self.call("demo_control", ["import_recording", data])
+        self.call("demo_control", ["import_recording", data])
+        self.assertEqual(len(self.rows("SELECT id FROM incident")), 2)
+
+        self.assertEqual(self.rows("SELECT status FROM incident WHERE unit = 'Recorded session'"), [["closed"]])
+        self.assertEqual(self.rows("SELECT incident_id FROM patient_record"), [])
+        self.call("push_vitals", ["relay-test", json.dumps({"hr": 75, "status": "pulse", "simulated": True})])
+        self.assertEqual(self.rows("SELECT incident_id FROM vitals"), [[active]])
+        self.call("request_report", [])
+        self.assertEqual(self.rows("SELECT incident_id FROM report"), [[active]])
+        for url in ["/recordings/../secret.mp4", "//example.com/a.mp4", "/recordings/%2e%2e/a.mp4"]:
+            with self.assertRaises(HTTPError):
+                self.call("demo_control", ["import_recording", json.dumps({"url": url})])
+        self.assertEqual(len(self.rows("SELECT id FROM incident")), 2)
+
+    def test_recording_source_label_cannot_be_used_for_a_real_call(self):
+        with self.assertRaises(HTTPError):
+            self.call("demo_control", ["start", "Recorded session"])
+        self.assertEqual(self.rows("SELECT id FROM incident"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

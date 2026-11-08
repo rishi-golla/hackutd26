@@ -31,9 +31,9 @@ export default function LogsPage({ data }: { data: HospitalData }) {
         <select id="log-patient" value={data.incident ? String(data.incident.id) : ''} disabled={!data.calls.length}
           onChange={e => go('/hospital/logs', BigInt(e.target.value))}>
           <option value="" disabled>{data.calls.length ? 'Select a patient' : 'No patients yet'}</option>
-          {data.calls.map(({ incident, record }) => (
+          {data.calls.map(({ incident, record, recording }) => (
             <option key={String(incident.id)} value={String(incident.id)}>
-              {patientLine(record) ?? 'Not identified'} · {incident.unit} · Call {String(incident.id)}
+              {patientLine(record) ?? recording?.label ?? 'Not identified'} · {incident.unit} · Call {String(incident.id)}
             </option>
           ))}
         </select>

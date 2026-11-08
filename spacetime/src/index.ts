@@ -34,7 +34,7 @@ import {
   writeSyntheticFrame,
 } from './helpers';
 import { runRules } from './rules';
-import { attachRecording, shouldPruneVitals, startCameraSession } from './sessions';
+import { attachRecording, importRecording, shouldPruneVitals, startCameraSession } from './sessions';
 
 export default spacetimedb;
 
@@ -379,6 +379,9 @@ export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.stri
   switch (action) {
     case 'attach_recording':
       attachRecording(ctx, arg);
+      return;
+    case 'import_recording':
+      importRecording(ctx, arg);
       return;
     case 'start':
       beginIncident(ctx, arg || 'Medic 12', 'demo');
