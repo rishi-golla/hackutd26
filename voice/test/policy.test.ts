@@ -15,6 +15,15 @@ test('policy applies the word limit for every speech kind', async () => {
   assert.equal(callsTo(calls, 'logAgentStep').filter(c => c.args.tool === 'policy').length, 6);
 });
 
+test('a long answer keeps the whole leading sentences that fit; one long sentence is still dropped', async () => {
+  const { conn, rows } = fakeConn();
+  const policy = new Policy(conn);
+  const sentence = 'I can read back doses and check allergies for you.';
+  assert.equal(await policy.say(`${sentence} ${sentence} ${sentence} ${sentence}`, 0, 'answer'), true);
+  assert.equal(rows.callout[0].text, `${sentence} ${sentence} ${sentence}`);
+  assert.equal(await policy.say(Array(31).fill('word').join(' '), 0, 'answer'), false);
+});
+
 test('advisories are limited to one per 20 seconds and order wording gets Consider prefix', async () => {
   const { conn, calls, rows } = fakeConn();
   const policy = new Policy(conn);

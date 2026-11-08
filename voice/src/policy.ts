@@ -44,6 +44,16 @@ export class Policy {
     if (kind === 'advisory' && /^(give|push|stop|start|do|administer|shock)\b/i.test(words) && !/^consider\b/i.test(words)) {
       words = `Consider: ${words}`;
     }
+    // A long answer keeps its leading whole sentences that fit, rather than being lost entirely.
+    if (kind === 'answer' && words.split(' ').length > WORD_LIMIT[kind]) {
+      let kept = '';
+      for (const sentence of words.match(/[^.!?]+[.!?]+/g) ?? []) {
+        const next = `${kept} ${sentence.trim()}`.trim();
+        if (next.split(' ').length > WORD_LIMIT[kind]) break;
+        kept = next;
+      }
+      if (kept) words = kept;
+    }
     const count = words.split(' ').length;
     if (count > WORD_LIMIT[kind]) {
       await step(this.conn, 'policy', `Dropped ${kind} (${count} words, limit ${WORD_LIMIT[kind]}): "${words.slice(0, 60)}"`);
