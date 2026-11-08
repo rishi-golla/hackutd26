@@ -15,7 +15,7 @@ elif [ "$(uname)" = Darwin ]; then
   IP=$(ping6 -c 2 -i 0.5 ff02::1%en7 2>/dev/null | grep -o 'fe80::[0-9a-f:]*%en7' | grep -v "$(ifconfig en7 | grep -o 'fe80::[0-9a-f:]*' | head -1)%" | head -1)
 fi
 [ "$1" = --ip ] && { echo "$IP"; exit; }
-[ "$1" = --ssh-opts ] && { echo "-i $KEY -o UserKnownHostsFile=$HOSTS -o StrictHostKeyChecking=no"; exit; }
+[ "$1" = --ssh-opts ] && { echo "-i $KEY -o UserKnownHostsFile=$HOSTS -o StrictHostKeyChecking=accept-new"; exit; }
 if [ -z "$IP" ]; then
   if [ "$(uname)" = Darwin ]; then
     echo "Pi not found on USB (en7). Plug its USB-C port into the Mac and wait ~45 s, or set PI_HOST to its Wi-Fi address." >&2
@@ -25,4 +25,4 @@ if [ -z "$IP" ]; then
   exit 255
 fi
 [ "$1" = --dst ] && { case $IP in *:*) echo "cmx@[$IP]" ;; *) echo "cmx@$IP" ;; esac; exit; }
-exec ssh -i "$KEY" -o UserKnownHostsFile="$HOSTS" -o StrictHostKeyChecking=no -o ConnectTimeout=8 -o BatchMode=yes "cmx@$IP" "$@"
+exec ssh -i "$KEY" -o UserKnownHostsFile="$HOSTS" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 -o BatchMode=yes "cmx@$IP" "$@"
