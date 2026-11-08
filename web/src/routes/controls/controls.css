@@ -1,0 +1,116 @@
+/* Demo controls: a phone page in the dashboard's dark style. Big tap targets, one column, nothing decorative. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap');
+
+.ctl {
+  --page: #0b0b0b;
+  --panel: #161616;
+  --panel-2: #1f1f1f;
+  --border: #2a2a2a;
+  --text: #ededed;
+  --text-2: #a3a3a3;
+  --text-3: #7a7a7a;
+  --alarm: #f2a0a0;
+  --ok: #a6e9c4;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  box-sizing: border-box;
+  min-height: 100vh;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+  background: var(--page);
+  color: var(--text);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  font-feature-settings: 'tnum';
+  -webkit-font-smoothing: antialiased;
+}
+.ctl *, .ctl *::before, .ctl *::after { box-sizing: border-box; }
+:where(.ctl) :where(h1, h2, p, dl, dd) { margin: 0; }
+body:has(.ctl) { background: #0b0b0b; }
+
+.ctl__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 4px 16px; }
+.ctl__title { font-size: 20px; font-weight: 600; }
+.ctl__conn { font-size: 13px; color: var(--alarm); }
+.ctl__conn.is-on { color: var(--text-3); }
+
+/* What the database holds now, tinted by status like the dashboard */
+.ctl__state { padding: 18px 20px; border-radius: 12px; border: 1px solid #333; background: #1c1c1c; }
+.state--on_scene, .state--en_route { background: rgb(96 140 255 / 0.12); border-color: rgb(96 140 255 / 0.35); }
+.state--arrest { background: rgb(242 160 160 / 0.12); border-color: rgb(242 160 160 / 0.35); }
+.state--rosc { background: rgb(110 220 160 / 0.12); border-color: rgb(110 220 160 / 0.35); }
+.ctl__state-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ctl__status { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
+.state--on_scene .ctl__status, .state--en_route .ctl__status { color: #b9ccff; }
+.state--arrest .ctl__status { color: var(--alarm); }
+.state--rosc .ctl__status { color: var(--ok); }
+.ctl__clock { font-size: 24px; font-weight: 400; color: var(--text-2); }
+.ctl__facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin-top: 14px; font-size: 15px; }
+.ctl__facts dt { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); align-self: center; }
+
+/* Result of the last tap */
+.ctl__feedback { min-height: 22px; margin: 12px 4px 4px; font-size: 14px; color: var(--text-3); }
+.ctl__feedback.is-done { color: var(--ok); }
+.ctl__feedback.is-failed { color: var(--alarm); }
+
+.ctl__group { margin-top: 20px; }
+.ctl__group-title { padding: 0 4px 10px; font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); }
+.ctl__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ctl__grid--single { grid-template-columns: 1fr auto; }
+
+.ctl__btn {
+  min-height: 56px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 120ms ease-out;
+}
+.ctl__btn:active:not(:disabled) { background: var(--panel-2); }
+.ctl__btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.ctl__btn:disabled { color: var(--text-3); cursor: default; opacity: 0.55; }
+.ctl__btn--primary { color: #000; background: var(--text); border-color: var(--text); font-weight: 600; }
+.ctl__btn--primary:active:not(:disabled) { background: #fff; }
+.ctl__btn--primary:disabled { color: var(--text-3); background: var(--panel); border-color: var(--border); }
+/* An override that is on right now */
+.ctl__btn.is-on { border-color: var(--text-2); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--text-2); }
+
+.ctl__select {
+  min-height: 56px;
+  min-width: 0;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.ctl__select:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+/* Reset: set apart, and it takes a second tap */
+.ctl__reset { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
+.ctl__danger {
+  width: 100%;
+  min-height: 60px;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--alarm);
+  background: rgb(242 160 160 / 0.08);
+  border: 1px solid rgb(242 160 160 / 0.4);
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ctl__danger.is-armed { color: #1a0505; background: var(--alarm); border-color: var(--alarm); }
+.ctl__danger:focus-visible { outline: 2px solid var(--alarm); outline-offset: 2px; }
+.ctl__danger:disabled { opacity: 0.5; cursor: default; }
+.ctl__hint { margin: 8px 4px 0; font-size: 13px; color: var(--text-3); }

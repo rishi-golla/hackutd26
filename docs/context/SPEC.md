@@ -16,6 +16,14 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~01:00 (Alan): `/controls` built** (D1, H8, §5). A hidden phone page for the demo operator that forces
+  any beat through the existing `demo_control` and `synthesize_seizure` reducers on Maincloud (the one source of
+  truth): Start, Arrest, ROSC, En route, Arrived, Close; CPR slow / good / live; Epi due now; Seizure on/off;
+  Demo timing; Identify patient (the five EHR patients); and Reset for the next judge (second tap to confirm). A
+  card at the top reads back the live state. It replaces the `/monitor` placeholder route; nothing links to it.
+  The Seizure button makes `/controls` a `synthesize_seizure` caller (Alan's call; agent/hotkey callers and the
+  scenario's numbers stay open, §28). Pending Josh's OK: the `web/` routing change and the `/monitor` removal
+  (hospital lane, §0.2). No module changes.
 - **Sun ~00:30 (Alan): two touches from Canvas UI on the hospital dashboard** (§14). The vitals are stat cards (big
   number, small spaced monospace caption under it), and panel titles use the same caption style. Before the first
   video frame, the live view shows a slowly floating halftone heart (Canvas UI's Dithered Object, MIT + Commons
@@ -308,7 +316,7 @@ Conflicts resolved when this file was created (for the record):
 | **Bridge** (hub → SpacetimeDB) | Josh | `bridge/` (forwards the Pi hub's vitals and MARK presses to `push_vitals` / `mark`; doesn't change `hub/` or `chromatic/`) | R3 (vitals only, no waveform), R4, R5 (short press only; the 2 s hold isn't forwarded) |
 | **Chest camera** | camera owner | `web/src/routes/bodycam/` (the planned page), `hub/phone.html` (today's bodycam page: hub uploads plus the `?voice=` link to the worker), WebRTC video sender to the hospital, CPR detector | B1–B11 (phone side), RB1–RB7 (phone side, degraded mode) |
 | **Voice agent worker** | Alan | `voice/` (brain, mocks, Pipecat worker with the vision sampler) | §19 voice agent and §19 Vision, the agent side of B3/B5/B6/B10, §15 when-to-speak policy, RB1–RB5 and RB7 on the agent path, RB8–RB10, W2, W6 (`VOICE_W6`), X1 (spoken name and ID card), X3, X4, X7, X8 |
-| **Unassigned** | team decides | `/controls` demo-controls page (`web/src/routes/controls/`; the code still has it as `web/src/routes/monitor/`, rename pending, §28), Devpost/video | D1, H8; W3 (optional) has no owner yet |
+| **Unassigned** | team decides | `/controls` demo-controls page (`web/src/routes/controls/`; built by Alan Sun ~01:00, owner still open, §28), Devpost/video | D1, H8; W3 (optional) has no owner yet |
 
 - One owner per folder. Stay inside your lane's folders.
 - **Only the hospital lane changes `spacetime/`.** Need a table, column or reducer? Ask Josh.
@@ -325,11 +333,11 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | --- | --- | --- |
 | Relay (HTTP) | `push_vitals`, `push_waveform`, `mark`, `toggle_incident` (2 s hold). Today the caller is `bridge/`, which makes only `push_vitals` and `mark` | `incident` (optional) |
 | Bodycam (TS SDK) | `push_cpr`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; `add_transcript` (degraded mode; see the voice row); `identify_patient` after reading the ID card (the pull runs in `voice/`) | `callout` (unspoken; spoken by the phone only while the audio link to the voice worker is down), `rtc_signal`, `patient_record`, `incident` |
-| Controls `/controls` (TS SDK) | `demo_control` | `incident`, `cpr_state`, `timer`, `patient_record` |
+| Controls `/controls` (TS SDK) | `demo_control`, `synthesize_seizure` (Seizure button, Alan Sun ~01:00) | `incident`, `cpr_state`, `vitals_override`, `patient_record` |
 | Hospital + agent (TS SDK) | `send_rtc_signal`, `set_destination`, `er_message_out`, `log_agent_step`, `request_report`, `save_report` | everything |
 | Voice agent worker `voice/` (TS SDK) | `add_transcript`, `add_callout`, `callout_spoken`, `log_event`, `set_event_status`, `set_status`, `identify_patient`, `save_patient_record`, `log_agent_step`, `heartbeat` (device `voice`). Never W1/W4 reducers | `incident`, `vitals`, `cpr_state`, `timer`, `event`, `patient_record`, `callout`, `transcript`, `hospital`, `device`, `er_message`, `agent_step`, `report`, `vitals_override` |
 | Any | `start_incident`, `set_status`, `heartbeat` | — |
-| Not decided yet (§28) | `synthesize_seizure` | `vitals_override` (a row means it's on) |
+| `/controls` (Seizure button); other callers not decided (§28) | `synthesize_seizure` | `vitals_override` (a row means it's on) |
 
 `monitor_tap` is still in the module from the dropped monitor page; nothing should call it (§28).
 
@@ -356,7 +364,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 - Code comments that cite "AGENTS.md section 0", "AGENTS.md Lanes" or "AGENTS.md 4.3" now mean §0.1, §0.2 and
   §22.4 of this file.
 
-### 0.5 Where things stand (Sat ~23:30)
+### 0.5 Where things stand (Sun ~01:00)
 
 | Area | State |
 | --- | --- |
@@ -364,12 +372,12 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Pi relay bring-up tools | Written and tested in simulation (pytest suite plus a 21-check self-test), on the `hardware` branch. Real-hardware verdicts: ask Alan |
 | Phone test page | Written (camera/zoom probe, compression-rate detector, speaker, wake lock), on the `hardware` branch. Rear camera decided |
 | SpacetimeDB module | Built and published on Maincloud as `handoff-hackutd26` (17:26): schema, reducers, §15 rules in `tick_rules` |
-| Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/bodycam` and `/monitor` are placeholders; `/controls` doesn't exist yet |
+| Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/controls` built (D1, H8; replaces the `/monitor` placeholder). `/bodycam` is a placeholder |
 | Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
 | Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
 | Voice agent worker | Built and merged to `main` (Sat ~23:30, decision 20): `voice/` brain with read-back + checks, corrections, W6 (spoken name, ID card and `patientRef`), camera-seen drugs, Nemotron turns with tools, local API; `voice/mock/` terminal bodycam, relay pusher and §7 storyboard runner; `voice/pipecat/` Riva STT/TTS worker with the vision sampler (hosted Nemotron Omni), `/api/ice`, the phone page served and the hub proxied. Live-tested with a real mic (~22:15); vision verified on a synthetic ID card with a key; a real phone on `hub/phone.html?voice=` is the next test |
 | Relay → SpacetimeDB | `bridge/hub_bridge.py` forwards the Pi hub's vitals (1/s) and MARK presses. Tested against the real `hub.py` and a local SpacetimeDB; not yet on the Pi against Maincloud. No waveform, temperature or 2 s hold yet |
-| Not started | `/controls`, the `web/` bodycam page (today the Pi hub's `hub/phone.html` is the bodycam: hub uploads, voice link, no WebRTC video to `/hospital` yet), W3 |
+| Not started | the `web/` bodycam page (today the Pi hub's `hub/phone.html` is the bodycam: hub uploads, voice link, no WebRTC video to `/hospital` yet), W3 |
 | Pre-event prep | Enclosures were designed and printed and parts bought before the event; all software is built at the event. Say so plainly (§27) |
 
 ---
@@ -684,9 +692,13 @@ flag).
 
 1. Use the demo operator's phone on the same Wi-Fi.
 2. Open `/controls`. It is a hidden page, so no other page links to it.
-3. Big buttons: Start, simulated arrest, CPR slow / good, epi due now, identify patient, Reset for the next
-   judge. (ROSC, Transport and Arrived are not on this list yet, §28.)
-4. The page keeps the screen awake while it's open.
+3. A card at the top reads back what Maincloud holds now: status and elapsed time, the patient, whether CPR or
+   vitals are overridden, demo or real timing. The last tap's result (sent, done, failed) shows under it.
+4. Big buttons, grouped: **Incident** (Start, Arrest, ROSC, En route, Arrived, Close), **Overrides** (CPR slow
+   90/min, CPR good 110/min, CPR live, Epi due now, Seizure on/off, Demo timing on/off), **Identify patient**
+   (pick one of the five EHR patients), and **Reset for the next judge**, which needs a second tap within 4 s.
+   Every button calls the existing `demo_control` or `synthesize_seizure` reducer; nothing new in the module.
+5. The page keeps the screen awake while it's open.
 
 Works when: Reset clears every screen in under 10 seconds.
 
@@ -881,7 +893,7 @@ first time. The agent asks "Say again the drug." when it heard a dose but no dru
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
-| D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, CPR slow / CPR good override, epi due now, identify patient manually, **Reset for the next judge** | Reset clears every screen in under 10 s, devices stay connected |
+| D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, ROSC, en route, arrived, close, CPR slow / CPR good / live, epi due now, seizure, demo timing, identify patient manually, **Reset for the next judge** (two taps). Built Sun ~01:00 | Reset clears every screen in under 10 s, devices stay connected |
 | D2 | ~~Every spoken callout also appears in big text on the hospital screen~~ Dropped from the dashboard (Sat ~21:30, §14); callouts are spoken by the bodycam | — |
 | D3 | The agent identifies the patient from the ID card or the spoken name and pulls the record (§17) | Record on the hospital screen within about 5 s of showing the card (or of the spoken name) |
 | D4 | The report uses the judge's own run (average CPR rate, longest pause, compressions, doses) plus the record's history | Numbers match what the hospital screen showed |
@@ -1820,7 +1832,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Agent (W1) | `set_destination({hospitalId, etaMin})` | Sets `destinationId` and `etaAt`; logs a `destination` event |
 | Agent (W1, W4) | `er_message_out({text})` | Display-only alert |
 | Agent (W4) | `save_report({incidentId, contentJson})` | Status `ready`; closes the incident |
-| Not decided (§28) | `synthesize_seizure({active})`; over HTTP the body is `[true]` or `[false]` | Hardcoded seizure overrides the relay's data (§0.1 decision 15). `true` while on is a no-op; closing the incident or reset ends it |
+| Controls (Seizure button); other callers open (§28) | `synthesize_seizure({active})`; over HTTP the body is `[true]` or `[false]` | Hardcoded seizure overrides the relay's data (§0.1 decision 15). `true` while on is a no-op; closing the incident or reset ends it |
 | (dropped page) | `monitor_tap({button})` | Left from the monitor page; nothing should call it (§28) |
 | Scheduled | `tick_rules` every 1 s | Prunes old rows, runs §15 rules and timers, moves `en_route` → `arrived` at ETA 0 |
 
@@ -2175,10 +2187,10 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | **Live vs simulated, and SIMULATED labelling.** Which data is live and which is simulated in the demo, and how the screens show it. Decide at the end. Note: the voice brief says "anything simulated is labelled SIMULATED", which conflicts with this deferral; it stays open. Current state: the backend labels events from demo overrides and simulated relay data "(SIMULATED)", the dashboard shows a SIMULATED tag on simulated vitals, and `push_vitals` requires a `simulated` flag | Team |
 | During the mock arrest the patient teammate's real heart rate keeps showing a normal pulse (the dashboard hides HR during an arrest today). Decide with the live-vs-simulated question at the end | Team |
 | **Relay `simulated` flag:** the module requires `"simulated"` in every `push_vitals`/`push_waveform` JSON (§22.2a). Keep it required, or default it to false? Until decided, the relay sends it | Josh, relay lane |
-| Built code still has a `/monitor` placeholder route and a `monitor_tap` reducer from the dropped monitor page — hospital lane to rename/remove. | Josh |
-| **D1 list gap:** ROSC, Transport and Arrived (in H8 and the lifecycle, and needed for the storyboard's "Transport" beat and "Status ARRIVED") are missing from the D1 button list. The `demo_control` reducer already supports `rosc`, `en_route` and `arrived` | Team |
+| The `/monitor` route is gone (replaced by `/controls`, Sun ~01:00); the `monitor_tap` reducer from the dropped monitor page is still in the module — hospital lane to remove. | Josh |
+| **D1 list gap:** `/controls` now has ROSC, En route, Arrived and Close (in H8 and the module), plus CPR live, Seizure and Demo timing (Alan, Sun ~01:00). Team to confirm the wider D1 list | Team |
 | **Vision sampler:** settled (decision 20): the voice worker samples the phone's video from its own WebRTC link, with the Pi hub's frame as the fallback; evidence frames are files under `voice/pipecat/evidence/`, named in the event's source detail. Still open: how the hospital's H4 chips and the report show those frames (a small static server from the laptop, or copy the frame into the event detail as a data URL; Josh's call) | Camera lane, Josh |
-| **Who calls `synthesize_seizure`** (a `/controls` button, the agent, a hotkey) and whether its hardcoded numbers change. The relay LCD keeps showing the real pulse while it's on unless the relay reads `vitals_override` | Team |
+| **`synthesize_seizure`:** `/controls` now has a Seizure on/off button (Sun ~01:00); whether the agent or a hotkey also calls it, and whether its hardcoded numbers change, is open. The relay LCD keeps showing the real pulse while it's on unless the relay reads `vitals_override` | Team |
 | Owner of `/controls` (`web/src/routes/controls/`) and the optional W3/ER chat (needs an inbound ER message reducer). W2 now runs inside the voice worker's Nemotron turn (`voice/`) | Team |
 | **Hospital → paramedic channel (W3).** Raised at the 19:31 meeting: the hospital can see everything but has no way to reach the paramedic. A QR code was suggested and ruled out (decision 8). The spec's answer is W3 (§19): the ER host types a question, the agent answers from the record and the timeline, and asks the crew through a spoken callout when it doesn't know. Open: is it in the demo or a pitch-only "next step"? If it's in, it needs an inbound ER message reducer (§22.8, Josh's lane), a text box on `/hospital` (which decision 3 would need to allow, since Generate Handoff is the only button today), and an owner | Team, Josh |
 | **The Chromatic handheld and its QR page.** The 19:31 meeting parked the ModRetro handheld and kept "no QR codes" (decision 8). After the meeting, kgand built it (20:59, `chromatic/` on `main`): Chromatic firmware that receives heart rate and SpO₂ over Bluetooth, shows a vitals screen, and has a QR page (button A) encoding a short readable summary. Open: (1) is it in the demo, and as what (a second vitals screen beside the relay LCD, decision 6, or the paramedic's display)? (2) Is its QR page an allowed exception to decision 8, or removed? (3) Does it take its data from SpacetimeDB or straight from the Pi over Bluetooth, and who owns `chromatic/` and `hub/` in §0.2? | Team, kgand |
@@ -2250,7 +2262,7 @@ hackutd26/
     src/module_bindings/        generated by `npm run generate`; don't edit by hand
     src/routes/hospital/        hospital lane
     src/routes/bodycam/         chest-camera lane (placeholder)
-    src/routes/monitor/         placeholder from the dropped monitor page; becomes /controls (§28)
+    src/routes/controls/        /controls demo-controls page (D1, H8; owner open, §28)
   ehr/                          mock FHIR R4 EHR, synthetic patients, port 4100 (hospital lane; README)
   agent/                        workflow agent W1 + W4, Nemotron with template fallback (hospital lane; README)
     src/module_bindings/        second copy of the generated bindings (`cd agent && npm run generate`)
@@ -2267,7 +2279,7 @@ hackutd26/
     chatgpt-requirements-doc.md      history only
 ```
 
-Planned folders, not created yet: `relay/` (relay lane), `web/src/routes/controls/` (unassigned).
+Planned folders, not created yet: `relay/` (relay lane).
 
 `hardware/` is **not on `main`**. It lives on the `hardware` branch:
 
