@@ -23,7 +23,6 @@ export default function OpsPage({ data }: { data: HospitalData }) {
         <div>
           <h1>Live Operations</h1>
         </div>
-        <span className={`conn${data.isActive ? ' is-on' : ''}`}>{data.isActive ? 'Live' : 'Connecting…'}</span>
       </header>
 
       <div className="stats">
