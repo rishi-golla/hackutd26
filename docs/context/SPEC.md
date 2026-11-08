@@ -24,6 +24,12 @@ necessarily when the decision was made.
 
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
+- **Sun ~06:45 (Alan): an ID card with no EHR match still identifies the patient** (§17, W6, X8; `voice/` plus the
+  hospital patient panel). The brain saves a record with source `ID card` (patientRef `card:<name>-<date>`, name and birth
+  date from the card or the spoken line, every clinical field "unknown (no EHR record)"), points the incident at it, and
+  says "No EHR record for <name>. Identified from the ID card." The dashboard titles the panel "from the ID card, no EHR
+  record" and shows "Allergies unknown"; the brain's checks treat it as no record (allergy unknown, never "none"). A later
+  EHR match or `/controls` Identify replaces it.
 - **Sun ~06:15 (Alan): "Normal vitals" on `/controls`** (decision 15, D1; module + `web/`). A looping synthetic
   scenario (HR 72–84, SpO₂ 97–99, device `sim-normal`, `simulated = true`) started by `demo_control('normal')` and
   stopped by `demo_control('sim_off')`, so the demo has believable vitals when the finger clip is off or unreliable;
@@ -1912,7 +1918,7 @@ There are two parts:
 | --- | --- | --- | --- |
 | W1 | Status becomes arrest or en route | `get_incident` → `choose_hospital` (capability, ETA, beds) → `set_destination` → `post_er_message`. As built: Nemotron calls `get_incident` and `list_hospitals` and picks; the agent refuses a non-cath-lab hospital during an arrest and an alert before the destination; the rule (`choose_hospital`) and a template finish anything the model didn't | The alert appears on the hospital dashboard within 20 s |
 | W2 | Each final transcript line that isn't a read-back, inside the voice worker's Nemotron turn (`voice/`) | state summary → `log_event` for procedures and findings (airway, procedure, finding, mark; medications come from the read-back and from vision, RB8) and `set_status` when the medic states arrest, ROSC or transport | "One milligram epi in" becomes one event, not a duplicate |
-| W6 | A vision finding of an ID card, a spoken name and birth date in the transcript, or `incident.patientRef` set by "Identify patient"; the agent decides to search | `ehr_search` (name + birth date; several matches → ask for confirmation, never guess) → `identify_patient` → `ehr_get_record` (allergies, medications, conditions, code status) → summarize → `save_patient_record` → `add_callout` ("Record found…") | Record on screens within about 5 s of showing the card (or of the spoken name); spoken summary is facts only |
+| W6 | A vision finding of an ID card, a spoken name and birth date in the transcript, or `incident.patientRef` set by "Identify patient"; the agent decides to search  No match (Sun ~06:45): a card-only record (source `ID card`, clinical fields unknown) still identifies the patient | `ehr_search` (name + birth date; several matches → ask for confirmation, never guess) → `identify_patient` → `ehr_get_record` (allergies, medications, conditions, code status) → summarize → `save_patient_record` → `add_callout` ("Record found…") | Record on screens within about 5 s of showing the card (or of the spoken name); spoken summary is facts only |
 | W3 | Optional: the ER doctor types a question in the ER chat | `get_timeline`, `get_vitals_summary` → answer in two sentences, facts and times only → `post_er_message`; unknown → "Not documented yet, asking crew" + `add_callout` | Answer within 20 s; nothing invented |
 | W4 | Generate Handoff (a `report` row with status `requested`), or status arrived | gather → draft MIST → self-check drops any sentence without a source → `save_report` → `post_er_message` | No uncited claims in the report |
 | W5 | After the MVP, with Photon | The same alerts and answers to a real phone; then a 30-second spoken MIST report → `place_er_call` | The phone rings and hears it |
