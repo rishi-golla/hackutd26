@@ -101,7 +101,8 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Any | `start_incident(unit)` | no-op if an incident is already active; status `on_scene`, DEMO TIMING on |
 | Any | `set_status(status, sourceKind, sourceDetail)` | `on_scene` `arrest` `rosc` `en_route` `arrived` `closed`; the source is the timeline chip, e.g. `("arrest", "voice", "her heart stopped")`. Any transition is allowed (demo controls need it) |
 | Any | `heartbeat(device, kind)` | keeps the `device` row's `lastSeen` fresh |
-| Bodycam | `pushCpr({rate?, count, sinceLastS, paused, compressing})` | phone detector output, about 2×/s. Before the first compression, send `sinceLastS` = seconds since the page started; the server caps pauses at the time since the arrest began. `count` may reset on page reload |
+| Bodycam | `pushCpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s. Before the first compression, send `sinceLastS` = seconds since the page started. `count` may reset on page reload. Ignored while a demo override is on |
+| Bodycam (CPR assistance) | `push_cpr_assist [assist, bpm, onBeatPct?, phaseErrMs?]` over HTTP | About 2×/s from `hub/phone.html` (`hub/cpr.js`), right after `push_cpr` (no-op until a `cpr_state` row exists). `assist` = the metronome is on (false while it waits for the finger sensor); `bpm` 0 = no metronome; `onBeatPct` = % within 120 ms of the beat; `phaseErrMs` = mean error (+ late); both none = no data. The phone speaks nothing: the §15 rules `cpr_sensor` ("Place the finger sensor") and `cpr_offbeat` ("Follow the beat") read these and queue callouts. SPEC decision 21 |
 | Bodycam | `addTranscript({text})` | one row per sentence |
 | Bodycam | `identifyPatient({patientRef, method})` | method `ID card` / `voice` / `manual` |
 | Bodycam | `logEvent({kind, label, sourceKind, sourceDetail})` | read-backs etc. See event kinds below |

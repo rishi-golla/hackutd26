@@ -99,6 +99,10 @@ export default function HospitalPage() {
   const cpr = cprRows.find(c => c.incidentId === incId);
   const cprFresh = cpr !== undefined && (cpr.source === 'override' || now - tsMs(cpr.updatedAt) < CPR_STALE_MS);
   const rate = inArrest && cprFresh && cpr.compressing ? cpr.rate : undefined;
+  // CPR assistance (decision 21): % of recent compressions on the phone's metronome beat; undefined = no data.
+  // Only while the phone's push_cpr_assist is fresh (the same 3 s the rules use): never a stale percentage.
+  const assistFresh = !!cpr?.assistAt && now - tsMs(cpr.assistAt) < CPR_STALE_MS;
+  const onBeat = rate !== undefined && cpr && cpr.source !== 'override' && cpr.assist && assistFresh ? cpr.onBeatPct : undefined;
   const epi = timers.find(t => t.incidentId === incId && t.kind === 'epi' && t.state !== 'cancelled');
 
   const elapsed = incident ? (now - tsMs(incident.startedAt)) / 1000 : 0;
@@ -168,7 +172,12 @@ export default function HospitalPage() {
         <Metric label="Heart rate" unit="bpm" value={inArrest ? undefined : v?.hr} alarm={!inArrest && v?.hr !== undefined && (v.hr < 50 || v.hr > 150)} />
         <Metric label="SpO₂" unit="%" value={inArrest ? undefined : v?.spo2} alarm={!inArrest && v?.spo2 !== undefined && v.spo2 < 90} />
         <Metric label="Temperature" unit="°C" digits={1} value={v?.tempC} />
-        <Metric label="CPR rate" unit="/min" value={rate} alarm={rate !== undefined && (rate < 100 || rate > 120)} />
+        <Metric
+          label={onBeat === undefined ? 'CPR rate' : `CPR rate · ${Math.round(onBeat)}% on beat`}
+          unit="/min"
+          value={rate}
+          alarm={rate !== undefined && (rate < 100 || rate > 120)}
+        />
         <Metric label="Next epi" text={inArrest ? epiText(epi, now) : undefined} alarm={inArrest && isDue(epi, now)} />
         <Metric label="Elapsed" text={incident && incident.status !== 'closed' ? mmss(elapsed) : undefined} />
       </section>

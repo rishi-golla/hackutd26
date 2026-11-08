@@ -46,6 +46,7 @@ import LogEventReducer from "./log_event_reducer";
 import MarkReducer from "./mark_reducer";
 import MonitorTapReducer from "./monitor_tap_reducer";
 import PushCprReducer from "./push_cpr_reducer";
+import PushCprAssistReducer from "./push_cpr_assist_reducer";
 import PushVitalsReducer from "./push_vitals_reducer";
 import PushWaveformReducer from "./push_waveform_reducer";
 import RequestReportReducer from "./request_report_reducer";
@@ -287,6 +288,7 @@ const reducersSchema = __reducers(
   __reducerSchema("mark", MarkReducer),
   __reducerSchema("monitor_tap", MonitorTapReducer),
   __reducerSchema("push_cpr", PushCprReducer),
+  __reducerSchema("push_cpr_assist", PushCprAssistReducer),
   __reducerSchema("push_vitals", PushVitalsReducer),
   __reducerSchema("push_waveform", PushWaveformReducer),
   __reducerSchema("request_report", RequestReportReducer),

@@ -125,7 +125,8 @@ export function buildFacts(s: Snapshot): Fact[] {
         `CPR measured by ${override ? 'a demo override (simulated)' : 'the bodycam motion sensor'}` +
         (inc.arrestStartedAt ? ` since the arrest at ${hhmm(inc.arrestStartedAt)}` : '') +
         (avg !== undefined ? `: average rate ${avg}/min` : '') +
-        `, longest pause ${Math.round(c.longestPauseS)} s, ${c.count - c.countBase} compressions`,
+        `, longest pause ${Math.round(c.longestPauseS)} s, ${c.count - c.countBase} compressions` +
+        (c.onBeatSamples > 0 ? `, ${Math.round(c.onBeatSum / c.onBeatSamples)}% on the metronome beat` : ''),
     });
   }
 

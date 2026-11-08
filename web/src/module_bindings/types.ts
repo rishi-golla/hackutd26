@@ -44,6 +44,13 @@ export const CprState = __t.object("CprState", {
   rateSum: __t.f64(),
   rateSamples: __t.u32(),
   longestPauseS: __t.f32(),
+  assist: __t.bool(),
+  bpm: __t.f32(),
+  onBeatPct: __t.option(__t.f32()),
+  phaseErrMs: __t.option(__t.f32()),
+  onBeatSum: __t.f64(),
+  onBeatSamples: __t.u32(),
+  assistAt: __t.option(__t.timestamp()),
 });
 export type CprState = __Infer<typeof CprState>;
 

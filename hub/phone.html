@@ -43,6 +43,12 @@
   button:disabled { background:transparent; color:var(--ok); border:1px solid #1d4a35; transform:none; }
   button.ghost { background:var(--panel); color:var(--text); border:1px solid var(--line); padding:13px; font-size:14px; font-weight:600; }
   .row { display:flex; gap:10px; }
+
+  /* CPR assistance (spec decision 21, hub/cpr.js): shown only during an arrest. */
+  .cpr .top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .cpr .big b { color:var(--ok); } .cpr .big b.bad { color:var(--bad); }
+  .beatdot { flex:none; width:16px; height:16px; border-radius:50%; background:#2b3542; transition:background .06s; }
+  .beatdot.on { background:var(--hr); }
 </style>
 </head>
 <body>
@@ -58,6 +64,12 @@
   <div class="card vital status"><div class="label">Sensor</div><div class="big"><b id="status">—</b></div></div>
 </div>
 
+<div class="card cpr" id="cpr" hidden>
+  <div class="top"><div class="label">CPR · <span id="cprMode"></span></div><span id="cprDot" class="beatdot"></span></div>
+  <div class="big"><b id="cprRate">—</b><span>/min</span></div>
+  <div class="o2" id="cprBeat"></div>
+</div>
+
 <div class="card said"><div class="label">Last spoken</div><p id="said">Nothing yet</p></div>
 
 <button id="start">Start</button>
@@ -65,6 +77,7 @@
 
 <canvas id="canvas" hidden></canvas>
 <script src="/common.js"></script>
+<script src="/cpr.js"></script>
 <script>
 const video = $('video'), canvas = $('canvas');
 let stream = null, recorder = null, facing = 'environment', running = false, hrAt = 0, stAt = 0, o2At = 0;
@@ -82,6 +95,7 @@ function speak(text) {
 }
 
 const answeredAt = poll((m, age) => {
+  if (window.HandoffCpr) HandoffCpr.hubMessage(m, age);       // CPR assistance reads the finger sensor's state
   if (m.what === 'say' && running && age < 10) { speak(m.value); send('said', m.value); }
   if (age > 4) return;                                          // catch-up or backlog: never a live value
   if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); }
@@ -173,6 +187,7 @@ async function connectVoice() {
 function stopped() { running = false; $('start').disabled = false; $('start').textContent = 'Start'; }
 
 $('start').onclick = async () => {
+  if (window.HandoffCpr) HandoffCpr.start();                  // CPR beat + motion sensor; needs this tap, before any await
   speak('Bodycam on');                                        // this tap also unlocks the speaker
   if (!navigator.mediaDevices) return hint('Open this page through the https link to use the camera.', true);
   $('start').textContent = 'Starting…';

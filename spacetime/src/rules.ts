@@ -86,6 +86,37 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
     });
   }
 
+  // ---- CPR assistance on the phone (decision 21). The phone plays the beat and measures; the cues are spoken from
+  // this queue like every other callout. `assistAt` is the phone's last push_cpr_assist: no phone, no claim.
+  const phoneArmed =
+    inArrest && !!cpr && cpr.source !== 'override' && !!cpr.assistAt && secondsBetween(cpr.assistAt, now) < CPR_FRESH_S;
+  // In an arrest the phone's beat waits only for the finger sensor, so armed but not assisting = waiting for it.
+  if (held(ctx, inc, 'cpr_sensor', phoneArmed && !cpr!.assist, 3)) {
+    candidates.push({
+      key: 'cpr_sensor',
+      text: 'Place the finger sensor',
+      priority: 2,
+      repeatS: 20,
+      // Own kind, so it never merges with (and hides) a rate cue in the timeline (§18).
+      onFire: () => recordEvent(ctx, inc.id, 'cpr_sensor', 'CPR assistance waiting for the finger sensor', 'callout', 'Place the finger sensor'),
+    });
+  }
+  // Right rate, but the compressions miss the metronome beat.
+  const onBeat = phoneArmed && cpr!.assist && rate !== undefined && rate >= 100 && rate <= 120 ? cpr!.onBeatPct : undefined;
+  if (held(ctx, inc, 'cpr_offbeat', onBeat !== undefined && onBeat < 60, 5)) {
+    candidates.push({
+      key: 'cpr_offbeat',
+      text: 'Follow the beat',
+      priority: 2,
+      repeatS: 15,
+      onFire: () => {
+        const label = `CPR off the beat (${Math.round(onBeat!)}% on beat), coached`;
+        recordEvent(ctx, inc.id, 'cpr_offbeat', label, 'motion', `${Math.round(onBeat!)}% on beat`);
+        recordEvent(ctx, inc.id, 'cpr_offbeat', label, 'callout', 'Follow the beat');
+      },
+    });
+  }
+
   // ---- Timers (arrest only; other statuses cancel them in applyStatus)
   if (inArrest) {
     for (const timer of [...ctx.db.timer.incidentId.filter(inc.id)]) {

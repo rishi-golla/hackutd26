@@ -34,7 +34,7 @@ news = threading.Condition()                             # guards latest/recent/
 frame = {"jpg": b"", "n": 0, "seq": 0, "said": 0.0, "at": 0.0}
 new_frame = threading.Condition()
 
-FILES = {"/": "phone.html", "/phone": "phone.html", "/dash": "dash.html", "/common.js": "common.js"}
+FILES = {"/": "phone.html", "/phone": "phone.html", "/dash": "dash.html", "/common.js": "common.js", "/cpr.js": "cpr.js"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
 
 # A restart keeps the last value of everything (e.g. the phone link). The log is compacted to just those values,
