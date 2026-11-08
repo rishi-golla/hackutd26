@@ -28,6 +28,10 @@ EHR_BASE_URL = env("EHR_BASE_URL", "http://localhost:4100/fhir").rstrip("/")
 HUB_URL = env("HUB_URL").rstrip("/")
 
 PORT = int(env("VOICE_PORT", "7860"))
+# TURN relay, needed when the phone and the worker can't reach each other directly (different NATs).
+TURN_URL = env("TURN_URL")
+TURN_USER = env("TURN_USER")
+TURN_PASS = env("TURN_PASS")
 VISION_INTERVAL_S = float(env("VISION_INTERVAL_S", "1.0"))
 VISION_MIN_CONFIDENCE = 0.7
 EVIDENCE_DIR = env("EVIDENCE_DIR", "evidence")

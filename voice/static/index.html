@@ -20,7 +20,7 @@
 <script>
 const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
 async function connect(stream, base) {
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  const pc = new RTCPeerConnection({ iceServers: await (await fetch('/api/ice')).json() });
   stream.getAudioTracks().forEach((t) => pc.addTrack(t, stream));
   stream.getVideoTracks().forEach((t) => pc.addTrack(t, stream));
   pc.ontrack = (e) => { if (e.track.kind === 'audio') document.getElementById('a').srcObject = e.streams[0] || new MediaStream([e.track]); };
