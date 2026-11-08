@@ -10,6 +10,7 @@ import type { Timestamp } from 'spacetimedb';
 import type { Ctx } from './schema';
 import {
   applyStatus,
+  cprStarted,
   intervalSeconds,
   plusSeconds,
   queueCallout,
@@ -44,12 +45,13 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
     return;
   }
 
-  // ---- CPR (arrest only). Uses the bodycam's motion data, or the demo override.
+  // ---- CPR (arrest only, once CPR has started). Uses the bodycam's motion data, or the demo override.
+  const cprOn = inArrest && cprStarted(ctx, inc.id);
   const cpr = ctx.db.cprState.incidentId.find(inc.id);
   const cprFresh = !!cpr && (cpr.source === 'override' || secondsBetween(cpr.updatedAt, now) < CPR_FRESH_S);
   const rate = cprFresh && cpr!.compressing ? cpr!.rate : undefined;
 
-  if (held(ctx, inc, 'cpr_slow', inArrest && rate !== undefined && rate < 100, 5)) {
+  if (held(ctx, inc, 'cpr_slow', cprOn && rate !== undefined && rate < 100, 5)) {
     candidates.push({
       key: 'cpr_slow',
       text: 'Push faster',
@@ -58,7 +60,7 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
       onFire: () => cprEvent(ctx, inc, `CPR rate low (${Math.round(rate!)}/min), coached`, rate!, 'Push faster', cpr!.source),
     });
   }
-  if (held(ctx, inc, 'cpr_fast', inArrest && rate !== undefined && rate > 120, 5)) {
+  if (held(ctx, inc, 'cpr_fast', cprOn && rate !== undefined && rate > 120, 5)) {
     candidates.push({
       key: 'cpr_fast',
       text: 'Slow down',
@@ -71,7 +73,7 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
   // The pause can't be longer than the arrest so far (the phone was idle before it).
   const pauseS =
     cpr && inc.arrestStartedAt ? Math.min(cpr.sinceLastS, secondsBetween(inc.arrestStartedAt, now)) : 0;
-  const paused = inArrest && cprFresh && !cpr!.compressing && pauseS >= 10;
+  const paused = cprOn && cprFresh && !cpr!.compressing && pauseS >= 10;
   if (held(ctx, inc, 'cpr_pause', paused, 0)) {
     candidates.push({
       key: 'cpr_pause',

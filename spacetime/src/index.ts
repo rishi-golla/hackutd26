@@ -28,6 +28,8 @@ import {
   str,
   touchDevice,
   endVitalsOverride,
+  startVitalsOverride,
+  startCpr,
   vitalsOverrideRow,
   writeSyntheticFrame,
 } from './helpers';
@@ -78,7 +80,7 @@ export const tickRules = spacetimedb.reducer(
 
     // A synthetic scenario (synthesize_seizure) replaces the relay's data, one row per second.
     const override = vitalsOverrideRow(ctx);
-    if (override) writeSyntheticFrame(ctx, override.startedAt);
+    if (override) writeSyntheticFrame(ctx, override.scenario, override.startedAt);
 
     const inc = activeIncident(ctx);
     if (inc) runRules(ctx, inc);
@@ -157,23 +159,20 @@ export const toggleIncident = spacetimedb.reducer({ device: t.string() }, (ctx, 
 });
 
 // ---------------------------------------------------------------------------
-// Synthetic scenarios (where it's called from is not decided yet)
+// Synthetic scenarios (/controls; agent or hotkey callers not decided yet, §28)
 // ---------------------------------------------------------------------------
 
 /**
  * active = true: override the relay's sensor data with the hardcoded seizure scenario
- * (spacetime/src/scenarios.ts), one row per second, stored with simulated = true.
- * active = false: stop; the relay's real data flows again. Calling true while on is a no-op.
+ * (spacetime/src/scenarios.ts), one row per second, stored with simulated = true. Replaces another scenario
+ * (arrest, rosc) if one is on; a no-op if the seizure is already on.
+ * active = false: stop the seizure; the relay's real data flows again. Leaves an arrest/rosc scenario alone.
  */
 export const synthesizeSeizure = spacetimedb.reducer({ active: t.bool() }, (ctx, { active }) => {
-  const existing = vitalsOverrideRow(ctx);
-  const inc = activeIncident(ctx);
   if (active) {
-    if (existing) return;
-    ctx.db.vitalsOverride.insert({ key: 'vitals', scenario: 'seizure', startedAt: ctx.timestamp });
-    if (inc) recordEvent(ctx, inc.id, 'simulation', 'Simulated seizure started', 'demo', 'synthesize_seizure');
-  } else {
-    endVitalsOverride(ctx, inc?.id, 'synthesize_seizure');
+    startVitalsOverride(ctx, 'seizure', 'synthesize_seizure');
+  } else if (vitalsOverrideRow(ctx)?.scenario === 'seizure') {
+    endVitalsOverride(ctx, activeIncident(ctx)?.id, 'synthesize_seizure');
   }
 });
 
@@ -284,6 +283,8 @@ export const logEvent = spacetimedb.reducer(
   (ctx, { kind, label, sourceKind, sourceDetail }) => {
     const inc = activeIncident(ctx);
     if (!inc) throw new SenderError('no active incident');
+    // The medic saying CPR is starting (voice agent) starts CPR: the cycle timer, fresh stats, one timeline row.
+    if (kind === 'cpr_started') return startCpr(ctx, sourceKind, sourceDetail);
     recordEvent(ctx, inc.id, kind, label, sourceKind, sourceDetail);
   }
 );
@@ -364,7 +365,8 @@ export const monitorTap = spacetimedb.reducer({ button: t.string() }, (ctx, { bu
 /**
  * Hidden demo controls (D1). action:
  *  start | arrest | rosc | en_route | arrived | close | reset |
- *  cpr_slow | cpr_good | cpr_clear | epi_due_now | identify (arg = patient id) | demo_timing (arg = on|off)
+ *  cpr_start | cpr_slow | cpr_good | cpr_clear | epi_due_now | identify (arg = patient id) | demo_timing (arg = on|off)
+ * Arrest doesn't start CPR: cpr_start does (so do cpr_slow / cpr_good during an arrest, and the medic saying so).
  */
 export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.string() }, (ctx, { action, arg }) => {
   switch (action) {
@@ -373,6 +375,11 @@ export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.stri
       return;
     case 'arrest':
     case 'rosc':
+      // The demo's arrest and ROSC also play their vitals (scenarios.ts), overriding the real finger clip, so
+      // the dashboard and the agents see what an arrest looks like. Close and reset end it.
+      applyStatus(ctx, action, 'demo', 'demo control');
+      startVitalsOverride(ctx, action, 'demo control');
+      return;
     case 'en_route':
     case 'arrived':
       applyStatus(ctx, action, 'demo', 'demo control');
@@ -384,11 +391,18 @@ export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.stri
       deleteAll(ctx);
       ensureSeedAndTick(ctx);
       return;
-    case 'cpr_slow':
-      setCprOverride(ctx, 90);
+    case 'cpr_start': {
+      // From the demo controls with no arrest yet, CPR brings the demo's arrest look with it (the arrest scenario).
+      const wasArrest = activeIncident(ctx)?.status === 'arrest';
+      startCpr(ctx, 'demo', 'demo control');
+      if (!wasArrest) startVitalsOverride(ctx, 'arrest', 'demo control');
       return;
+    }
+    case 'cpr_slow':
     case 'cpr_good':
-      setCprOverride(ctx, 110);
+      // Forcing a compression rate during an arrest means compressions are happening, so CPR starts too.
+      setCprOverride(ctx, action === 'cpr_slow' ? 90 : 110);
+      if (activeIncident(ctx)?.status === 'arrest') startCpr(ctx, 'demo', 'demo control');
       return;
     case 'cpr_clear':
       setCprOverride(ctx, undefined);

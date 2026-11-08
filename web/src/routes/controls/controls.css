@@ -76,6 +76,7 @@ body:has(.ctl) { background: #0b0b0b; }
 .ctl__btn:active:not(:disabled) { background: var(--panel-2); }
 .ctl__btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .ctl__btn:disabled { color: var(--text-3); cursor: default; opacity: 0.55; }
+.ctl__btn--wide { grid-column: 1 / -1; }
 .ctl__btn--primary { color: #000; background: var(--text); border-color: var(--text); font-weight: 600; }
 .ctl__btn--primary:active:not(:disabled) { background: #fff; }
 .ctl__btn--primary:disabled { color: var(--text-3); background: var(--panel); border-color: var(--border); }
