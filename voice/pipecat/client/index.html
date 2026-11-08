@@ -10,11 +10,13 @@
     --bg: #f6f7f9; --card: #ffffff; --line: #e7e9ee; --line2: #eef0f3; --text: #111827; --dim: #6b7280; --faint: #9ca3af;
     --blue: #2563eb; --blue-soft: #eaf1ff; --blue-wave: #3b82f6; --green: #16a34a; --green-soft: #e8f7ee; --red: #ef4444; --red-soft: #fdecec;
     --amber: #b45309; --amber-soft: #fdf3e2; --chip: #eef1f5; --btn: #f1f3f6; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --ctl: #f1f2f4; --ctl-hover: #e7e9ec; --ctl-icon: #374151;
   }
   [data-theme="dark"] {
     --bg: #0b0d12; --card: #12151c; --line: #222733; --line2: #1b1f29; --text: #e8ebf1; --dim: #9aa3b2; --faint: #6b7385;
     --blue: #4f8cff; --blue-soft: #16223b; --blue-wave: #5b95ff; --green: #34d07b; --green-soft: #12291d; --red: #f05252; --red-soft: #2c1517;
     --amber: #f0b45a; --amber-soft: #2a2010; --chip: #1c2130; --btn: #1a1f2b; --shadow: none;
+    --ctl: #1e2330; --ctl-hover: #262c3b; --ctl-icon: #d1d5db;
   }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
@@ -62,13 +64,16 @@
   .state.idle { color: var(--dim); }
   .saying { margin-top: 6px; color: var(--dim); font-size: 13px; min-height: 19px; max-width: 560px; text-align: center; }
   .controls { display: flex; justify-content: center; gap: 22px; margin-top: 10px; padding-bottom: 6px; }
-  .ctl { width: 46px; height: 46px; border-radius: 50%; background: var(--btn); display: grid; place-items: center; color: var(--text); transition: background .15s; }
-  .ctl:hover { filter: brightness(.96); }
-  .ctl svg { width: 19px; height: 19px; }
-  .ctl.off { background: var(--red-soft); color: var(--red); }
+  .controls { gap: 26px; }
+  .ctl { width: 44px; height: 44px; border-radius: 50%; background: var(--ctl); display: grid; place-items: center; color: var(--ctl-icon); transition: background .15s, color .15s; }
+  .ctl:hover:not(:disabled) { background: var(--ctl-hover); }
+  .ctl svg { width: 18px; height: 18px; stroke-width: 1.7; }
+  .ctl.off { color: var(--red); }
   .ctl.active { background: var(--blue-soft); color: var(--blue); }
-  .ctl.hang { background: var(--red); color: #fff; }
-  .ctl:disabled { opacity: .45; cursor: default; }
+  .ctl.hang { background: #ef4444; color: #fff; }
+  .ctl.hang:hover:not(:disabled) { background: #dc2626; }
+  .ctl.hang svg { width: 20px; height: 20px; stroke-width: 1.9; }
+  .ctl:disabled { cursor: default; }
   /* side tabs */
   .side { display: flex; flex-direction: column; min-height: 0; }
   .tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--line); }
@@ -148,7 +153,7 @@
   <symbol id="i-video" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></symbol>
   <symbol id="i-video-off" viewBox="0 0 24 24"><path d="M2 2l20 20M10.7 6H14a2 2 0 0 1 2 2v3.3l1 1 5-3v10M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/></symbol>
   <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
-  <symbol id="i-phone-off" viewBox="0 0 24 24"><path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 4.2 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.8 9.7M22 2 2 22"/></symbol>
+  <symbol id="i-phone-off" viewBox="0 0 24 24"><path transform="rotate(135 12 12)" d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></symbol>
   <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
   <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
@@ -338,8 +343,7 @@ function render() {
   ['mic', 'cam', 'screen', 'hang'].forEach((id) => $(id).disabled = !live);
   $('mic').classList.toggle('off', live && !call.micOn);
   $('mic').innerHTML = `<svg class="i"><use href="#i-${call.micOn ? 'mic' : 'mic-off'}"/></svg>`;
-  $('cam').classList.toggle('off', live && !call.cam && !call.screen);
-  $('cam').innerHTML = `<svg class="i"><use href="#i-${call.cam ? 'video' : 'video-off'}"/></svg>`;
+  $('cam').classList.toggle('active', !!call.cam);
   $('screen').classList.toggle('active', !!call.screen);
   $('liveDot').className = 'dot' + (live ? ' on' : call.pc ? ' busy' : '');
   $('liveTitle').textContent = live ? 'Live Session' : call.pc ? 'Connecting…' : 'Not connected';
