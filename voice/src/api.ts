@@ -7,6 +7,7 @@ import { step, type Conn } from './db';
 import { modelInUse } from './llm';
 import { readState, stateJson } from './state';
 import { parseSeen } from './seen';
+import { SessionRecorder } from './recording';
 import type { Brain } from './brain';
 import type { Speaker } from './speaker';
 
@@ -25,6 +26,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 
 export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
   let nextId = 1;
+  const recorder = new SessionRecorder(conn);
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     try {
@@ -69,6 +71,17 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
         void step(conn, String(body.tool ?? 'worker').slice(0, 40), summary);
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/recording') {
+        // One saved chunk of the phone's session video (voice/pipecat/recording.py): {"clip", "url", "seq"}.
+        // The reply says whether the phone should start a new clip (the call ended or changed) and whether the
+        // worker should delete this one (it never belonged to a call).
+        const body = await readJson(req);
+        try {
+          return send(res, 200, await recorder.chunk(String(body.clip ?? ''), String(body.url ?? ''), Number(body.seq)));
+        } catch {
+          return send(res, 400, { error: 'clip (8-80 of a-z A-Z 0-9 _ -), url (/recordings/<name>.webm|mp4) and seq (0, 1, …) required' });
+        }
+      }
       if (req.method === 'POST' && url.pathname === '/say') {
         // Fixed words from the worker (the answer to "Handoff, look"): {"text", "priority"?: 1-3, "kind"?: "ask"|"vision"}.
         const body = await readJson(req);
@@ -89,7 +102,7 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
   wss.on('connection', ws => speaker.attach(ws));
 
   server.listen(CONFIG.apiPort, '127.0.0.1', () => {
-    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, POST /trace, GET /state, WS /mouth)`);
+    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, POST /trace, POST /recording, GET /state, WS /mouth)`);
   });
   return server;
 }

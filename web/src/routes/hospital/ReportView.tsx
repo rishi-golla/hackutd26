@@ -43,7 +43,6 @@ export default function ReportView({ contentJson }: { contentJson: string }) {
         <span>
           {header.unit} → {header.destination ?? 'destination not set'} · {header.time}
         </span>
-        <span className="report__meta">Prototype · synthetic data · not for clinical use</span>
       </div>
       <table className="report__table">
         <tbody>

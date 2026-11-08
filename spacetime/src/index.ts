@@ -28,12 +28,14 @@ import {
   str,
   touchDevice,
   endVitalsOverride,
+  fillMissingVitals,
   startVitalsOverride,
   startCpr,
   vitalsOverrideRow,
   writeSyntheticFrame,
 } from './helpers';
 import { runRules } from './rules';
+import { attachRecording, importRecording, shouldPruneVitals, startCameraSession, startNewPatient, writeRecordingTrace } from './sessions';
 
 export default spacetimedb;
 
@@ -64,12 +66,12 @@ export const tickRules = spacetimedb.reducer(
   { timer: tickSchedule.rowType },
   ctx => {
     const now = ctx.timestamp;
-    // Prune: waveform keeps 30 s, vitals 30 min, handshakes 10 min, unspoken callouts 20 s.
+    // Encounter vitals are retained until explicit reset. Only unassigned preview vitals expire after 30 min.
     for (const r of [...ctx.db.waveform.iter()]) {
       if (secondsBetween(r.ts, now) > 30) ctx.db.waveform.id.delete(r.id);
     }
     for (const r of [...ctx.db.vitals.iter()]) {
-      if (secondsBetween(r.ts, now) > 1800) ctx.db.vitals.id.delete(r.id);
+      if (shouldPruneVitals(r.incidentId, secondsBetween(r.ts, now))) ctx.db.vitals.id.delete(r.id);
     }
     for (const r of [...ctx.db.rtcSignal.iter()]) {
       if (secondsBetween(r.ts, now) > 600) ctx.db.rtcSignal.id.delete(r.id);
@@ -102,17 +104,21 @@ export const pushVitals = spacetimedb.reducer(
     const status = str(d.status, 'unknown');
     // Only 'pulse' means hr/spo2 are valid. Never store a stale or made-up number (spec R4).
     const valid = status === 'pulse';
+    const hr = valid ? num(d.hr) : undefined;
+    const spo2 = valid ? num(d.spo2 ?? d.spo2_exp) : undefined;
     ctx.db.vitals.insert({
       id: 0n,
       incidentId: activeIncidentId(ctx),
       ts: ctx.timestamp,
       device,
-      hr: valid ? num(d.hr) : undefined,
-      spo2: valid ? num(d.spo2 ?? d.spo2_exp) : undefined,
+      hr,
+      spo2,
       tempC: num(d.temp_c),
       status,
       simulated,
     });
+    // Once a finger has been on for ~2 s, whatever the reading lacks is filled on a separate, marked row (helpers.ts).
+    fillMissingVitals(ctx, status, hr, spo2);
   }
 );
 
@@ -185,6 +191,12 @@ export const startIncident = spacetimedb.reducer(
   (ctx, { unit }) => {
     beginIncident(ctx, unit, 'tap');
   }
+);
+
+/** The bridge calls this after receiving actual frames from a new harness session, not on dashboard visits. */
+export const startBodycamSession = spacetimedb.reducer(
+  { device: t.string(), sessionId: t.string(), unit: t.string() },
+  (ctx, { device, sessionId, unit }) => startCameraSession(ctx, device, sessionId, unit)
 );
 
 /**
@@ -364,12 +376,24 @@ export const monitorTap = spacetimedb.reducer({ button: t.string() }, (ctx, { bu
 
 /**
  * Hidden demo controls (D1). action:
- *  start | arrest | rosc | en_route | arrived | close | reset |
+ *  start | new_patient (JSON requestId, expectedIncidentId) | arrest | rosc | en_route | arrived | close | reset |
  *  cpr_start | cpr_slow | cpr_good | cpr_clear | epi_due_now | identify (arg = patient id) | demo_timing (arg = on|off)
  * Arrest doesn't start CPR: cpr_start does (so do cpr_slow / cpr_good during an arrest, and the medic saying so).
  */
 export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.string() }, (ctx, { action, arg }) => {
   switch (action) {
+    case 'new_patient':
+      startNewPatient(ctx, arg);
+      return;
+    case 'attach_recording':
+      attachRecording(ctx, arg);
+      return;
+    case 'import_recording':
+      importRecording(ctx, arg);
+      return;
+    case 'recording_trace':
+      writeRecordingTrace(ctx, arg);
+      return;
     case 'start':
       beginIncident(ctx, arg || 'Medic 12', 'demo');
       return;

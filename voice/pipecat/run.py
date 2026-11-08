@@ -48,6 +48,7 @@ from pipecat.workers.runner import WorkerRunner
 
 from brain_bridge import BrainBridge
 from config import ASR_MODEL, NVIDIA_SPEECH_SERVER, TTS_MODEL, Config, load_config
+from recording import ClipStore
 from vision import VisionConfig, VisionSampler
 
 HUB_PHONE_PAGE = Path(__file__).resolve().parent.parent.parent / "hub" / "phone.html"
@@ -202,7 +203,7 @@ def make_app(cfg: Config, barge_in: bool):
     import httpx
     from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import FileResponse, RedirectResponse
+    from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
     from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
 
     from pipecat.transports.smallwebrtc.connection import IceServer, SmallWebRTCConnection
@@ -265,6 +266,7 @@ def make_app(cfg: Config, barge_in: bool):
     async def lifespan(app):
         yield
         await handler.close()
+        await brain.aclose()
         if hub:
             await hub.aclose()
 
@@ -344,6 +346,21 @@ def make_app(cfg: Config, barge_in: bool):
         if request.method == "PATCH":
             return await ice_candidates(data)
         return await offer(data, background_tasks)
+
+    brain = httpx.AsyncClient(base_url=cfg.brain_url, timeout=3)
+
+    async def ask_brain(clip: str, url: str, seq: int) -> dict:
+        r = await brain.post("/recording", json={"clip": clip, "url": url, "seq": seq})
+        r.raise_for_status()
+        return r.json()
+
+    clips = ClipStore(ask_brain)
+
+    @app.post("/api/recording")
+    async def api_recording(request: Request, clip: str = "", seq: int = -1, ext: str = "webm"):
+        """One chunk of the phone's session video (recording.py); the reply says whether to start a new clip."""
+        status, body = await clips.save(clip, seq, ext, await request.body())
+        return JSONResponse(body, status_code=status)
 
     if hub:
         # Everything else the phone page calls (/common.js, /poll, /send, /frame, /audio, /state) goes to the

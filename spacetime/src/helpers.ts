@@ -21,10 +21,16 @@ export function activeIncident(ctx: Ctx) {
   return best ?? undefined;
 }
 
-/** The newest incident, closed or not (the dashboard and Generate Handoff use it after close). */
+/** Reserved source label for closed, video-only imports; not a clinical unit. */
+export const RECORDED_UNIT = 'Recorded session';
+
+/** The newest clinical incident, closed or not. Imported videos cannot redirect clinical workflows. */
 export function latestIncident(ctx: Ctx) {
   let best: ReturnType<typeof ctx.db.incident.id.find> = null;
-  for (const row of ctx.db.incident.iter()) if (!best || row.id > best.id) best = row;
+  for (const row of ctx.db.incident.iter()) {
+    if (row.status === 'closed' && row.unit === RECORDED_UNIT) continue;
+    if (!best || row.id > best.id) best = row;
+  }
   return best ?? undefined;
 }
 
@@ -226,6 +232,7 @@ export function startCpr(ctx: Ctx, sourceKind: string, sourceDetail: string) {
 }
 
 export function beginIncident(ctx: Ctx, unit: string, sourceKind: string) {
+  if (unit === RECORDED_UNIT) throw new SenderError('Recorded session is reserved for video imports');
   const existing = activeIncident(ctx);
   if (existing) return existing;
   const row = ctx.db.incident.insert({
@@ -291,6 +298,48 @@ export function startVitalsOverride(ctx: Ctx, scenario: string, why: string) {
   ctx.db.vitalsOverride.insert({ key: 'vitals', scenario, startedAt: ctx.timestamp });
   const inc = activeIncident(ctx);
   if (inc) recordEvent(ctx, inc.id, `simulation_${scenario}`, `Simulated vitals: ${SCENARIOS[scenario]?.label ?? scenario}`, 'demo', why);
+}
+
+/** Device on the rows that fill in what a relay reading lacks; never mistaken for the relay or a scenario. */
+export const FILL_DEVICE = 'sim-fill';
+/** Relay statuses that mean a finger is on the clip (bridge/hub_bridge.py maps the hub's settling states to acquiring). */
+const FINGER_ON = new Set(['pulse', 'acquiring', 'calibrating']);
+/** How long the finger must have been on before anything is filled in. */
+const FILL_DELAY_S = 2;
+
+/**
+ * Once a finger has been on the clip for FILL_DELAY_S, whatever the relay's reading still lacks (usually SpO₂ while
+ * it settles) is filled from the looping `normal` scenario: a second row at the same timestamp, device `sim-fill`,
+ * `simulated = true`, carrying only the missing fields. Nothing is filled with the finger off. The relay's own row
+ * and numbers are never altered, and each metric is labelled from the row it came from.
+ */
+export function fillMissingVitals(ctx: Ctx, status: string, hr: number | undefined, spo2: number | undefined) {
+  // Only once a finger is on the clip (pulse, or the sensor settling), and only after it has been on for FILL_DELAY_S.
+  const fingerOn = FINGER_ON.has(status);
+  const key = 'finger_on';
+  const since = ctx.db.ruleState.key.find(key);
+  if (!fingerOn) {
+    if (since) ctx.db.ruleState.key.delete(key);
+    return;
+  }
+  if (!since) {
+    ctx.db.ruleState.insert({ key, since: ctx.timestamp, lastFiredAt: ctx.timestamp });
+    return;
+  }
+  if (secondsBetween(since.since ?? since.lastFiredAt ?? ctx.timestamp, ctx.timestamp) < FILL_DELAY_S) return;
+  if (hr !== undefined && spo2 !== undefined) return;
+  const { vitals } = scenarioFrame('normal', Number(ctx.timestamp.microsSinceUnixEpoch / 1_000_000n));
+  ctx.db.vitals.insert({
+    id: 0n,
+    incidentId: activeIncidentId(ctx),
+    ts: ctx.timestamp,
+    device: FILL_DEVICE,
+    hr: hr === undefined ? vitals.hr : undefined,
+    spo2: spo2 === undefined ? vitals.spo2 : undefined,
+    tempC: undefined,
+    status: 'pulse',
+    simulated: true,
+  });
 }
 
 /** The active synthetic override, if any. */
@@ -360,4 +409,3 @@ export function ensureSeedAndTick(ctx: Ctx) {
     ctx.db.tickSchedule.insert({ scheduledId: 0n, scheduledAt: ScheduleAt.interval(SEC) });
   }
 }
-

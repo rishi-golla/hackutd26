@@ -15,7 +15,8 @@ import LiveVideo from './LiveVideo';
 import ReportView from './ReportView';
 import { LiveThought, ThoughtRow } from './ThoughtRows';
 import { groupThoughts, liveThoughts, type Thought } from './thoughts';
-import './hospital.css';
+import { isRecordedEncounter } from './recordings';
+import './hospital-classic.css';
 
 const VITALS_STALE_MS = 5000;
 // A dropout shorter than this (finger shifts, one noisy second) keeps the last good number, dimmed.
@@ -90,7 +91,7 @@ export default function HospitalPage() {
   const [openThoughts, setOpenThoughts] = useState<ReadonlySet<string>>(new Set());
 
   // The newest incident, closed or not, so the dashboard still shows a finished run.
-  const incident: Incident | undefined = useMemo(() => [...incidents].sort(byNewest)[0], [incidents]);
+  const incident: Incident | undefined = useMemo(() => incidents.filter(i => !isRecordedEncounter(i)).sort(byNewest)[0], [incidents]);
   const incId = incident?.id;
   const record = records.find(r => r.incidentId === incId);
   const report = reports.find(r => r.incidentId === incId);

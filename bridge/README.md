@@ -93,7 +93,8 @@ pi() { ssh -i chromatic/captures/private/pi_key -o UserKnownHostsFile=chromatic/
 2. **Never stale:** `pi sudo systemctl stop cmx-oximeter`. Within 3 s the log shows `vitals_paused` and
    `check_vitals.py` says NOT LIVE. Then `pi sudo systemctl start cmx-oximeter`. While it's stopped the Chromatic
    loses its Bluetooth heart rate too.
-3. **MARK:** the module ignores `mark` without an active incident, so start one first (`start_incident`,
+3. **MARK:** a fresh harness session now starts an encounter through `start_bodycam_session`. Without a
+   camera session, the module still ignores `mark` without an active incident, so start one first (`start_incident`,
    `spacetime/README.md`; this changes the shared database). A press logs `"ev": "mark", "forwarded": true`.
 
 ## Tested
