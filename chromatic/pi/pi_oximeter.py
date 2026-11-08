@@ -3,7 +3,7 @@
 
 It reads the MAX30102 every 40 ms and works out the heart rate every 0.25 s. It sends the rate to the Chromatic as
 a standard Bluetooth heart-rate sensor named "PI-HRM", and sends the rate plus the reason for any missing reading
-(state) to the hub. SpO2 is not reported because the sensor is not calibrated.
+(state) to the hub, with an experimental SpO2 while a rate is shown.
 
 Each 0.25 s the handheld gets flags 0x04 with rate 0 when there is no finger, flags 0x06 with rate 0 while measuring,
 and flags 0x06 with the rate once a reading is trusted. The first reading needs 3 estimates in a row that agree
@@ -17,7 +17,7 @@ import RPi.GPIO as GPIO
 from gi.repository import GLib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from max30102 import Max30102, estimate, shown, FS, WIN   # noqa: E402
+from max30102 import Max30102, estimate, shown, spo2, steady_spo2, FS, WIN   # noqa: E402
 from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # noqa: E402
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
@@ -127,7 +127,7 @@ def main():
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)    # MARK button: pin 11 to ground (pin 9)
-    st = {"m": None, "err": 0, "got_at": time.time(), "I": [], "finger": False, "base": 15000.0, "ac_ok": [],
+    st = {"m": None, "err": 0, "got_at": time.time(), "R": [], "I": [], "o2": [], "finger": False, "base": 15000.0, "ac_ok": [],
           "hist": [], "recent": [], "last_ok": 0.0, "hr": 0, "state": None, "linked": False, "btn": False,
           "marks": 0, "unsub_at": None, "dev_at": 0.0}
     # base: no-finger IR level, first guess 15k (11-16k measured), then learned from this sensor and room
@@ -140,16 +140,17 @@ def main():
                 if st["m"] is None:
                     st["m"] = Max30102(led=LED)
                     say(True, ev="sensor_ready")
-                new = [i for _, i in st["m"].read()]
+                new = st["m"].read()
                 if st["m"].lost:                           # samples were dropped: the window would have a gap
-                    st["I"] = []
+                    st["R"], st["I"] = [], []
                 if new:
-                    st["I"], st["got_at"], st["err"] = (st["I"] + new)[-WIN:], time.time(), 0
+                    st["R"] = (st["R"] + [r for r, _ in new])[-WIN:]
+                    st["I"], st["got_at"], st["err"] = (st["I"] + [i for _, i in new])[-WIN:], time.time(), 0
         except OSError as e:                               # unplugged / I2C glitch
             if not st["err"]:
                 say(True, ev="sensor_error", e=str(e))
             st["err"] += 1
-            st["m"], st["I"] = None, []
+            st["m"], st["R"], st["I"] = None, [], []
         pressed = GPIO.input(17) == 0                      # polled every 40 ms, which also debounces
         if pressed and not st["btn"]:
             st["marks"] += 1
@@ -209,9 +210,12 @@ def main():
                 s, hr = "no_finger", 0
             else:
                 s, hr = reading(now)
+            if not hr:
+                st["o2"] = []
+            o2 = steady_spo2(st["o2"], spo2(st["R"], st["I"])) if hr else None
         except Exception as e:                             # never let a bug freeze the last value on screen
             say(True, ev="tick_error", e=repr(e))
-            s, hr = "sensor_error", 0
+            s, hr, o2 = "sensor_error", 0, None
         if hr != st["hr"] and hr:
             say(True, hr=hr)
         st["hr"] = hr
@@ -223,6 +227,7 @@ def main():
                 linked = meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
             hub("finger", {None: "error", False: "off", True: "on"}[st["finger"]])
             hub("hr", hr or None)                          # None = no valid reading (never a stale number)
+            hub("spo2", o2)
             if linked != st["linked"]:
                 st["linked"] = linked
                 say(True, ev="handheld", subscribed=bool(linked))

@@ -32,6 +32,7 @@
   .big { display:flex; align-items:baseline; gap:5px; }
   .big b { font-size:44px; font-weight:800; line-height:1; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
   .big span { color:var(--dim); font-size:13px; }
+  .o2 { color:var(--accent); font-size:12px; font-weight:600; margin-top:4px; min-height:1.4em; }
   .hr b { color:var(--hr); }
   .status b { color:var(--accent); font-size:22px; letter-spacing:-.01em; line-height:1.6; }
   .said p { margin-top:2px; font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -53,7 +54,7 @@
 <div class="cam"><video id="video" autoplay playsinline muted></video><div id="hint" class="hint">Tap Start to turn on the camera and mic</div></div>
 
 <div class="vitals">
-  <div class="card vital hr off" id="vHr"><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div></div>
+  <div class="card vital hr off" id="vHr"><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div><div class="o2" id="o2"></div></div>
   <div class="card vital status"><div class="label">Sensor</div><div class="big"><b id="status">—</b></div></div>
 </div>
 
@@ -66,7 +67,7 @@
 <script src="/common.js"></script>
 <script>
 const video = $('video'), canvas = $('canvas');
-let stream = null, recorder = null, facing = 'environment', running = false, hrAt = 0, stAt = 0;
+let stream = null, recorder = null, facing = 'environment', running = false, hrAt = 0, stAt = 0, o2At = 0;
 
 const dot = (id, state) => { $(id).className = 'dot ' + state; };
 const hint = (text, err) => { $('hint').hidden = !text; $('hint').textContent = text || ''; $('hint').classList.toggle('err', !!err); };
@@ -85,12 +86,14 @@ const answeredAt = poll((m, age) => {
   if (age > 4) return;                                          // catch-up or backlog: never a live value
   if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); }
   if (m.what === 'state') { $('status').textContent = labels[m.value] || m.value; stAt = Date.now(); }
+  if (m.what === 'spo2') { $('o2').textContent = m.value ? `SpO₂ ${m.value}% · experimental` : ''; o2At = Date.now(); }
 });
 
 setInterval(() => {
   dot('dHub', Date.now() - answeredAt() < 12000 ? 'on' : 'off');
   if (Date.now() - hrAt > STALE_MS) $('hr').textContent = '—';
   if (Date.now() - stAt > STALE_MS) $('status').textContent = '—';
+  if (Date.now() - o2At > STALE_MS) $('o2').textContent = '';
   $('vHr').classList.toggle('off', $('hr').textContent === '—');
 }, 1000);
 
