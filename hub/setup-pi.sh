@@ -15,6 +15,8 @@ if ! command -v cloudflared >/dev/null; then                  # the public https
   chmod 755 /usr/local/bin/cloudflared
 fi
 
+command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh   # remote SSH from any network
+
 # USB networking, so a Mac can reach the Pi over its USB-C cable (takes effect after a reboot)
 grep -q '^dtoverlay=dwc2' /boot/config.txt || echo 'dtoverlay=dwc2' >> /boot/config.txt
 grep -q 'modules-load=dwc2,g_ether' /boot/cmdline.txt || sed -i 's/rootwait/rootwait modules-load=dwc2,g_ether/' /boot/cmdline.txt
