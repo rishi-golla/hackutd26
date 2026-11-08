@@ -113,7 +113,7 @@ Tailscale from Windows):
   `handoff-bridge`).
 - **Status sequence:** finger on → `acquiring` → `pulse` with HR 75–102; finger off → `no finger`. One row a second,
   every call `"ok": true`, every row `simulated: false`.
-- **SpO2:** 35 of 54 `pulse` rows carried it (98–100); the rest were pulse stretches of 2–6 s, too short for the
+- **SpO2 (experimental):** 35 of 54 `pulse` rows carried it (98–100); the rest were pulse stretches of 2–6 s, too short for the
   sensor to publish a steady SpO2.
 - **`check_vitals.py`:** LIVE (newest row under 1.5 s old). It also caught 3 `sim-seizure` rows marked simulated,
   from a short synthetic-scenario run in the shared database, and said NOT REAL for them.
