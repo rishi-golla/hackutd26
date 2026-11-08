@@ -13,9 +13,14 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 
 ## Change log
 
-Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
+Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Alan): live decision log on `/hospital`** (§0.1 decision 23, H4/H5, §19). Restores the
+  in-progress line and expandable decision rows removed Sat ~21:30. Nemotron publishes short public progress
+  and outcomes, including a decision to keep monitoring without speaking. Requests, successful outcomes and
+  failures are distinct; no raw model reasoning or dropped room conversation is exposed. Uses existing
+  `agent_step` / `log_agent_step`; no schema change. This work includes the hospital UI at Alan's request.
 - **Sun ~02:30 (Rishi): the voice agent asks before it logs, documents what it hears, and speaks up on its
   own** (§0.1 decision 21; `voice/` only, no table or reducer changes). Every action the medic says is read back
   and ends with "Log it?" ("Log it anyway?" after an allergy or dose warning): medications and shocks from the
@@ -28,7 +33,8 @@ necessarily when the decision was made.
   - **Amended Sun ~03:05 (Josh, review):** (1) **keep or drop:** every heard line is decided first and stored
     after. Nemotron reads it with the voice log (the last lines heard, kept or dropped) and either keeps it
     (documents, replies, or stays silent) or answers DROP; a dropped line (room talk, filler, our own words) is
-    written nowhere, not even to `transcript`. No wake word. (2) An unanswered routine item stays `logged`; only an
+    written nowhere, not even to `transcript` (decision 23 later allows generic model progress/outcomes
+    without those words). No wake word. (2) An unanswered routine item stays `logged`; only an
     allergy or dose warning is `flagged` (the dashboard and the report show `flagged` as a problem). (3) The
     no-model status shortcut takes only unambiguous, non-negated phrases.
 - **Sun ~02:15 (Alan): an arrest doesn't mean CPR has started** (§9, §15, D1; module, voice and `/controls`).
@@ -350,13 +356,13 @@ section and add a change-log line.
     - **Read back, then "Log it?"** for every action: medications and shocks (deterministic parser, §16) and
       procedures and airway devices (Nemotron's `log_event`). After an allergy or dose warning it asks "Log it
       anyway?". Findings and MARKs are logged quietly, never acknowledged out loud.
-    - **Keep or drop, then store (Josh, Sun ~03:05).** Every line the mic hears is decided before anything is
+    - **Keep or drop, then store (Josh, Sun ~03:05).** Every line the mic hears is decided before its words are
       written. Kept: read-backs, answers ("yes", "correction"), status phrases, a spoken identity, "Handoff,
       mark/look", and every line Nemotron keeps. Nemotron sees the line with the **voice log** (the last 10 lines
       heard in 2 min, each marked kept or dropped) and the recent conversation, and keeps a line only if it is
       about this patient's care or meant for Handoff; anything else (small talk, other people's conversations, the
-      demo) gets the answer DROP. A kept line is written to `transcript` and acted on; a dropped one is written
-      nowhere (no `transcript` row, no event, no agent step). Filler and our own words coming back are dropped
+      demo) gets the answer DROP. A kept line is written to `transcript` and acted on; a dropped one has no `transcript` row or event and its words are never written to the database.
+      Decision 23 allows generic model progress/outcome rows without those words. Filler and our own words coming back are dropped
       without a model call. No wake word.
     - **Written at once, flagged only for a warning.** The event is logged immediately (so the epi timer and the
       hospital see it). "yes", "yeah, log it", "go ahead" → `confirmed` and "Logged."; "no", "don't log it" →
@@ -381,6 +387,39 @@ section and add a change-log line.
       "Note:" wording, never an order, never a number the state doesn't hold, never a repeat of a rule callout.
     - **ASR:** IO, IV and IM are no longer boosted (they turned "I'm" into "IM" and noise into "IO"); the long
       forms (intraosseous, intravenous, intramuscular) are boosted instead.
+
+23. **Live decision log** (Alan, Sun): the hospital event timeline shows brief public progress and decision
+    summaries while Nemotron processes information. Reverses the Sat ~21:30 removal of the on-screen trace.
+    - Before a voice model request or tool request, publish a plain sentence describing the work underway.
+      When finished, publish a separate outcome. A request in progress never implies success. Speech queued
+      through the policy is labelled queued, not delivered.
+    - State-change advisory calls return a short public summary in the same response, including when the
+      decision is to keep monitoring without an additional advisory. No extra model call for logging, and
+      log-only summaries never go to TTS. Existing rate budgets, speech policy and `tick_rules` still apply.
+      Summaries are selected from a small set of public sentences generated from the supplied state (generic
+      monitoring, no valid pulse data, no record yet, recent callouts, recorded ROSC). Only offered sentences
+      are accepted; arbitrary model wording falls back to generic monitoring. They cannot invent a diagnosis,
+      improvement, stability, compression depth, or treatment conclusion. Empty or malformed structured output is a failed review, never a successful monitoring decision.
+    - Keep/drop still governs transcript and event storage. A dropped line's words remain unstored. A generic
+      progress/outcome pair (e.g. "Ignored unrelated audio; continuing to monitor") is allowed for a model review.
+      Filler and echoes still produce no model request and no decision row.
+    - Correlated updates use existing `log_agent_step({workflow: 'voice', tool: 'decision', summary})`.
+      `summary` is JSON `{v: 1, id, phase, text}`: a unique operation ID, phase `progress` / `complete` / `error`,
+      and a brief sentence. The envelope stays within the voice client's 300-character limit. No schema,
+      reducer, generated binding or audio-link change. Completion/error writes recheck the incident generation.
+    - `/hospital` subscribes to `agent_step`, filters to the displayed incident, and shows up to two current
+      lines above the events. Every operation remains available as an expandable timeline row with its updates.
+      IDs keep overlapping Nemotron operations separate from each other and from deterministic read-backs.
+      Model decision rows are "Nemotron · voice"; fixed-code and unproven legacy workflow steps are "Agent";
+      vision model rows are "Nemotron · vision". Legacy tool rows remain readable; pending requests have neutral labels and failure summaries never
+      gain a successful-action caption. Completed actions use past tense.
+    - A decision leaves the live line on completion/error, disconnection or incident close. Without a terminal
+      update it expires after 20 seconds and says "No completion received"; it never invents success. No more than
+      two pinned lines; other active operations retain their current status in the normal list. Historical rows
+      survive reconnect through the subscribed table, and reset/incident replacement clears the displayed run.
+      Live updates use a short fade/slide; reduced motion swaps text directly. Repeated legacy camera updates
+      collapse and are cut into groups at 60 seconds. User authorization covers resuming this hospital UI draft;
+      the PR remains available for Josh's hospital-lane review before merge.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1302,8 +1341,9 @@ facing the medic. The `kit_slot` table and `kit_update` reducer are not built (�
 
 ## 14. Hospital dashboard
 
-What the ER sees, on the Mac and any second screen. Judges see the agent act through the event timeline. Its only button
-is **Generate Handoff**. No demo controls here.
+What the ER sees, on the Mac and any second screen. Judges see the agent act and read its public decision
+updates through the event timeline. Its only action is **Generate Handoff**; expanding a decision is view-only.
+No demo controls here.
 
 **Layout (five panels, Sat ~21:30; Alan's sketch; the code in `web/src/routes/hospital/` is the reference):** fits
 1440×900 without scrolling. Dark, quiet panels in the style of the Pipecat Playground; Inter.
@@ -1312,11 +1352,12 @@ is **Generate Handoff**. No demo controls here.
 | --- | --- |
 | **Live view** (large): the bodycam video, click to enlarge. Before the first frame, a halftone heart floats slowly in the panel (Canvas UI's Dithered Object, loaded only then); on stale the last frame stays under the Stale badge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
 | | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show three breathing dots while the sensor settles (relay status `acquiring`/`calibrating`, or SpO₂ not in yet), hold the last good number dimmed through a dropout of up to 6 s, then fall back to the dots or "—"; during an arrest they show the demo's simulated arrest (HR 0, SpO₂ "—", decision 15) and "—" for the real clip (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds; no alarm colour during an arrest) |
-| **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
+| **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. Up to two live decision lines sit above the events; completed decisions expand to their recorded updates. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
 
 Panel titles use the same small monospace caption style. Nothing explains itself on screen, and nothing moves
-except clocks, live values and the placeholder heart before video. Not on the dashboard any
-more (the data is unchanged): route and ETA, the agent's tool-level trace, source chips (still in the report),
+except clocks, live values, the placeholder heart before video and the brief decision-line transition
+(disabled under reduced motion). The decision log is restored by decision 23. Still absent: route and ETA,
+source chips (still in the report),
 trend lines and the pulse waveform, the big spoken-callout text, and the simulated / demo-timing marks.
 
 | ID | Requirement | Done when |
@@ -1324,8 +1365,8 @@ trend lines and the pulse waveform, the big spoken-callout text, and the simulat
 | H1 | Status, coloured by state, top right | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
 | H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed; measuring dots while the sensor settles | A missing reading shows "—"; a dropout keeps the last good HR/SpO₂ dimmed for at most 6 s, never longer; "Epi due" matches the bodycam to the second |
-| H4 | Event timeline, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
-| H5 | Agent trace: not on the dashboard; the agent's results (destination, alert) appear as timeline rows | Judges can see the agent act from the timeline |
+| H4 | Event timeline and public decision rows, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
+| H5 | Live decision log (decision 23): brief progress, outcomes and keep-monitoring decisions; up to two current lines, expandable history | A real request is visible before completion; silent outcomes appear without speech; errors and missing completions never imply success; overlapping decisions and fixed code keep separate source labels |
 | H6 | Pre-arrival alert, display-only, as a timeline row (a typed ER chat is optional) | Alert appears within 20 s of the arrest |
 | H7 | Generate Handoff opens the report (§20) | Full report within 30 s |
 | H8 | Demo controls (the `/controls` page, not this dashboard): start, simulated arrest or deterioration, ROSC, en route, arrived, reset | Every demo beat can be forced if a sensor fails |
@@ -1631,7 +1672,8 @@ dose is spoken, RB9). Event kinds and source chips: §22.7.
 ## 19. AI agent
 
 Rules handle the time-critical safety net. The agent handles judgement, language, speaking and paperwork. Every
-step it takes is written to `agent_step`; its results (destination, alert) show as rows in the dashboard's event timeline. Model: Nemotron through NVIDIA's API,
+step it takes is written to `agent_step`; its public progress, decision summaries and results show in the
+dashboard's event timeline (decision 23). These are short activity updates, not raw internal reasoning. Model: Nemotron through NVIDIA's API,
 which supports tool calling. The agent decides for itself when to call a tool, such as the EHR search.
 
 There are two parts:
@@ -2182,7 +2224,7 @@ Rows are in priority order.
 | **Voice agent worker** | Voice-to-voice ≤ ~1.2 s; barge-in works; the fallback engages when the pipeline drops. (Built in `voice/`, live mic test done ~22:15; next: the phone on `hub/phone.html?voice=`) | SpacetimeDB module, `hub/phone.html`, NVIDIA key on the laptop |
 | **Live video (WebRTC + SpacetimeDB handshake + fallback)** | Video plays on the dashboard within 3 s of tap-to-start, under 1 s delay; falls back to the hotspot, then a TURN relay. | SpacetimeDB module (`rtc_signal`), bodycam page |
 | **Hospital dashboard (live view, record panel, alert, report)** | Shows live video, timeline, patient record, pre-arrival alert and the report. (First version built) | SpacetimeDB module, live video |
-| **Nemotron agent (spots the patient on a card or by voice, EHR search, alert, report)** | Pulls the record, posts the alert, writes a sourced report, and logs each step to `agent_step`; its results show in the event timeline. | SpacetimeDB module, mock EHR |
+| **Nemotron agent (spots the patient on a card or by voice, EHR search, alert, report)** | Pulls the record, posts the alert, writes a sourced report, and logs each step to `agent_step`; its public decision updates and results show in the event timeline. | SpacetimeDB module, mock EHR |
 | **Mock EHR (five synthetic FHIR patients)** | Answers FHIR R4 queries locally in under 300 ms. | Nothing |
 | **Relay software (LCD, temperature probe, SpacetimeDB sender)** | Sender pushes real vitals once a second; the LCD shows them. | SpacetimeDB module; relay hardware for real data |
 | **Relay hardware (LCD pod and wiring, temperature probe, button)** | Button plug works and the relay boots; the LCD shows HR; the probe reads within ±0.5 °C. | Nothing |
@@ -2254,7 +2296,7 @@ Short, honest answers. If the true answer is "we didn't test that", say so; judg
 | They ask | We say |
 | --- | --- |
 | Spacetime: what does SpacetimeDB do that a normal database wouldn't? | It's the whole backend. The phone, the Pi, the controls page, the voice agent and the hospital screen all subscribe to the same live incident. Our callout rules and dose timers run inside it as scheduled functions, so there's no separate server for them. |
-| NVIDIA: how is this "beyond a chatbot"? | It isn't a chat window. It listens on scene, watches the live data, decides for itself when to speak and which tools to call (EHR search, dose and allergy checks, hospital choice, report writing), and logs every step to `agent_step`, with the results in the hospital's event timeline. That is agentic tool use. |
+| NVIDIA: how is this "beyond a chatbot"? | It isn't a chat window. It listens on scene, watches the live data, decides for itself when to speak and which tools to call (EHR search, dose and allergy checks, hospital choice, report writing), and logs every step to `agent_step`, with public progress, decision summaries (including monitoring without speaking) and results in the hospital's event timeline. That is agentic tool use. |
 | How fast is it? | Voice-to-voice is about a second (quote what we measured); sensor to screen is under a second; the record pull is a few seconds. Quote measured numbers only. |
 | Why does the voice take about a second? Why not a speech-to-speech model? | Each turn goes speech-to-text, then Nemotron with tools, then text-to-speech, all streaming; that costs roughly 0.7–1.2 s. Speech-to-speech models answer in ~0.3–0.5 s, but they can't run our model, and we wanted Nemotron calling our tools with deterministic dose and allergy checks. (If we kept the instant phone "Copy", say so.) |
 | How does it know who the patient is? | The agent reads the name and birth date off the ID card with the camera, or hears the medic say them, and decides to search the EHR. If it isn't sure, it asks. |

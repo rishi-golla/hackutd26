@@ -287,7 +287,7 @@ test('fix 2: words that only look like a status change never set one without the
   });
 });
 
-test('keep or drop: a line Nemotron drops is stored nowhere; a kept line is stored once, after the decision', async () => {
+test('keep or drop: dropped audio is not stored; generic decision status is visible', async () => {
   const { conn, calls } = arrest();
   await withModel([
     { content: 'DROP' },
@@ -298,7 +298,10 @@ test('keep or drop: a line Nemotron drops is stored nowhere; a kept line is stor
     await brain.handleUtterance('Did you see the game last night', 'pipecat');
     await settle(() => requests.length >= 1);
     assert.equal(callsTo(calls, 'addTranscript').length, 0, 'a dropped line is not in the transcript');
-    assert.equal(callsTo(calls, 'logAgentStep').length, 0, 'nor in the agent trace');
+    const status = callsTo(calls, 'logAgentStep');
+    assert.equal(status.length, 2, 'generic progress and completion, without the dropped words');
+    assert.ok(status.every(c => !c.args.summary.includes('game last night')));
+    assert.match(status[1].args.summary, /Ignored unrelated audio/);
     assert.equal(callsTo(calls, 'logEvent').length, 0);
     await brain.handleUtterance('His skin is pale and sweaty', 'pipecat');
     await settle(() => callsTo(calls, 'addTranscript').length > 0);

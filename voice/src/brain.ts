@@ -9,6 +9,7 @@ import type { Conn } from './db';
 import { activeIncident, step } from './db';
 import { CONFIG, llmConfigured } from './config';
 import { chat, modelInUse, type ChatMessage } from './llm';
+import { advisoryDecision, DecisionLog, publicSummaries, toolProgress } from './decision-log';
 import { ECHO_PREFIXES, medParts, normalizeTranscript, parseAnswer, parseControl, parseIdentity, type MedParts, parseReadback, recognizeDrug, type ReadbackMatch, type Route, type Unit } from './readback';
 import { checkAllergy, checkDoseRange, composeReadback, type DoseVerdict } from './checks';
 import { cachedMatch, fetchRecord, searchPatients, spokenRecordSummary } from './ehr';
@@ -60,7 +61,8 @@ The live state just changed (CHANGED says what). Nobody asked you anything. Thin
 - a clear trend in valid vitals (heart rate or SpO2 steadily worse) or a change in status (ROSC: post-arrest checks; en route: the hospital has the record)
 - something the handoff report will need and nobody has documented yet (patient identity, allergies checked, a pulse check after ROSC)
 The rules already say "Push faster", "Resume compressions", "Epi due", "Two minutes" and the vitals alarms, and RECENT SPEECH shows what was said lately: never repeat any of those, and never restate a read-back, question or warning Handoff just spoke. If nothing would clearly help, stay silent; silence is the usual answer.
-Reply with the single word SILENT, or with the advisory: 15 words or fewer, protocol wording ("Consider…", "Note:"), never an order, no numbers unless they are in the state.`;
+Return JSON only: {"advisory": null, "summary": "Reviewed the latest update; continuing to monitor."} or {"advisory": "Consider…", "summary": "A brief explanation of the advisory."}.
+The summary is a public dashboard status, not internal reasoning. Copy exactly one sentence from ALLOWED DASHBOARD SUMMARIES below; do not write a new clinical claim. Do not claim the patient is stable, infer an improvement or deterioration from a single snapshot, diagnose, or say no treatment is needed. If data is missing or stale, say that rather than assuming improvement. An advisory is 15 words or fewer, protocol wording ("Consider…", "Note:"), never an order, no numbers unless they are in the state.`;
 
 type Pending = {
   eventId: bigint;
@@ -103,6 +105,7 @@ export class Brain {
   private gen = 0;
   private proactiveTimer?: NodeJS.Timeout;
   private lastFingerprint = '';
+  private proactiveInFlight = false;
   private llmTurnTimes: number[] = [];
   /** A one- or two-word line we skipped ("Administering"); the next line may be its other half. */
   private lastFragment?: { text: string; at: number };
@@ -149,7 +152,7 @@ export class Brain {
   /**
    * A final utterance from the ear (Pipecat or the terminal bodycam). Decided first, stored after (decision 21):
    * a line that is acted on (a read-back, an answer, a status, a record lookup, or Nemotron keeping it) is written
-   * to `transcript`; a dropped line (room talk, filler, our own words coming back) is written nowhere.
+   * to `transcript`; a dropped line's words are not stored. Model reviews publish only generic status (decision 23).
    */
   async handleUtterance(text: string, source: string) {
     const clean = text.replace(/\s+/g, ' ').trim().slice(0, 500);
@@ -189,7 +192,7 @@ export class Brain {
     // eslint-disable-next-line no-param-reassign -- a stitched fragment may extend the line below
     const gen = this.gen;
     const lower = text.toLowerCase();
-    // Dropped lines leave no trace in the database (decision 21), only in the worker's console.
+    // Early drops (filler/echoes) leave no trace; model reviews have generic status only (decision 23).
     const drop = (why: string) => {
       console.log(`[voice] dropped (${why}): "${text.slice(0, 60)}"`);
       return false;
@@ -777,12 +780,21 @@ export class Brain {
     const tools = toolsFor(CONFIG.w6).filter(t => t.function.name !== 'get_state' && !(question && t.function.name === 'log_event'));
     const did: string[] = [];
     let spoke = false;
-    // Traced only once the line is kept: a dropped line leaves nothing in the database (decision 21).
+    const decision = new DecisionLog(this.conn, valid);
+    let toolFailed = false;
     const kept = async () => {
-      await step(this.conn, 'nemotron', `kept "${text.slice(0, 60)}" (${source}): ${did.join('; ') || 'nothing to say'}`);
+      const recorded = did.some(d => /^(logged|set status)/.test(d));
+      const queued = did.some(d => d.startsWith('said'));
+      await decision.write(toolFailed ? 'error' : 'complete', toolFailed
+        ? 'Review finished with an unsuccessful request; check the recorded tool results.'
+        : recorded && queued ? 'Recorded the clinical update and queued a reply for the medic.'
+        : recorded ? 'Recorded the clinical update; no additional reply needed.'
+        : queued ? 'Queued a reply for the medic.'
+        : 'Reviewed the clinical update; continuing to monitor without an additional reply.');
       this.remember(text, did);
       return true;
     };
+    await decision.write('progress', 'Reviewing the incoming audio and latest patient state.');
     try {
       for (let turn = 0; turn < 3; turn++) {
         const remaining = deadline - Date.now();
@@ -794,18 +806,22 @@ export class Brain {
         }
         if (reply.toolCalls.length === 0) {
           // Lightning sometimes answers in text as `speak: …` instead of calling the tool; same meaning.
+          if (!reply.content.trim()) throw new Error('Empty model decision');
           const content = reply.content.trim().replace(/^(?:speak|said)\s*[:(]\s*/i, '').replace(/^["']|["')]+$/g, '').trim();
-          // DROP: not about this patient and not for Handoff. Nothing was done, so nothing is stored.
+          // DROP: no transcript or event, only a generic outcome without the dropped words (decision 23).
           if (!spoke && !did.length && (/^drop\b/i.test(content) || /\bDROP\.?$/.test(content))) {
             console.log(`[voice] dropped (Nemotron): "${text.slice(0, 60)}"`);
+            await decision.write('complete', 'Ignored unrelated audio; continuing to monitor.');
             return false;
           }
           if (!content || /^silent\b/i.test(content) || /\bSILENT\.?$/.test(content) || spoke) {
             // kept, nothing to say
           } else if (/^(?:logged|set status|stayed silent|heard)\b/i.test(content)) {
-            await step(this.conn, 'nemotron', `Not spoken (an action note, not speech): "${content.slice(0, 60)}"`);
-          } else if (await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) {
-            did.push(`said "${content}"`);
+            // An action note is not evidence that a tool succeeded; the log uses actual tool results below.
+          } else {
+            await decision.write('progress', 'Preparing a reply for the medic.');
+            if (await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) did.push(`said "${content}"`);
+            else toolFailed = true;
           }
           return kept();
         }
@@ -821,11 +837,17 @@ export class Brain {
           } catch {
             // the tool reports what's missing
           }
+          await decision.write('progress', toolProgress(call.function.name));
           // One spoken answer per line: a second speak in the same turn would talk at the medic twice.
           const result = spoke && call.function.name === 'speak'
             ? JSON.stringify({ error: 'you already answered this line; stop' })
             : await runTool(call.function.name, args, ctx);
           messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+          // Tools can return facts as plain text or arrays as well as JSON objects.
+          try {
+            const payload: unknown = JSON.parse(result);
+            if (payload && typeof payload === 'object' && 'error' in payload) toolFailed = true;
+          } catch { /* A plain state summary is a valid tool result. */ }
           if (!result.includes('"ok":true')) continue;
           if (call.function.name === 'speak') {
             spoke = true;
@@ -835,6 +857,7 @@ export class Brain {
         }
       }
       did.push('stopped after 3 tool rounds');
+      toolFailed = true;
       // Spoken to and still no answer: one last call with no tools, so a question is never met with silence.
       if (addressed && !spoke && deadline - Date.now() > 800) {
         const last = await chat([...messages, { role: 'user', content: 'Answer the medic now in one or two short sentences, from the state and the tool results above. No tools.' }], { timeoutMs: deadline - Date.now() });
@@ -843,9 +866,11 @@ export class Brain {
       }
       return kept();
     } catch (err) {
-      // No decision (timeout, API error): stored only if something was already done; the rules are the safety net.
+      // Failures are visible as failures, even when no action completed. Never log exception text or room talk.
       console.log(`[voice] Nemotron failed on "${text.slice(0, 60)}": ${(err as Error).message.slice(0, 100)}`);
-      return did.length > 0 ? kept() : false;
+      await decision.write('error', 'Could not finish the review; no further decision was made. Rule callouts remain active.');
+      if (did.length) this.remember(text, did);
+      return did.length > 0;
     }
   }
 
@@ -860,7 +885,7 @@ export class Brain {
    */
   private async proactiveTick() {
     const s = readState(this.conn);
-    if (!s.incident) return;
+    if (!s.incident || this.proactiveInFlight) return;
     const v = s.vitals;
     const parts: Record<string, string> = {
       status: s.incident.status,
@@ -874,29 +899,41 @@ export class Brain {
     const fingerprint = JSON.stringify(parts);
     if (fingerprint === this.lastFingerprint) return;
     const before: Record<string, string> = this.lastFingerprint ? JSON.parse(this.lastFingerprint) : {};
-    this.lastFingerprint = fingerprint;
     const changed = Object.keys(parts).filter(k => before[k] !== parts[k]).map(k => `${k}: ${before[k] ?? 'n/a'} → ${parts[k]}`);
     const now = Date.now();
     this.llmTurnTimes = this.llmTurnTimes.filter(t => now - t < 60_000);
     if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) return;
     this.llmTurnTimes.push(now);
+    this.lastFingerprint = fingerprint;
+    this.proactiveInFlight = true;
     const gen = this.gen;
+    const valid = () => !this.stale(gen, s.incident!.id);
+    const decision = new DecisionLog(this.conn, valid);
     const summary = summarize(s);
     try {
+      await decision.write('progress', 'Reviewing the latest state change for an advisory.');
       const reply = await chat(
         [
-          { role: 'system', content: `${PROACTIVE}\n\nLIVE STATE\n${summary}` },
-          { role: 'user', content: `CHANGED\n${changed.join('\n')}\n\nAdvisory now? SILENT or at most 15 words.` },
+          { role: 'system', content: `${PROACTIVE}\n\nLIVE STATE\n${summary}\n\nALLOWED DASHBOARD SUMMARIES\n${publicSummaries(summary).map(text => `- ${text}`).join('\n')}` },
+          { role: 'user', content: `CHANGED\n${changed.join('\n')}\n\nReturn the advisory decision JSON, including a brief public summary even when continuing to monitor.` },
         ],
-        { timeoutMs: CONFIG.llmTimeoutMs, maxTokens: 80 }
+        { timeoutMs: CONFIG.llmTimeoutMs, maxTokens: 180 }
       );
-      if (this.stale(gen, s.incident.id)) return;
-      const content = reply.content.trim();
-      if (!content || /^silent\b/i.test(content)) return;
-      await step(this.conn, 'proactive', `"${content.slice(0, 60)}"`);
-      await this.policy.say(content, 2, 'advisory', summary, () => !this.stale(gen, s.incident!.id));
-    } catch (err) {
-      await step(this.conn, 'proactive', `${(err as Error).message.slice(0, 80)}`);
+      if (!valid()) return;
+      const result = advisoryDecision(reply.content, summary);
+      if (!result.advisory) {
+        await decision.write('complete', result.summary);
+        return;
+      }
+      await decision.write('progress', 'Preparing an advisory for the medic.');
+      const queued = await this.policy.say(result.advisory, 2, 'advisory', summary, valid);
+      await decision.write(queued ? 'complete' : 'error', queued
+        ? `Queued advisory: ${result.advisory}`
+        : 'Reviewed the state; the speech policy did not queue the advisory.');
+    } catch {
+      await decision.write('error', 'Could not finish the advisory review; no decision was made. Rule callouts remain active.');
+    } finally {
+      this.proactiveInFlight = false;
     }
   }
 }
