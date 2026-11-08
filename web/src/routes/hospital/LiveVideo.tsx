@@ -1,5 +1,5 @@
 // Live video from the bodycam. Two sources, whichever is live:
-// - the Pi hub's frame feed (SPEC decision 21): the phone uploads ~10 JPEG frames a second to the hub; this tile
+// - the Pi hub's frame feed (SPEC decision 22): the phone uploads ~10 JPEG frames a second to the hub; this tile
 //   long-polls /hub/frame.jpg (passed through to the hub by the dev server, vite.config.ts) and shows each one as
 //   it arrives, the same feed as the hub's own /dash. The hub never serves a frame older than 3 s.
 // - WebRTC, if a bodycam ever sends an offer through the rtc_signal table (protocol in spacetime/README.md).

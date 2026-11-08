@@ -16,7 +16,7 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
-- **Sun ~02:20 (Josh): `/hospital` shows the bodycam's live frame feed from the Pi hub** (§0.1 decision 21, H2).
+- **Sun ~02:20 (Josh): `/hospital` shows the bodycam's live frame feed from the Pi hub** (§0.1 decision 22, H2).
   The video tile long-polls the hub's `/frame.jpg` (about 10 frames a second, never older than 3 s), the same feed
   as the hub's own `/dash`. The Vite dev server passes `/hub/*` through to the hub (`HUB_URL`, default
   `http://handoff-pi:8000` over Tailscale), so the hub needs no change. The WebRTC receiver stays and wins if a
@@ -217,7 +217,7 @@ section and add a change-log line.
    the phone uploads no separate frames to SpacetimeDB. (Alan, ~18:30) Amended ~23:30 (decision 20): the frames
    come from the phone's WebRTC link to the voice worker (its camera track rides along with the mic), or from the
    Pi hub's `/frame.jpg` when that link is down, not from the hospital's video. **Amended Sun ~02:20 (decision
-   21):** no WebRTC sender to the hospital exists, so `/hospital` shows the Pi hub's live frame feed (about
+   22):** no WebRTC sender to the hospital exists, so `/hospital` shows the Pi hub's live frame feed (about
    10 frames a second, never older than 3 s) until one does; WebRTC wins when it plays. Other sections that still
    say "WebRTC only" or "no snapshot / low-frame mode" mean this.
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
@@ -338,7 +338,8 @@ section and add a change-log line.
       serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam.
     - **Vision model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, hosted; `VISION_MODEL` overrides.
     - PRs #5 and #6 are closed; their descriptions and test notes are history.
-21. **The hospital's live view is the Pi hub's frame feed** (Josh, Sun ~02:20). Nobody sends WebRTC video to
+22. **The hospital's live view is the Pi hub's frame feed** (Josh, Sun ~02:20). (21 is the voice agent's
+    confirm-before-logging, Rishi's PR #16.) Nobody sends WebRTC video to
     `/hospital` yet (the phone page sends its camera to the voice worker and, as JPEG frames, to the hub). So the
     video tile shows the hub's frames: the phone uploads about 10 a second, `/hospital` fetches each new one as it
     arrives, and the hub never serves one older than 3 s. It's a continuous live relay, not periodic snapshots, but
@@ -1299,7 +1300,7 @@ trend lines and the pulse waveform, the big spoken-callout text, and the simulat
 | ID | Requirement | Done when |
 | --- | --- | --- |
 | H1 | Status, coloured by state, top right | — |
-| H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5). Today the source is the Pi hub's frame feed (decision 21) | Shows stale after 3 s without video |
+| H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5). Today the source is the Pi hub's frame feed (decision 22) | Shows stale after 3 s without video |
 | H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed; measuring dots while the sensor settles | A missing reading shows "—"; a dropout keeps the last good HR/SpO₂ dimmed for at most 6 s, never longer; "Epi due" matches the bodycam to the second |
 | H4 | Event timeline, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
 | H5 | Agent trace: not on the dashboard; the agent's results (destination, alert) appear as timeline rows | Judges can see the agent act from the timeline |
@@ -1975,7 +1976,7 @@ arrest began. `count` may reset on page reload (the server tracks `countBase`).
 ### 22.5 WebRTC video signaling (`rtc_signal`)
 
 Live video only, never snapshots. The camera lane owns the sender; the hospital lane owns the receiver tile. No
-sender exists yet; until one does, the tile shows the Pi hub's live frame feed instead (decision 21).
+sender exists yet; until one does, the tile shows the Pi hub's live frame feed instead (decision 22).
 
 `rtc_signal {sessionId, sender: "bodycam" | "hospital", kind: "offer" | "answer" | "ice" | "request", payload}`.
 `payload` is `JSON.stringify(description)` or `JSON.stringify(candidate)` (empty for `request`).
@@ -1988,7 +1989,7 @@ sender exists yet; until one does, the tile shows the Pi hub's live frame feed i
 4. Each side ignores rows from itself and from other sessions.
 
 If the peer connection can't be made: phone hotspot, then a TURN relay. No low-frame fallback for WebRTC itself;
-until a sender exists, the tile shows the Pi hub's frame feed (decision 21).
+until a sender exists, the tile shows the Pi hub's frame feed (decision 22).
 
 ### 22.6 Bodycam ↔ voice agent worker audio and video link
 
@@ -2047,7 +2048,7 @@ report under 30 s.
 
 | If this fails | You'll see | Keep going by |
 | --- | --- | --- |
-| Live video won't connect | "connecting…" on the video tile | Today's source is the Pi hub's frame feed (decision 21): check Tailscale on the hospital laptop, or set `HUB_URL` to the Pi's hotspot address. Once a WebRTC sender exists: the hotspot, then a TURN relay |
+| Live video won't connect | "connecting…" on the video tile | Today's source is the Pi hub's frame feed (decision 22): check Tailscale on the hospital laptop, or set `HUB_URL` to the Pi's hotspot address. Once a WebRTC sender exists: the hotspot, then a TURN relay |
 | Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Trigger: the bodycam's audio link to the worker is down (§0.1 decision 18) |
 | Phone can't reach the voice agent worker (venue Wi-Fi) | No agent voice from the start | Hotspot or TURN; degraded mode meanwhile |
 | Wi-Fi or hotspot drops | "Connecting…" in the `/hospital` event timeline header, "stale" on the live view | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); switch networks; demo controls force the next beat |
