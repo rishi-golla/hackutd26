@@ -226,6 +226,26 @@ export class Brain {
     const who = parseIdentity(text);
     if (who && CONFIG.w6) return this.identifyFromNameAndDob(who.name, who.birthDate, gen, 'voice');
 
+    // B6 shortcuts, deterministic (no model call, one answer): "Handoff, look" is the vision sampler's job (it
+    // sees the same transcript and speaks the result); "Handoff, mark" is a MARK on the timeline.
+    const shortcut = /^\s*(?:hey\s+)?hand\s?-?\s?off[,.!]?\s+(look|mark)\b/i.exec(text)?.[1]?.toLowerCase();
+    if (shortcut === 'look') {
+      await step(this.conn, 'look', 'the camera check is the vision sampler\'s; no model turn');
+      return;
+    }
+    if (shortcut === 'mark') {
+      const inc = activeIncident(this.conn);
+      if (!inc) return step(this.conn, 'mark', 'no active incident; not logged');
+      try {
+        await this.conn.reducers.logEvent({ kind: 'mark', label: 'MARK (voice)', sourceKind: 'voice', sourceDetail: text.slice(0, 200) });
+        await step(this.conn, 'log_event', 'mark: MARK (voice)');
+      } catch (err) {
+        await step(this.conn, 'log_event', `mark failed: ${(err as Error).message.slice(0, 80)}`);
+      }
+      await this.policy.say('Marked.', 1, 'control');
+      return;
+    }
+
     if (!llmConfigured()) {
       await step(this.conn, 'nemotron', `Skipped (no NVIDIA_API_KEY): "${text.slice(0, 60)}"`);
       return;
@@ -514,7 +534,8 @@ export class Brain {
   // ---- RB8–RB10: drugs the camera sees ----------------------------------------------------------------------
 
   private async onEvent(ev: Event) {
-    // The camera lane only calls log_event with source "seen" (§0.1 decision 18); the row arrives as "logged".
+    // A camera-seen drug arrives as a row with source "seen" and status "logged", whether it came from this
+    // worker's vision sampler (POST /seen, decision 20) or from any other client calling log_event.
     if (!ev.kind.startsWith('med_') || this.askedSeen.has(ev.id)) return;
     if (ev.status !== 'logged' && ev.status !== 'flagged') return;
     if (!ev.sources.some(x => x.kind === 'seen')) return;

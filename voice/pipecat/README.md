@@ -23,8 +23,11 @@ once a second (`VISION_INTERVAL_S`), and never while a call is still running, it
 a hosted Nemotron vision model through NVIDIA's OpenAI-compatible endpoint, with Devin's PR #6 prompt: ID card
 (name + birth date), a medication being given (label + the push), AED pads, airway device, IV/IO, each with a
 confidence. Findings at ≥ 0.7 go to the brain's `POST /seen`, which does the database work (W6 search for the card,
-`log_event` with source `seen` for the rest); the frame is saved under `evidence/` and its file name goes into the
-event's source detail. The same card or drug is not reported again for 60 s, procedures for 10 min.
+`log_event` with source `seen` for the rest). For an ID card or a medication the frame is saved under `evidence/`
+and its file name goes into the event's source detail; AED pads, airway and IV/IO are traced without the picture
+(spec §24.3, no faces of bystanders on disk). The same card is not reported again for 60 s, the same drug for 20 s
+(the §18 merge window, so a second epi 45 s later is a new event), procedures for 10 min. What the sampler did
+with each frame that had findings (kept, dropped under 0.7, failed) goes to the trace through `POST /trace`.
 
 - **"Handoff, look"** (B6): the sampler sees the transcript go by, grabs the next frame at once, and says what it
   found through the brain's `POST /say` ("AED pads on.", "Nothing I recognise.", "Camera check failed."). For an
@@ -84,7 +87,8 @@ unchanged. Two ways to get there:
 
 Network: the phone must reach the laptop directly. If the venue Wi-Fi blocks device-to-device traffic, join the
 laptop to the phone's hotspot, or set a TURN relay (`TURN_URL`/`TURN_USER`/`TURN_PASS`, or `ICE_SERVERS`), which
-both peers then use. One bodycam at a time: a new connection ends the previous session.
+both peers then use. `GET /api/ice` hands the TURN credential to any browser that asks (CORS is open), so use a
+short-lived or throwaway TURN password. One bodycam at a time: a new connection ends the previous session.
 
 **No mouth, no link (spec §23 B11).** The phone stays silent while its audio link to the worker is up, so the
 worker only keeps the link up while it can actually speak. The session ends, and the phone takes over the
@@ -112,9 +116,9 @@ must have accepted the cert once (open `https://<laptop>:7860`).
 | `NVIDIA_API_KEY` | none (ASR and TTS refuse to connect) |
 | `RIVA_VOICE` | `Magpie-Multilingual.EN-US.Aria` |
 | `BRAIN_URL` | `http://127.0.0.1:8787` |
-| `RIVA_ASR_FUNCTION_ID` | `bb0837de-8c7b-481f-9ec8-ef5663e9c1fa` (nemotron-asr-streaming, Pipecat's default) |
+| `RIVA_ASR_FUNCTION_ID`, `RIVA_ASR_MODEL` | `1598d209-5e27-4d3c-8079-4751568b1081`, `parakeet-ctc-1.1b-asr` (since the Sat ~22:15 live test). nemotron-asr-streaming is `bb0837de-8c7b-481f-9ec8-ef5663e9c1fa`, model name empty |
 | `RIVA_TTS_FUNCTION_ID` | `877104f7-e885-42b9-8de8-f6e4c6303969` (magpie-tts-multilingual, Pipecat's default) |
-| `RIVA_BOOST_WORDS` | empty. Comma list for ASR word boosting, e.g. `epinephrine,amiodarone,naloxone,i-gel,ROSC`. Untested on the hosted ASR |
+| `RIVA_BOOST_WORDS` | the clinical list in `config.py` (epinephrine, amiodarone, IO, IV, ROSC, …) at weight 20. A comma list overrides; `""` turns boosting off |
 | `ICE_SERVERS` | empty. A JSON list such as `[{"urls":"turn:host:3478","username":"u","credential":"p"}]`, used by both peers (the browser gets it from `/start` or `/api/ice`) |
 | `TURN_URL`, `TURN_USER`, `TURN_PASS` | empty. The short form of one TURN entry, appended to `ICE_SERVERS` |
 | `VISION` | `on`. `off` = audio only (no video track requested) |

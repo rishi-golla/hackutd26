@@ -159,8 +159,9 @@ section and add a change-log line.
    come from the phone's WebRTC link to the voice worker (its camera track rides along with the mic), or from the
    Pi hub's `/frame.jpg` when that link is down, not from the hospital's video.
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
-   (Josh, 17:42) Split by decision 18: the camera lane still identifies the patient (ID card → `identify_patient`);
-   the pull, `save_patient_record` and the spoken summary run in `voice/` (`VOICE_W6=on`).
+   (Josh, 17:42) Superseded by decisions 18 and 20: the whole of W6 now runs in `voice/` (`VOICE_W6=on`): the
+   vision sampler reads the ID card, the brain searches the EHR, calls `identify_patient`, pulls and saves the
+   record and speaks the summary. The bodycam page only carries the camera to the worker.
 3. **No ER Acknowledge.** The hospital dashboard's only *action* is **Generate Handoff**. View-only controls are
    fine, such as expanding the live-video thumbnail or a chip's evidence (Josh, ~20:15). The pre-arrival alert is
    display-only. There is no "ER acknowledged" callout. No demo controls on `/hospital`. (Josh, 17:42)
@@ -237,8 +238,8 @@ section and add a change-log line.
       fallback. Nemotron never logs a medication.
     - **W6 in `voice/`** behind `VOICE_W6=on` (default on): pulls the record whenever `incident.patientRef` is
       set, and searches the EHR from a spoken name + birth date. If the bodycam lane builds its own W6, turn it off
-      in one place. The ID-card vision path still belongs to the camera lane; it only needs to call
-      `identify_patient` (or `log_event` with source `seen` for drugs).
+      in one place. (The ID-card vision path was the camera lane's at the time; decision 20 moved it into
+      `voice/pipecat/vision.py`, which posts to the brain's `POST /seen`.)
     - **Audio link:** Pipecat's own WebRTC transport (`voice/pipecat/`), no `rtc_signal` change. The worker ends
       the WebRTC session whenever it has no working mouth (brain unreachable, replaced, or speech failing), so
       "link up" always means the agent can speak. Never talk over the medic, except that after 10 s of
@@ -338,7 +339,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 - Code comments that cite "AGENTS.md section 0", "AGENTS.md Lanes" or "AGENTS.md 4.3" now mean §0.1, §0.2 and
   §22.4 of this file.
 
-### 0.5 Where things stand (Sat ~18:50)
+### 0.5 Where things stand (Sat ~23:30)
 
 | Area | State |
 | --- | --- |
@@ -464,7 +465,7 @@ flowchart LR
   subgraph side["Hospital side and services (laptop)"]
     HOS["Hospital dashboard /hospital<br/>live video, timeline, record, report"]
     VA["Voice agent worker (voice/)<br/>Pipecat: Riva STT, Riva TTS<br/>brain: Nemotron + tools"]
-    AG["Agent workflows<br/>Nemotron with tools, vision"]
+    AG["Agent workflows agent/<br/>Nemotron with tools (W1, W4)"]
     EHR["Mock EHR<br/>FHIR R4, 5 synthetic patients"]
     PH["Photon (after the MVP)"]
   end
@@ -475,7 +476,7 @@ flowchart LR
   HOS <-->|"5 TS SDK"| DB
   AG <-->|"6 TS SDK"| DB
   AG -->|"7 FHIR R4 over HTTP"| EHR
-  BC <-->|"8 WebRTC audio"| VA
+  BC <-->|"8 WebRTC audio + camera"| VA
   VA <-->|"9 TS SDK"| DB
   BC -.->|"live video, WebRTC P2P<br/>handshake via rtc_signal"| HOS
 ```
@@ -492,7 +493,7 @@ flowchart LR
 | 5 | Hospital ↔ SpacetimeDB | TypeScript SDK | ↓ everything · ↑ Generate Handoff (`request_report`), WebRTC handshake |
 | 6 | Agent workflows ↔ SpacetimeDB | TypeScript SDK | ↓ triggers (status, transcript, patient identified, report requested) · ↑ events, destination, alert, trace steps, report |
 | 7 | Agent ↔ mock EHR | FHIR R4 over HTTP | ↓ the identified patient's record: allergies, medications, conditions, code status |
-| 8 | Bodycam ↔ voice agent worker | WebRTC audio, both ways | ↑ mic audio (echo cancellation on) · ↓ the agent's voice. Contract in §22.6 |
+| 8 | Bodycam ↔ voice agent worker | WebRTC, one connection | ↑ mic audio (echo cancellation on) and the camera track for the vision sampler · ↓ the agent's voice. Contract in §22.6 |
 | 9 | Voice agent worker ↔ SpacetimeDB | TypeScript SDK | ↓ a compact state summary and new events (never raw 25 Hz waveforms) · ↑ transcript, events, trace steps |
 | – | Photon (after the MVP) | Photon API | Not wired in the MVP |
 
@@ -506,7 +507,8 @@ the web page).
 hundred milliseconds of delay. SpacetimeDB carries only the handshake, in the `rtc_signal` table, so the
 database is still the backbone. If the link can't be made (venue Wi-Fi often blocks device-to-device traffic),
 switch to the phone hotspot, then a TURN relay. There is no low-frame or snapshot video mode. The vision sampler
-on the laptop takes about one frame a second from this same stream (§19); the phone uploads nothing extra.
+on the laptop takes about one frame a second from the camera track on the phone's link to the voice worker (§19,
+decision 20); the phone uploads nothing to SpacetimeDB.
 
 **Voice.** The bodycam streams mic audio to the voice agent worker on the laptop and plays back its voice, over
 WebRTC. The worker runs STT → Nemotron → TTS and decides what to say from the live data (§19). If the pipeline
@@ -954,7 +956,7 @@ agent.
 
 | Phone part | On the phone | Goes to |
 | --- | --- | --- |
-| Camera | Live video (WebRTC, peer to peer to `/hospital`); vision uses the same stream | Video: the hospital page, handshake in `rtc_signal`. Vision: the sampler on the laptop takes ~1 frame/s from the stream (§19) |
+| Camera | Live video (WebRTC, peer to peer to `/hospital`); the same camera also rides on the link to the voice worker | Video: the hospital page, handshake in `rtc_signal`. Vision: the worker's sampler takes ~1 frame/s from its link (§19, decision 20) |
 | Microphone | WebRTC audio to the voice agent worker, echo cancellation on. Degraded mode: Web Speech API, continuous, restarts itself on end or error, one row per sentence | Voice agent worker → `transcript`. Degraded mode: `add_transcript` from the phone |
 | Motion sensor | CPR detector (existing, self-tested): band-pass, peak timing → rate, count, paused | `cpr_state`, written twice a second (`push_cpr`) |
 | Speaker | Plays the voice agent's audio. Degraded mode: phone read-backs first, then `callout` rows by priority, one at a time, with on-device TTS or cached audio | `callout_spoken` after a rule callout is spoken |
@@ -1420,9 +1422,10 @@ as well as from what the medic says.
 Paramedics often arrive knowing nothing about the patient. Handoff identifies the patient from their ID card or
 the spoken name and birth date, and pulls their record from an electronic health record (EHR): allergies,
 medications, history and code status. The medic hears the key facts, the ER sees the record before arrival, and
-the read-back checks every drug against the allergy list. The camera lane identifies the patient from the ID card
-(`identify_patient`); the pull, the saved record and the spoken summary run in the voice worker (`voice/`,
-decision 18), which also handles the spoken name and birth date.
+the read-back checks every drug against the allergy list. The whole path runs in the voice worker (`voice/`,
+decisions 18 and 20): its vision sampler reads the ID card, its brain searches the EHR, calls `identify_patient`
+(method `ID card` or `voice`), pulls and saves the record and speaks the summary; the spoken name and birth date
+take the same route.
 
 > **What's real and what's mock.** The EHR is a small server we run on the laptop, holding five synthetic patients
 > in FHIR R4, the standard format real EHRs exchange. The query and the data shapes are the ones a real
@@ -1433,7 +1436,7 @@ decision 18), which also handles the spoken name and birth date.
 sequenceDiagram
   autonumber
   participant J as Judge (bodycam)
-  participant W as W6 (bodycam lane: vision + agent)
+  participant W as W6 (voice worker: vision sampler + brain)
   participant X as Mock EHR (FHIR R4)
   participant S as SpacetimeDB
   participant H as Hospital screen

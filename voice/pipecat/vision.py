@@ -40,9 +40,14 @@ PROMPT = """You see one frame from a paramedic's bodycam. Report only what is cl
 {"type": "iv_io", "confidence": 0-1}
 If nothing relevant is visible, return {"findings": []}. Never guess text you cannot read."""
 
-LOOK = re.compile(r"\b(?:hand\s?off,?\s+)?look\b", re.I)
+# B6: the shortcut is "Handoff, look". A bare "look" ("look at his pupils") must not trigger a camera check.
+LOOK = re.compile(r"\bhand\s?-?\s?off,?\s+look\b", re.I)
 # How long the same finding is not reported again (the card stays in view; the syringe stays in the hand).
-FRESH_S = {"id_card": 60.0, "medication": 60.0, "aed_pads": 600.0, "airway_device": 600.0, "iv_io": 600.0}
+# Medications: 20 s, the §18 merge window with DEMO TIMING, so a second epi 45 s later is a new event.
+FRESH_S = {"id_card": 60.0, "medication": 20.0, "aed_pads": 600.0, "airway_device": 600.0, "iv_io": 600.0}
+# Frames are kept only where the frame is the evidence (who the patient is, what dose was given). Procedure
+# findings are traced without the picture (§24.3: no faces of bystanders in saved frames).
+KEEP_FRAME = {"id_card", "medication"}
 SPOKEN = {"aed_pads": "AED pads on.", "airway_device": "Airway device in place.", "iv_io": "I-V or I-O access in place."}
 
 
@@ -241,11 +246,17 @@ class VisionSampler(FrameProcessor):
             self.latencies_ms.append(ms)
             self._busy = False
         if findings is None:
+            await self._trace("vision", f"model call failed ({self.failures} so far), {ms:.0f} ms" + (" on look" if forced else ""))
             if forced:
                 await self._say("Camera check failed.")
             return
         kept = [f for f in findings if float(f.get("confidence") or 0) >= self.cfg.min_confidence]
         logger.info(f"vision: {len(findings)} finding(s), {len(kept)} kept, {ms:.0f} ms" + (" (look)" if forced else ""))
+        if findings or forced:
+            # §19: every step in the trace. Quiet frames (no findings, not asked) are not worth a row a second.
+            dropped = [f"{f.get('type')} {float(f.get('confidence') or 0):.2f}" for f in findings if f not in kept]
+            await self._trace("vision", f"{'look: ' if forced else ''}{len(kept)} finding(s) kept of {len(findings)}, {ms:.0f} ms"
+                              + (f"; under {self.cfg.min_confidence:g}: {', '.join(dropped)}" if dropped else ""))
         spoken: list[str] = []
         for f in kept:
             seen = to_seen(f)
@@ -259,7 +270,7 @@ class VisionSampler(FrameProcessor):
             if not forced and not self._fresh(seen["type"], key):
                 continue
             self._reported[key] = time.time()
-            seen["detail"] = self._save_evidence(jpg, seen)
+            seen["detail"] = self._save_evidence(jpg, seen) if seen["type"] in KEEP_FRAME else "vision (frame not kept)"
             self.findings += 1
             if await self._post_seen(seen) and forced:
                 if seen["type"] == "id_card":
@@ -333,6 +344,18 @@ class VisionSampler(FrameProcessor):
         except Exception as e:
             logger.warning(f"POST /seen failed ({e!r}); dropped {seen}")
             return False
+
+    async def _trace(self, tool: str, summary: str) -> None:
+        """A row in agent_step (workflow voice) through the brain, so the sampler's decisions are on the record."""
+        assert self._session
+        try:
+            async with self._session.post(
+                f"{self.cfg.brain_url}/trace", json={"tool": tool, "summary": summary[:300]}, timeout=aiohttp.ClientTimeout(total=2)
+            ) as r:
+                if r.status >= 300:
+                    logger.debug(f"brain answered {r.status} to /trace")
+        except Exception as e:
+            logger.debug(f"POST /trace failed ({e!r})")
 
     async def _say(self, text: str) -> None:
         """Speak through the brain, so the words go through its policy and the shared callout queue."""

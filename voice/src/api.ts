@@ -3,7 +3,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { CONFIG, llmConfigured } from './config';
-import type { Conn } from './db';
+import { step, type Conn } from './db';
 import { modelInUse } from './llm';
 import { readState, stateJson } from './state';
 import { parseSeen } from './seen';
@@ -58,6 +58,15 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
         brain.handleSeen(finding).catch(err => console.error('[voice] seen failed', err));
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/trace') {
+        // A trace row from the worker (the vision sampler's decisions): {"tool", "summary"} → agent_step, workflow voice.
+        const body = await readJson(req);
+        const summary = String(body.summary ?? '').trim();
+        if (!summary) return send(res, 400, { error: 'summary required' });
+        send(res, 202, { ok: true });
+        void step(conn, String(body.tool ?? 'worker').slice(0, 40), summary);
+        return;
+      }
       if (req.method === 'POST' && url.pathname === '/say') {
         // Fixed words from the worker (the answer to "Handoff, look"): {"text", "priority"?: 1-3, "kind"?: "ask"|"vision"}.
         const body = await readJson(req);
@@ -78,7 +87,7 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
   wss.on('connection', ws => speaker.attach(ws));
 
   server.listen(CONFIG.apiPort, '127.0.0.1', () => {
-    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, GET /state, WS /mouth)`);
+    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, POST /trace, GET /state, WS /mouth)`);
   });
   return server;
 }

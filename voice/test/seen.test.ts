@@ -123,6 +123,29 @@ test('an ID card runs the W6 search with method "ID card" and pulls the record; 
   }
 });
 
+test('"Handoff, look" and "Handoff, mark" are handled without a model turn (B6)', async () => {
+  const { conn, rows, calls } = fakeConn({
+    incident: [{ id: 1n, unit: 'Medic 12', status: 'active', demoMode: true, startedAt: nowTs(), updatedAt: nowTs() }],
+  });
+  const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+  await quiet(async () => {
+    brain.start();
+    await brain.handleUtterance('Handoff, look.', 'pipecat');
+    await wait(30);
+    assert.equal(callsTo(calls, 'logEvent').length, 0, 'look logs nothing; the sampler answers');
+    assert.ok(rows.agentStep.some(s => s.tool === 'look'), 'traced as a look');
+    await brain.handleUtterance('Hand off mark', 'pipecat');
+    await wait(30);
+    const marks = callsTo(calls, 'logEvent');
+    assert.equal(marks.length, 1);
+    assert.equal(marks[0].args.kind, 'mark');
+    assert.equal(marks[0].args.sourceKind, 'voice');
+    assert.ok(rows.callout.some(c => c.text === 'Marked.'));
+    assert.ok(!rows.agentStep.some(s => s.tool === 'nemotron'), 'no model turn for either shortcut');
+    brain.stop();
+  });
+});
+
 test('without an active incident a finding is traced and not logged', async () => {
   const { conn, calls } = fakeConn();
   const brain = new Brain(conn, stubSpeaker, new Policy(conn));
