@@ -29,7 +29,7 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 /** vitals_override.scenario names (spacetime/src/scenarios.ts). Arrest and ROSC start theirs on their own. */
-const SCENARIO_TEXT: Record<string, string> = { seizure: 'seizure', arrest: 'arrest (no pulse)', rosc: 'ROSC recovery' };
+const SCENARIO_TEXT: Record<string, string> = { seizure: 'seizure', arrest: 'arrest (no pulse)', rosc: 'ROSC recovery', normal: 'normal vitals' };
 
 const RESET_CONFIRM_MS = 4000;
 
@@ -99,6 +99,7 @@ export default function ControlsPage() {
   const cprOn = inArrest && timers.some(t => t.incidentId === active?.id && t.kind === 'cycle' && t.state !== 'cancelled');
   const scenario = overrides[0]?.scenario;
   const seizureOn = scenario === 'seizure';
+  const normalOn = scenario === 'normal';
   const record = records.find(r => r.incidentId === active?.id);
 
   /** Send one reducer call and report how it went. Only one call is in flight at a time. */
@@ -215,6 +216,14 @@ export default function ControlsPage() {
           pressed={seizureOn}
         >
           {seizureOn ? 'Stop seizure' : 'Seizure'}
+        </Btn>
+        <Btn
+          // Realistic HR 72–84 / SpO₂ 97–99 in place of the finger clip (looping scenario, device sim-normal, simulated = true).
+          onClick={() => (normalOn ? demo('sim_off', 'Back to the relay') : demo('normal', 'Simulated normal vitals'))}
+          disabled={off || (noIncident && !normalOn)}
+          pressed={normalOn}
+        >
+          {normalOn ? 'Stop normal vitals' : 'Normal vitals'}
         </Btn>
         <Btn
           onClick={() => demo('demo_timing', active?.demoMode ? 'Real timing' : 'Demo timing', active?.demoMode ? 'off' : 'on')}

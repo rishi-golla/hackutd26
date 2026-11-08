@@ -18,6 +18,10 @@ necessarily when the decision was made.
 
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
+- **Sun ~06:15 (Alan): "Normal vitals" on `/controls`** (decision 15, D1; module + `web/`). A looping synthetic
+  scenario (HR 72–84, SpO₂ 97–99, device `sim-normal`, `simulated = true`) started by `demo_control('normal')` and
+  stopped by `demo_control('sim_off')`, so the demo has believable vitals when the finger clip is off or unreliable;
+  arrest, ROSC and the seizure replace it. Reducer signatures unchanged, no new tables; republished to Maincloud.
 - **Sun ~05:50 (Alan): model advisories off for the demo** (`VOICE_PROACTIVE=off` in the demo laptop's
   `voice/.env.local`; decision 21 default unchanged). In the first full phone run the unprompted Nemotron advisories
   ("Note: warfarin and metoprolol on board", "Consider checking pulse after CPR cycle") were low value and talked over
@@ -332,7 +336,10 @@ section and add a change-log line.
     ~02:00): the demo controls' Arrest also starts an `arrest` scenario (HR 0, no SpO₂, status `no pulse`, flat
     waveform; device `sim-arrest`), and ROSC switches to a `rosc` scenario (HR back to ~104 and SpO₂ to ~93
     over ~10 s, then held; device `sim-rosc`). Same override path: the real clip is ignored while one runs, and
-    close or reset ends it. This settles the mock-arrest pulse question (§28).
+    close or reset ends it. This settles the mock-arrest pulse question (§28). **Normal vitals** (Alan, Sun ~06:15): `/controls` also has
+    **Normal vitals** → `demo_control('normal')`, a looping `normal` scenario (HR 72–84, SpO₂ 97–99, device `sim-normal`,
+    `simulated = true`) for when the finger clip is off or unreliable; **Stop normal vitals** → `demo_control('sim_off')`.
+    Module change, hospital lane: published to Maincloud by Alan during the demo rehearsal; Josh to review.
 16. **The camera logs drugs it sees being given: stretch** (Alan, Sat ~18:20; made a stretch goal at the 19:31
     meeting). In the MVP, medications are logged from what the medic says, through the voice read-back. If the
     stretch is built, the camera also logs what it sees: a medication seen being given is logged even if nobody
@@ -1166,7 +1173,7 @@ first time. The agent asks "Say again the drug." when it heard a dose but no dru
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
-| D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, ROSC, en route, arrived, close, CPR slow / CPR good / live, epi due now, seizure, demo timing, identify patient manually, **Reset for the next judge** (two taps). Built Sun ~01:00 | Reset clears every screen in under 10 s, devices stay connected |
+| D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, ROSC, en route, arrived, close, CPR slow / CPR good / live, epi due now, seizure, normal vitals (Sun ~06:15), demo timing, identify patient manually, **Reset for the next judge** (two taps). Built Sun ~01:00 | Reset clears every screen in under 10 s, devices stay connected |
 | D2 | ~~Every spoken callout also appears in big text on the hospital screen~~ Dropped from the dashboard (Sat ~21:30, §14); callouts are spoken by the bodycam | — |
 | D3 | The agent identifies the patient from the ID card or the spoken name and pulls the record (§17) | Record on the hospital screen within about 5 s of showing the card (or of the spoken name) |
 | D4 | The report uses the judge's own run (average CPR rate, longest pause, compressions, doses) plus the record's history | Numbers match what the hospital screen showed |
