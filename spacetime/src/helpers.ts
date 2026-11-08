@@ -2,7 +2,7 @@
 import { SenderError } from 'spacetimedb/server';
 import { ScheduleAt, Timestamp } from 'spacetimedb';
 import type { Ctx } from './schema';
-import { SEIZURE_WAVEFORM_RATE_HZ, SYNTHETIC_DEVICE, seizureFrame } from './scenarios';
+import { SCENARIOS, SEIZURE_WAVEFORM_RATE_HZ, scenarioFrame, syntheticDevice } from './scenarios';
 
 
 const STATUSES = ['standby', 'on_scene', 'arrest', 'rosc', 'en_route', 'arrived', 'closed'];
@@ -156,7 +156,7 @@ export function queueCallout(ctx: Ctx, incidentId: bigint, text: string, priorit
 const STATUS_LABELS: Record<string, string> = {
   standby: 'Standby',
   on_scene: 'On scene',
-  arrest: 'Cardiac arrest recognised, CPR started',
+  arrest: 'Cardiac arrest recognised',
   rosc: 'ROSC: pulse returned',
   en_route: 'Transporting',
   arrived: 'Arrived at hospital',
@@ -172,20 +172,9 @@ export function applyStatus(ctx: Ctx, status: string, sourceKind: string, source
 
   let arrestStartedAt = inc.arrestStartedAt;
   if (status === 'arrest') {
+    // The heart has stopped; CPR hasn't necessarily started. startCpr does that (Start CPR on /controls, a CPR
+    // override, or the medic saying so).
     arrestStartedAt = ctx.timestamp;
-    setTimer(ctx, inc.id, 'cycle', plusSeconds(ctx.timestamp, intervalSeconds(inc.demoMode, 'cycle')));
-    // Fresh CPR stats for this arrest (the phone's count keeps running across arrests and judges).
-    const cpr = ctx.db.cprState.incidentId.find(inc.id);
-    if (cpr) {
-      ctx.db.cprState.incidentId.update({
-        ...cpr,
-        cycleStartedAt: ctx.timestamp,
-        countBase: cpr.count,
-        rateSum: 0,
-        rateSamples: 0,
-        longestPauseS: 0,
-      });
-    }
   } else {
     // CPR rules and timers only run during an arrest (spec §9).
     cancelTimers(ctx, inc.id);
@@ -194,6 +183,46 @@ export function applyStatus(ctx: Ctx, status: string, sourceKind: string, source
   ctx.db.incident.id.update({ ...inc, status, arrestStartedAt, updatedAt: ctx.timestamp });
   recordEvent(ctx, inc.id, `status_${status}`, STATUS_LABELS[status] ?? status, sourceKind, sourceDetail || status);
   if (status === 'closed') endVitalsOverride(ctx, inc.id, 'incident closed');
+  // However the arrest ends (demo control, voice, the agent), its no-pulse scenario mustn't outlive it: ROSC
+  // switches to the recovery scenario, anything else ends it.
+  else if (status !== 'arrest' && ctx.db.vitalsOverride.key.find('vitals')?.scenario === 'arrest') {
+    if (status === 'rosc') startVitalsOverride(ctx, 'rosc', sourceDetail || 'rosc');
+    else endVitalsOverride(ctx, inc.id, `status ${status}`);
+  }
+}
+
+/** CPR has started in this arrest: its 2-minute cycle timer is running (startCpr sets it; other statuses cancel it). */
+export function cprStarted(ctx: Ctx, incidentId: bigint): boolean {
+  return [...ctx.db.timer.incidentId.filter(incidentId)].some(t => t.kind === 'cycle' && t.state !== 'cancelled');
+}
+
+/**
+ * CPR starts: from /controls (Start CPR, or a CPR override) or the medic saying so (voice: log_event cpr_started).
+ * CPR means an arrest, so it sets that first if needed. Starts the 2-minute cycle timer, gives this arrest fresh
+ * CPR stats and puts "CPR started" on the timeline. A no-op if CPR is already going.
+ */
+export function startCpr(ctx: Ctx, sourceKind: string, sourceDetail: string) {
+  let inc = activeIncident(ctx);
+  if (!inc) throw new SenderError('no active incident; call start_incident first');
+  if (inc.status !== 'arrest') {
+    applyStatus(ctx, 'arrest', sourceKind, sourceDetail);
+    inc = activeIncident(ctx)!;
+  }
+  if (cprStarted(ctx, inc.id)) return;
+  setTimer(ctx, inc.id, 'cycle', plusSeconds(ctx.timestamp, intervalSeconds(inc.demoMode, 'cycle')));
+  // Fresh CPR stats for this arrest (the phone's count keeps running across arrests and judges).
+  const cpr = ctx.db.cprState.incidentId.find(inc.id);
+  if (cpr) {
+    ctx.db.cprState.incidentId.update({
+      ...cpr,
+      cycleStartedAt: ctx.timestamp,
+      countBase: cpr.count,
+      rateSum: 0,
+      rateSamples: 0,
+      longestPauseS: 0,
+    });
+  }
+  recordEvent(ctx, inc.id, 'cpr_started', 'CPR started', sourceKind, sourceDetail || 'CPR started');
 }
 
 export function beginIncident(ctx: Ctx, unit: string, sourceKind: string) {
@@ -243,9 +272,25 @@ export function setCprOverride(ctx: Ctx, rate: number | undefined) {
 
 /** Stop a synthetic override (if on) and note it on the timeline. */
 export function endVitalsOverride(ctx: Ctx, incidentId: bigint | undefined, why: string) {
-  if (!ctx.db.vitalsOverride.key.find('vitals')) return;
+  const row = ctx.db.vitalsOverride.key.find('vitals');
+  if (!row) return;
   ctx.db.vitalsOverride.key.delete('vitals');
-  if (incidentId !== undefined) recordEvent(ctx, incidentId, 'simulation_end', 'Simulated seizure stopped', 'demo', why);
+  const label = SCENARIOS[row.scenario]?.label ?? row.scenario;
+  // One kind per scenario, so back-to-back scenarios don't merge into one timeline row (§18).
+  if (incidentId !== undefined) recordEvent(ctx, incidentId, `simulation_end_${row.scenario}`, `Simulated ${label} stopped`, 'demo', why);
+}
+
+/**
+ * Start a synthetic scenario (scenarios.ts), replacing any other that's on, and note it on the timeline.
+ * While it's on, tick_rules writes its rows and the relay's are ignored. A no-op if it's already running.
+ */
+export function startVitalsOverride(ctx: Ctx, scenario: string, why: string) {
+  const existing = ctx.db.vitalsOverride.key.find('vitals');
+  if (existing?.scenario === scenario) return;
+  if (existing) ctx.db.vitalsOverride.key.delete('vitals');
+  ctx.db.vitalsOverride.insert({ key: 'vitals', scenario, startedAt: ctx.timestamp });
+  const inc = activeIncident(ctx);
+  if (inc) recordEvent(ctx, inc.id, `simulation_${scenario}`, `Simulated vitals: ${SCENARIOS[scenario]?.label ?? scenario}`, 'demo', why);
 }
 
 /** The active synthetic override, if any. */
@@ -254,17 +299,20 @@ export function vitalsOverrideRow(ctx: Ctx) {
 }
 
 /** Write this second's synthetic vitals + waveform (called by tick_rules while an override is on). */
-export function writeSyntheticFrame(ctx: Ctx, startedAt: Timestamp) {
+export function writeSyntheticFrame(ctx: Ctx, scenario: string, startedAt: Timestamp) {
   const second = Math.floor(secondsBetween(startedAt, ctx.timestamp));
-  const { vitals, waveform } = seizureFrame(second);
+  const { vitals, waveform } = scenarioFrame(scenario, second);
+  const device = syntheticDevice(scenario);
   const incidentId = activeIncidentId(ctx);
   ctx.db.vitals.insert({
     id: 0n,
     incidentId,
     ts: ctx.timestamp,
-    device: SYNTHETIC_DEVICE,
-    hr: vitals.status === 'pulse' ? vitals.hr : undefined,
-    spo2: vitals.status === 'pulse' ? vitals.spo2 : undefined,
+    device,
+    // The scenario table is the truth here, so its numbers are kept as written (the arrest's HR 0 with
+    // 'no pulse' included); readers still only trust hr/spo2 when the status is 'pulse'.
+    hr: vitals.hr,
+    spo2: vitals.spo2,
     tempC: vitals.tempC,
     status: vitals.status,
     simulated: true,
@@ -273,7 +321,7 @@ export function writeSyntheticFrame(ctx: Ctx, startedAt: Timestamp) {
     id: 0n,
     incidentId,
     ts: ctx.timestamp,
-    device: SYNTHETIC_DEVICE,
+    device,
     samples: waveform,
     rateHz: SEIZURE_WAVEFORM_RATE_HZ,
     simulated: true,

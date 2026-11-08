@@ -1,18 +1,18 @@
-// Hardcoded synthetic scenarios that override the relay's sensor data (synthesize_seizure).
-// Edit the numbers freely: tick_rules plays SEIZURE_VITALS one row per second from the moment the
-// scenario starts, then holds the last row. Waveform batches cycle.
+// Hardcoded synthetic scenarios that override the relay's sensor data while one is on (vitals_override).
+// seizure: synthesize_seizure. arrest / rosc: started by the Arrest / ROSC demo controls, so the dashboard and the
+// agents see an arrest's vitals instead of whatever the real finger clip reads.
+// Edit the numbers freely: tick_rules plays a scenario's vitals one row per second from the moment it starts,
+// then holds the last row. Waveform batches cycle.
 // All rows written from here are stored with simulated = true. Synthetic data, not a medical model.
 
 export type SyntheticVitals = {
   hr: number | undefined;
   spo2: number | undefined;
   tempC: number | undefined;
-  /** relay status vocabulary: pulse | acquiring | no finger | ... (hr/spo2 only count when 'pulse') */
+  /** relay status vocabulary: pulse | acquiring | no finger | ..., plus 'no pulse' (arrest). Readers trust hr/spo2
+   * only when 'pulse'; the arrest's hr 0 is there so screens can show a flat zero. */
   status: string;
 };
-
-/** Device name on rows written by the scenario, so they're never mistaken for the real relay. */
-export const SYNTHETIC_DEVICE = 'sim-seizure';
 
 /** One row per second. Tonic-clonic seizure: HR climbs into the 160s, SpO₂ falls into the low 80s. */
 export const SEIZURE_VITALS: SyntheticVitals[] = [
@@ -68,11 +68,57 @@ export const SEIZURE_WAVEFORM: number[][] = [
    112190, 110620, 109090, 109360, 110940, 112050, 111280, 109660, 108820, 110120, 111690, 111150],
 ];
 
-/** The synthetic row for second `index` of the scenario (holds the last row after the end). */
-export function seizureFrame(index: number) {
+/** Arrest: no pulse. HR 0, SpO₂ unreadable (no perfusion), temperature holds. Held until ROSC, close or reset. */
+export const ARREST_VITALS: SyntheticVitals[] = [{ hr: 0, spo2: undefined, tempC: 36.6, status: 'no pulse' }];
+
+/** ROSC: the pulse comes back. HR climbs to ~104, SpO₂ (readable again after a few seconds) to ~93, then holds. */
+export const ROSC_VITALS: SyntheticVitals[] = [
+  { hr: 38, spo2: undefined, tempC: 36.6, status: 'pulse' },
+  { hr: 56, spo2: undefined, tempC: 36.6, status: 'pulse' },
+  { hr: 70, spo2: undefined, tempC: 36.6, status: 'pulse' },
+  { hr: 82, spo2: 84, tempC: 36.5, status: 'pulse' },
+  { hr: 91, spo2: 86, tempC: 36.5, status: 'pulse' },
+  { hr: 97, spo2: 88, tempC: 36.5, status: 'pulse' },
+  { hr: 101, spo2: 90, tempC: 36.5, status: 'pulse' },
+  { hr: 103, spo2: 91, tempC: 36.4, status: 'pulse' },
+  { hr: 104, spo2: 92, tempC: 36.4, status: 'pulse' },
+  { hr: 104, spo2: 93, tempC: 36.4, status: 'pulse' },
+];
+
+/** A flat line with sensor noise (no pulse), one batch per second at 25 Hz. */
+const FLAT_WAVEFORM: number[][] = [0, 1, 2, 3].map(b =>
+  Array.from({ length: SEIZURE_WAVEFORM_RATE_HZ }, (_, i) => 110000 + Math.round(40 * Math.sin((b * 25 + i) * 1.7))),
+);
+
+/** A calm pulse at ~100/min: a sharp upstroke and a slower fall, one batch per second at 25 Hz. */
+const PULSE_WAVEFORM: number[][] = [0, 1, 2, 3].map(b =>
+  Array.from({ length: SEIZURE_WAVEFORM_RATE_HZ }, (_, i) => {
+    const phase = ((b * 25 + i) % 15) / 15; // 15 samples a beat = 100/min at 25 Hz
+    const pulse = phase < 0.2 ? phase / 0.2 : Math.exp(-(phase - 0.2) * 4);
+    return 110000 + Math.round(1500 * pulse);
+  }),
+);
+
+type Scenario = { label: string; vitals: SyntheticVitals[]; waveform: number[][] };
+
+/** Every scenario by vitals_override.scenario name. */
+export const SCENARIOS: Record<string, Scenario> = {
+  seizure: { label: 'seizure', vitals: SEIZURE_VITALS, waveform: SEIZURE_WAVEFORM },
+  arrest: { label: 'arrest (no pulse)', vitals: ARREST_VITALS, waveform: FLAT_WAVEFORM },
+  rosc: { label: 'ROSC', vitals: ROSC_VITALS, waveform: PULSE_WAVEFORM },
+};
+
+/** Device name on rows written by a scenario (sim-seizure, sim-arrest, sim-rosc), never mistaken for the relay. */
+export function syntheticDevice(scenario: string) {
+  return `sim-${scenario}`;
+}
+
+/** The synthetic row for second `index` of a scenario (holds the last row after the end). */
+export function scenarioFrame(scenario: string, index: number) {
+  const sc = SCENARIOS[scenario] ?? SCENARIOS.seizure;
   const i = Math.max(0, index);
   return {
-    vitals: SEIZURE_VITALS[Math.min(i, SEIZURE_VITALS.length - 1)],
-    waveform: SEIZURE_WAVEFORM[i % SEIZURE_WAVEFORM.length],
+    vitals: sc.vitals[Math.min(i, sc.vitals.length - 1)],
+    waveform: sc.waveform[i % sc.waveform.length],
   };
 }

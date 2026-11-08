@@ -37,7 +37,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'set_status',
-      description: 'Change the incident status when the medic states it plainly: arrest (no pulse, starting CPR), rosc (pulse is back), en_route (transporting).',
+      description: 'Change the incident status when the medic states it plainly: arrest (no pulse, cardiac arrest), rosc (pulse is back), en_route (transporting). Starting CPR is not a status: log_event kind cpr_started.',
       parameters: { type: 'object', properties: { status: { type: 'string', enum: ['arrest', 'rosc', 'en_route'] }, detail: { type: 'string', description: 'the medic\'s words' } }, required: ['status'] },
     },
   },

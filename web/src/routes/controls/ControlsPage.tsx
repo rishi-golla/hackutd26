@@ -28,6 +28,9 @@ const STATUS_TEXT: Record<string, string> = {
   closed: 'Closed',
 };
 
+/** vitals_override.scenario names (spacetime/src/scenarios.ts). Arrest and ROSC start theirs on their own. */
+const SCENARIO_TEXT: Record<string, string> = { seizure: 'seizure', arrest: 'arrest (no pulse)', rosc: 'ROSC recovery' };
+
 const RESET_CONFIRM_MS = 4000;
 
 const byNewest = <T extends { id: bigint }>(a: T, b: T) => (a.id < b.id ? 1 : -1);
@@ -77,6 +80,7 @@ export default function ControlsPage() {
   const [cprRows] = useTable(tables.cprState);
   const [overrides] = useTable(tables.vitalsOverride);
   const [records] = useTable(tables.patientRecord);
+  const [timers] = useTable(tables.timer);
 
   const [feedback, setFeedback] = useState<Feedback>();
   const [busy, setBusy] = useState<string>();
@@ -90,7 +94,11 @@ export default function ControlsPage() {
   const shown = active ?? latest;
   const cpr = cprRows.find(c => c.incidentId === active?.id);
   const cprOverride = cpr?.source === 'override' ? cpr.rate : undefined;
-  const seizureOn = overrides.length > 0;
+  const inArrest = active?.status === 'arrest';
+  // CPR has started when this arrest's 2-minute cycle timer is running (the module's startCpr sets it).
+  const cprOn = inArrest && timers.some(t => t.incidentId === active?.id && t.kind === 'cycle' && t.state !== 'cancelled');
+  const scenario = overrides[0]?.scenario;
+  const seizureOn = scenario === 'seizure';
   const record = records.find(r => r.incidentId === active?.id);
 
   /** Send one reducer call and report how it went. Only one call is in flight at a time. */
@@ -138,9 +146,15 @@ export default function ControlsPage() {
           <dt>Patient</dt>
           <dd>{record ? record.name : active?.patientRef ? `${active.patientRef} · pulling record` : 'not identified'}</dd>
           <dt>CPR</dt>
-          <dd>{cprOverride !== undefined ? `forced ${Math.round(cprOverride)}/min` : 'from the bodycam'}</dd>
+          <dd>
+            {inArrest && !cprOn
+              ? 'not started'
+              : cprOverride !== undefined
+                ? `forced ${Math.round(cprOverride)}/min`
+                : 'from the bodycam'}
+          </dd>
           <dt>Vitals</dt>
-          <dd>{seizureOn ? 'simulated seizure' : 'from the relay'}</dd>
+          <dd>{scenario ? `simulated ${SCENARIO_TEXT[scenario] ?? scenario}` : 'from the relay'}</dd>
           <dt>Timers</dt>
           <dd>{active ? (active.demoMode ? 'demo timing (epi 45 s)' : 'real timing (epi 4 min)') : '—'}</dd>
         </dl>
@@ -163,6 +177,10 @@ export default function ControlsPage() {
         <Btn onClick={() => demo('arrest', 'Cardiac arrest')} disabled={off || noIncident || active?.status === 'arrest'}>
           Arrest
         </Btn>
+        {/* Arrest doesn't start CPR: this does (as do CPR slow/good, or the medic saying so). */}
+        <Btn onClick={() => demo('cpr_start', 'CPR started')} disabled={off || !inArrest || cprOn}>
+          Start CPR
+        </Btn>
         <Btn onClick={() => demo('rosc', 'ROSC')} disabled={off || noIncident || active?.status === 'rosc'}>
           ROSC
         </Btn>
@@ -172,7 +190,7 @@ export default function ControlsPage() {
         <Btn onClick={() => demo('arrived', 'Arrived')} disabled={off || noIncident || active?.status === 'arrived'}>
           Arrived
         </Btn>
-        <Btn onClick={() => demo('close', 'Close incident')} disabled={off || noIncident}>
+        <Btn onClick={() => demo('close', 'Close incident')} disabled={off || noIncident} wide>
           Close
         </Btn>
       </Group>
@@ -239,12 +257,19 @@ function Group({ title, single, children }: { title: string; single?: boolean; c
   );
 }
 
-function Btn(props: { onClick: () => void; disabled?: boolean; primary?: boolean; pressed?: boolean; children: React.ReactNode }) {
-  const { onClick, disabled, primary, pressed, children } = props;
+function Btn(props: {
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  pressed?: boolean;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  const { onClick, disabled, primary, pressed, wide, children } = props;
   return (
     <button
       type="button"
-      className={`ctl__btn${primary ? ' ctl__btn--primary' : ''}${pressed ? ' is-on' : ''}`}
+      className={`ctl__btn${primary ? ' ctl__btn--primary' : ''}${pressed ? ' is-on' : ''}${wide ? ' ctl__btn--wide' : ''}`}
       onClick={onClick}
       disabled={disabled}
       aria-pressed={pressed}
