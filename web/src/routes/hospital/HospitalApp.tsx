@@ -44,7 +44,7 @@ export default function HospitalApp() {
   useEffect(() => localStorage.setItem('handoff.hospital.dark', dark ? '1' : '0'), [dark]);
 
   const page = pageOf(loc.path);
-  const data = useHospital(loc.incident);
+  const data = useHospital(loc.incident, page === 'ops');
   // Tracing and Logs stay on the selected call; Patients always returns to the list.
   const keep = loc.incident;
 

@@ -155,6 +155,61 @@
 .ha .feed__time { color: var(--text-3); font-size: calc(9 * var(--u)); }
 .ha .feed__text b { font-weight: 550; }
 
+/* Live harness: camera first, with readings and documentation alongside it. */
+.ha .capture-session { display: flex; align-items: center; gap: 12px; padding: calc(12 * var(--u)) 2px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ha .capture-session__icon { display: grid; place-items: center; width: calc(36 * var(--u)); height: calc(36 * var(--u)); border-radius: 12px; background: var(--violet-soft); }
+.ha .capture-session__identity { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.ha .capture-session__identity b { font-size: calc(15 * var(--u)); font-weight: 600; }
+.ha .capture-session__identity span, .ha .capture-session__duration { color: var(--text-3); font-size: calc(11 * var(--u)); }
+.ha .capture-session .action { display: flex; align-items: center; gap: 8px; }
+.ha .capture { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: calc(16 * var(--u)); align-items: start; }
+.ha .capture .card { background: color-mix(in srgb, var(--page) 60%, var(--card)); border-radius: calc(14 * var(--u)); }
+.ha .capture__camera { align-self: stretch; }
+.ha .capture__camera .video-slot { min-height: calc(275 * var(--u)); flex: 1; }
+.ha .capture__caption { padding-top: 10px; color: var(--text-3); font-size: calc(10 * var(--u)); }
+.ha .capture__side { min-width: 0; display: flex; flex-direction: column; gap: calc(16 * var(--u)); }
+.ha .capture__side .empty { padding: 6px 0; }
+.ha .sensor-note { color: var(--text-2); font-size: calc(11 * var(--u)); margin-top: 12px; }
+.ha .sensor-note--secondary { color: var(--text-3); font-size: calc(9 * var(--u)); margin-top: 4px; }
+.ha .capture .metric { padding: calc(12 * var(--u)); }
+.ha .capture .metric__value { font-size: calc(25 * var(--u)); margin-top: 5px; }
+.ha .capture .metric__label { font-size: calc(9 * var(--u)); }
+.ha .capture__documentation, .ha .capture__conversation { max-height: calc(320 * var(--u)); }
+.ha .capture__documentation > .care-log, .ha .capture__conversation > .said { overflow: auto; min-height: 0; }
+.ha .text-link { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); text-decoration: none; font-size: calc(10 * var(--u)); }
+.ha .text-link:hover { color: var(--violet); }
+
+/* Clinical log: date separators, a quiet time rail, and meaningful event labels. */
+.ha .care-log { padding: 4px 0 12px; }
+.ha .care-log__day { font-size: calc(11 * var(--u)); font-weight: 500; color: var(--text-3); padding: 8px 0 18px; }
+.ha .care-log__entry { display: grid; grid-template-columns: calc(65 * var(--u)) calc(32 * var(--u)) minmax(0, 1fr); gap: calc(14 * var(--u)); align-items: start; position: relative; padding: 0 0 calc(23 * var(--u)); }
+.ha .care-log__entry > time { color: var(--text-3); font-size: calc(10 * var(--u)); padding-top: 7px; font-variant-numeric: tabular-nums; }
+.ha .care-log__marker { position: relative; width: calc(30 * var(--u)); height: calc(30 * var(--u)); border-radius: 10px; display: grid; place-items: center; background: var(--grey-soft); color: var(--text-2); }
+.ha .care-log__marker::after { content: ''; position: absolute; width: 1px; top: calc(35 * var(--u)); bottom: calc(-24 * var(--u)); left: 50%; background: var(--line); }
+.ha .care-log > div:last-of-type .care-log__marker::after { display: none; }
+.ha .care-log__entry--violet .care-log__marker { background: var(--violet-soft); color: var(--violet); }
+.ha .care-log__entry--green .care-log__marker { background: var(--green-soft); color: var(--green); }
+.ha .care-log__entry--blue .care-log__marker { background: var(--blue-soft); color: var(--blue); }
+.ha .care-log__entry--amber .care-log__marker { background: var(--amber-soft); color: var(--amber); }
+.ha .care-log__content { padding: 2px 0 14px; border-bottom: 1px solid var(--line-2); min-width: 0; }
+.ha .care-log__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 18px; margin-bottom: 3px; font-size: calc(10 * var(--u)); color: var(--text-3); }
+.ha .care-log__content p { font-size: calc(13 * var(--u)); line-height: 1.5; overflow-wrap: anywhere; }
+.ha .care-log--compact .care-log__entry { grid-template-columns: calc(54 * var(--u)) 26px minmax(0, 1fr); gap: 10px; padding-bottom: 12px; }
+.ha .care-log--compact .care-log__content p { font-size: calc(11 * var(--u)); }
+.ha .care-log--compact .care-log__marker { width: 26px; height: 26px; }
+.ha .log-caption { padding: 6px 0 18px; color: var(--text-3); font-size: calc(11 * var(--u)); }
+.ha .vitals-history { overflow-x: auto; }
+.ha .vitals-history table { width: 100%; border-collapse: collapse; text-align: left; font-size: calc(12 * var(--u)); }
+.ha .vitals-history th { color: var(--text-3); font-size: calc(10 * var(--u)); font-weight: 500; }
+.ha .vitals-history td, .ha .vitals-history th { padding: 12px 10px; border-bottom: 1px solid var(--line); }
+.ha .vitals-history small { display: block; color: var(--text-3); font-size: calc(9 * var(--u)); }
+.ha .session-media { min-height: 0; }
+.ha .session-media__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: calc(10 * var(--u)); margin-bottom: 8px; color: var(--text-3); }
+.ha .session-media__head button { border: 0; background: none; color: var(--violet); padding: 0; }
+.ha .recorded-video { background: var(--video); }
+.ha .recorded-video video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ha .recorded-video__error { position: absolute; inset: 12px 12px auto; padding: 12px; background: #181525e8; color: #eee8ff; border-radius: 8px; font-size: calc(11 * var(--u)); }
+
 /* Patient directory: each full row opens the corresponding encounter. */
 .ha .patient-directory { padding: calc(8 * var(--u)) calc(16 * var(--u)); }
 .ha .patient-directory__columns, .ha .patient-directory__row {
@@ -336,6 +391,9 @@
   .ha .stat__note { position: static; max-width: none; text-align: left; }
   .ha .session { flex-wrap: wrap; }
   .ha .tracing .col > .card--grow { max-height: 300px; }
+  .ha .capture { grid-template-columns: 1fr; }
+  .ha .capture__side { display: grid; grid-template-columns: 1fr 1fr; }
+  .ha .capture-session { flex-wrap: wrap; }
 }
 @media (max-width: 600px) {
   .ha { display: block; }
@@ -367,4 +425,12 @@
   .ha .patient-logs .tabs { gap: 1px; margin: 8px; }
   .ha .patient-logs .tabs button { padding: 8px; gap: 5px; font-size: 10px; }
   .ha .nav { flex-wrap: wrap; }
+  .ha .capture__side { display: flex; }
+  .ha .capture__camera .video-slot { min-height: 220px; }
+  .ha .capture-session__identity { flex-basis: calc(100% - 60px); }
+  .ha .patient-logs .tabs { flex-wrap: wrap; }
+  .ha .care-log__entry { grid-template-columns: 48px 26px minmax(0, 1fr); gap: 8px; }
+  .ha .care-log__content p { font-size: 12px; }
+  .ha .patient-logs .tabs__body { padding: 0 10px 12px; }
+  .ha .vitals-history td, .ha .vitals-history th { padding: 10px 6px; white-space: nowrap; }
 }

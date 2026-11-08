@@ -2,7 +2,7 @@
 // tabs: what was said on scene, an overview, and the agents' decision log. There is no recording to scrub: the
 // bodycam streams live frames only, so the video is live and the phase bar is drawn from the status events.
 import { useState } from 'react';
-import { LiveView } from './PatientPage';
+import { SessionVideo } from './PatientPage';
 import { Card, Icon, SpokenTranscript, StatusPill, Timeline, hhmm, patientLine, time } from './ui';
 import type { HospitalData } from './useHospital';
 import { mmss, STATUS_TEXT, statusPhases, statusTone } from './vitals';
@@ -48,7 +48,7 @@ export default function TracingPage({ data }: { data: HospitalData }) {
 
       <div className="tracing">
         <div className="col">
-          <section className="card card--video card--bare"><LiveView available={data.canShowLive} /></section>
+          <section className="card card--video card--bare"><SessionVideo data={data} /></section>
           {phases.length > 0 && (
             <div className="phases" aria-label="Status over time">
               <div className="phases__bar">

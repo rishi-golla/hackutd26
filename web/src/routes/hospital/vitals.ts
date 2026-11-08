@@ -68,6 +68,12 @@ export function etaMinutes(status: string, etaAt: Timestamp | undefined, now: nu
 export type Reading = { kind: 'live' | 'held' | 'measuring' | 'none'; value?: number };
 export const NONE: Reading = { kind: 'none' };
 
+/** Explicit scope: incident 0 is the live hardware preview, never a historical patient's measurements. */
+export function selectVitals<R extends { id: bigint; incidentId: bigint }>(rows: readonly R[], incidentId: bigint | undefined): R[] {
+  if (incidentId === undefined) return [];
+  return rows.filter(row => row.incidentId === incidentId).sort((a, b) => a.id > b.id ? -1 : 1);
+}
+
 /**
  * What a pulse-oximeter metric shows, from the vitals rows (newest first):
  * live — the newest row carries it; held — it dropped out less than HOLD_MS ago, so the last good number stays

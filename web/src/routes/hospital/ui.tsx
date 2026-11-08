@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react';
 import type { PatientRecord } from '../../module_bindings/types';
 import { LiveThought, ThoughtRow } from './ThoughtRows';
 import type { HospitalData, SpokenLine } from './useHospital';
-import { ageOn, STATUS_TEXT, statusTone, type Reading } from './vitals';
+import { ageOn, epiText, isDue, mmss, STATUS_TEXT, statusTone, type Reading } from './vitals';
 
 // Lucide icons (ISC), the one icon set on the dashboard.
 const PATHS: Record<string, string> = {
@@ -89,6 +89,17 @@ export function patientLine(record?: PatientRecord) {
   if (!record) return undefined;
   const age = ageOn(record.birthDate);
   return `${record.name}${age !== undefined ? `, ${age}` : ''}`;
+}
+
+export function SessionVitals({ data }: { data: HospitalData }) {
+  return <div className="vitals">
+    <Metric label="Heart rate" icon="heart" unit="bpm" reading={data.hr} alarm={!data.inArrest && data.hr.value !== undefined && (data.hr.value < 50 || data.hr.value > 150)} />
+    <Metric label="SpO₂ · experimental" icon="lungs" unit="%" reading={data.spo2} alarm={!data.inArrest && data.spo2.value !== undefined && data.spo2.value < 90} />
+    <Metric label="Temperature" icon="thermo" unit="°C" value={data.tempC} digits={1} />
+    <Metric label="CPR rate" icon="pulse" unit="/min" value={data.cprRate} alarm={data.cprRate !== undefined && (data.cprRate < 100 || data.cprRate > 120)} />
+    <Metric label="Next epi" icon="clock" text={epiText(data.epi, data.now)} alarm={isDue(data.epi, data.now)} />
+    <Metric label="Elapsed" icon="clock" text={data.open ? mmss(data.elapsedS) : undefined} />
+  </div>;
 }
 
 /** The record's facts (H9): allergy first and highlighted, then code status, medications, history. */

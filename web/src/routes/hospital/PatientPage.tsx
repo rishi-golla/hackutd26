@@ -7,6 +7,7 @@ import ReportView from './ReportView';
 import { go } from './HospitalApp';
 import { Card, HandoffButton, Icon, Metric, PatientFacts, StatusPill, Timeline, time } from './ui';
 import type { HospitalData } from './useHospital';
+import type { Recording } from './recordings';
 import { ageOn, epiText, isDue, mmss } from './vitals';
 
 /** Expand or minimize with a view transition where the browser has one (the thumbnail morphs into place). */
@@ -37,6 +38,25 @@ export function LiveView({ available = true }: { available?: boolean }) {
   );
 }
 
+/** Playback is explicitly separate from current frames and never writes clinical values. */
+export function SessionVideo({ data }: { data: HospitalData }) {
+  const [preferRecording, setPreferRecording] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const recording: Recording | undefined = data.recording;
+  useEffect(() => { setPreferRecording(false); setFailed(false); }, [data.incident?.id, recording?.url]);
+  const recorded = !!recording && (!data.canShowLive || preferRecording);
+  return <div className="session-media">
+    {recording && <div className="session-media__head">
+      <span>{recorded ? 'Recorded video' : 'Live camera'}</span>
+      {data.canShowLive && <button type="button" onClick={() => setPreferRecording(value => !value)}>{recorded ? 'Show live camera' : 'Watch recording'}</button>}
+    </div>}
+    {recorded && recording ? <div className="video-slot recorded-video">
+      <video key={recording.url} src={recording.url} controls playsInline preload="metadata" aria-label={`Recorded video: ${recording.label}`} onError={() => setFailed(true)} />
+      {failed && <p className="recorded-video__error">This recording could not be loaded. Check that the link is a playable video.</p>}
+    </div> : <LiveView available={data.canShowLive} />}
+  </div>;
+}
+
 export default function PatientPage({ data }: { data: HospitalData }) {
   const { incident, record, now } = data;
   const [showReport, setShowReport] = useState(false);
@@ -65,14 +85,14 @@ export default function PatientPage({ data }: { data: HospitalData }) {
 
       <div className="patient">
         <div className="col">
-          <Card title="Live Ambulance Handoff" icon="ambulance" className="card--video"
+          <Card title="Session video" icon="video" className="card--video"
             right={data.reportReady && (
               <div className="seg" role="tablist">
                 <button type="button" role="tab" aria-selected={!showReport} onClick={() => setShowReport(false)}>Live</button>
                 <button type="button" role="tab" aria-selected={showReport} onClick={() => setShowReport(true)}>Report</button>
               </div>
             )}>
-            {showReport && data.reportReady ? <div className="report-slot"><ReportView contentJson={data.report!.contentJson} /></div> : <LiveView available={data.canShowLive} />}
+            {showReport && data.reportReady ? <div className="report-slot"><ReportView contentJson={data.report!.contentJson} /></div> : <SessionVideo data={data} />}
             <div className="heard">
               <p className="heard__title">Latest transcript <span className="muted">(Voice → Text)</span></p>
               {heard.length ? heard.map(l => <p key={l.key} className="heard__line"><span>{time(l.t)}</span>{l.text}</p>) : <p className="muted">Nothing said yet.</p>}

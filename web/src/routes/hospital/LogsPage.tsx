@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { go } from './HospitalApp';
 import { Icon, patientLine, SpokenTranscript, StatusPill, Timeline } from './ui';
 import type { HospitalData } from './useHospital';
+import { CareLog, VitalsLog } from './CareLog';
 
-type LogCategory = 'care' | 'transcript' | 'agent';
+type LogCategory = 'care' | 'vitals' | 'transcript' | 'agent';
 
 export default function LogsPage({ data }: { data: HospitalData }) {
   const [category, setCategory] = useState<LogCategory>('care');
   const categories = [
     { id: 'care', name: 'Care events', icon: 'list' },
+    { id: 'vitals', name: 'Vitals', icon: 'pulse' },
     { id: 'transcript', name: 'Transcript', icon: 'message' },
     { id: 'agent', name: 'Agent activity', icon: 'layers' },
   ] as const;
@@ -64,6 +66,8 @@ export default function LogsPage({ data }: { data: HospitalData }) {
         </div>
         <div id="patient-log-panel" className="tabs__body" role="tabpanel" tabIndex={0} aria-labelledby={`log-tab-${category}`}>
           {!data.incident ? <p className="empty">{!data.isActive ? 'Connecting to patient logs…' : new URLSearchParams(window.location.search).has('incident') ? 'Patient encounter not found. Choose a patient above.' : 'Choose a patient to view their logs.'}</p>
+            : category === 'care' ? <CareLog key={String(data.incident.id)} events={data.timeline.filter(row => row.kind === 'event')} />
+              : category === 'vitals' ? <VitalsLog key={String(data.incident.id)} rows={data.recordedVitals} />
             : category === 'transcript' ? <SpokenTranscript lines={data.spoken} />
               : !timelineData.timeline.length && !timelineData.live.length ? <p className="empty">{category === 'agent' ? 'No agent activity recorded for this call.' : 'No care events recorded for this call.'}</p>
                 : <Timeline key={String(data.incident.id)} data={timelineData} />}

@@ -6,7 +6,8 @@ import { tables, type DbConnection } from '../../module_bindings';
 import type { AgentStep, ErMessage, Event, Hospital, Incident, PatientRecord, Report, Timer, Vitals } from '../../module_bindings/types';
 import { tsMs } from '../../db/time';
 import { groupThoughts, liveThoughts, type Thought } from './thoughts';
-import { CPR_STALE_MS, etaMinutes, NONE, readingOf, REPORT_SLOW_MS, VITALS_STALE_MS, type Reading } from './vitals';
+import { recordingFor } from './recordings';
+import { CPR_STALE_MS, etaMinutes, NONE, readingOf, REPORT_SLOW_MS, selectVitals, VITALS_STALE_MS, type Reading } from './vitals';
 
 export function useNow(intervalMs = 500) {
   const [now, setNow] = useState(Date.now());
@@ -40,7 +41,7 @@ export function selectedIncidentId(): bigint | null | undefined {
   return /^\d+$/.test(raw) ? BigInt(raw) : null;
 }
 
-export function useHospital(selected?: bigint | null) {
+export function useHospital(selected?: bigint | null, liveOperation = false) {
   const { isActive, getConnection } = useSpacetimeDB();
   const now = useNow();
   const [incidents] = useTable(tables.incident);
@@ -57,7 +58,8 @@ export function useHospital(selected?: bigint | null) {
   const [callouts] = useTable(tables.callout);
 
   const sorted = useMemo(() => [...incidents].sort(byNewest), [incidents]);
-  const incident: Incident | undefined = selected !== undefined ? sorted.find(i => i.id === selected) : sorted[0];
+  const incident: Incident | undefined = liveOperation ? sorted.find(i => i.status !== 'closed')
+    : selected !== undefined ? sorted.find(i => i.id === selected) : sorted[0];
   const incId = incident?.id;
   const open = !!incident && incident.status !== 'closed';
   const activeId = sorted.find(i => i.status !== 'closed')?.id;
@@ -73,6 +75,8 @@ export function useHospital(selected?: bigint | null) {
   const live = thoughts.filter(t => liveSet.has(t)).reverse().slice(0, 2);
 
   const incEvents: Event[] = events.filter(e => e.incidentId === incId && e.status !== 'cancelled');
+  const recording = recordingFor(incEvents);
+  const recordedVitals = useMemo(() => selectVitals(vitalsRows, incId), [vitalsRows, incId]);
   const incMessages: ErMessage[] = messages.filter(m => m.incidentId === incId).sort((a, b) => tsMs(a.ts) - tsMs(b.ts));
 
   // The care timeline, newest first: events, the alert the agent sent the ER, and the agents' finished thoughts.
@@ -93,7 +97,10 @@ export function useHospital(selected?: bigint | null) {
 
   // Vitals (H3). The real finger clip reads nothing useful through compressions, so HR and SpO₂ stay blank in an
   // arrest (§9) unless a simulated scenario is playing (the demo's arrest: HR 0, no SpO₂).
-  const vitalsNewest: Vitals[] = useMemo(() => open ? vitalsRows.filter(r => r.incidentId === incId).sort(byNewest) : [], [vitalsRows, incId, open]);
+  // The harness monitor also shows unassigned (incident 0) relay readings before a patient encounter exists.
+  // Patient and Tracing never fall back to those hardware-preview readings.
+  const vitalsNewest: Vitals[] = useMemo(() => selectVitals(vitalsRows, open ? incId : liveOperation ? 0n : undefined),
+    [vitalsRows, open, incId, liveOperation]);
   const latestVitals = vitalsNewest[0];
   const v = latestVitals !== undefined && now - tsMs(latestVitals.ts) < VITALS_STALE_MS ? latestVitals : undefined;
   const inArrest = incident?.status === 'arrest';
@@ -149,8 +156,8 @@ export function useHospital(selected?: bigint | null) {
 
   return {
     isActive, now, incident, open, canShowLive, hasLiveCall: isActive && activeId !== undefined, canGenerate, record, report, destination, thoughts, live, liveSet, timeline, spoken,
-    events: incEvents, messages: incMessages, steps: incSteps,
-    hr, spo2, tempC: v?.tempC, vitalsAt, cprRate, epi, inArrest, elapsedS, etaMin,
+    events: incEvents, messages: incMessages, steps: incSteps, recording, recordedVitals,
+    hr, spo2, tempC: v?.tempC, vitalsAt, sensorStatus: v?.status, vitalsSimulated: !!v?.simulated, cprRate, epi, inArrest, elapsedS, etaMin,
     reportReady, writing, generate, reportProblem, calls, activity, unitOf: (id: bigint) => sorted.find(i => i.id === id)?.unit,
   };
 }

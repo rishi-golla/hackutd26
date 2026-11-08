@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { epiText, etaMinutes, readingOf, statusPhases, statusTone } from '../src/routes/hospital/vitals';
+import { epiText, etaMinutes, readingOf, selectVitals, statusPhases, statusTone } from '../src/routes/hospital/vitals';
 
 const ts = (ms: number) => ({ microsSinceUnixEpoch: BigInt(ms) * 1000n }) as never;
 const now = 1_000_000;
@@ -44,4 +44,11 @@ test('an ETA is no longer shown after arrival or incident close even when the ti
   assert.equal(etaMinutes('arrived', eta, now), undefined);
   assert.equal(etaMinutes('closed', eta, now), undefined);
   assert.equal(etaMinutes('on_scene', undefined, now), undefined);
+});
+
+test('unassigned relay readings are visible only in explicit hardware preview, never another patient history', () => {
+  const rows = [{ id: 1n, incidentId: 11n }, { id: 2n, incidentId: 0n }, { id: 3n, incidentId: 12n }, { id: 4n, incidentId: 0n }];
+  assert.deepEqual(selectVitals(rows, 0n).map(row => row.id), [4n, 2n]);
+  assert.deepEqual(selectVitals(rows, 11n).map(row => row.id), [1n]);
+  assert.deepEqual(selectVitals(rows, undefined), []);
 });

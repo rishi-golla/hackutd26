@@ -85,6 +85,9 @@ export default function ControlsPage() {
   const [feedback, setFeedback] = useState<Feedback>();
   const [busy, setBusy] = useState<string>();
   const [patient, setPatient] = useState(PATIENTS[0].id);
+  const [recordingIncident, setRecordingIncident] = useState('');
+  const [recordingUrl, setRecordingUrl] = useState('');
+  const [recordingLabel, setRecordingLabel] = useState('');
   const [armReset, setArmReset] = useState(false);
   const armTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -236,6 +239,23 @@ export default function ControlsPage() {
         <Btn onClick={() => demo('identify', `Identify ${patient}`, patient)} disabled={off || noIncident}>
           Identify
         </Btn>
+      </Group>
+
+      <Group title="Patient recording" single>
+        <select className="ctl__select" value={recordingIncident} onChange={e => setRecordingIncident(e.target.value)} aria-label="Recording encounter">
+          <option value="">Choose an encounter</option>
+          {[...incidents].sort(byNewest).map(incident => <option key={String(incident.id)} value={String(incident.id)}>
+            {records.find(record => record.incidentId === incident.id)?.name ?? 'Unidentified patient'} · {incident.unit} · Call {String(incident.id)}
+          </option>)}
+        </select>
+        <input className="ctl__select" aria-label="Direct HTTPS video URL" type="url" placeholder="Direct HTTPS MP4 or WebM URL"
+          value={recordingUrl} onChange={e => setRecordingUrl(e.target.value)} />
+        <input className="ctl__select" aria-label="Recording title" placeholder="Recording title" value={recordingLabel} onChange={e => setRecordingLabel(e.target.value)} />
+        <Btn disabled={off || !recordingIncident || !recordingUrl.startsWith('https://')}
+          onClick={() => demo('attach_recording', 'Attach recorded video', JSON.stringify({ incidentId: recordingIncident, url: recordingUrl, label: recordingLabel }))}>Attach video</Btn>
+        <Btn disabled={off || !recordingIncident}
+          onClick={() => demo('attach_recording', 'Remove recording link', JSON.stringify({ incidentId: recordingIncident, url: '' }))}>Remove video link</Btn>
+        <p className="ctl__hint">Link an existing hosted video to this encounter. Playback does not generate vitals or clinical events.</p>
       </Group>
 
       <section className="ctl__reset">
