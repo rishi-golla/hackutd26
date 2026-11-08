@@ -129,6 +129,9 @@ type PendingMed = { drug?: string; dose?: number; unit?: Unit; route?: Route; at
 const PENDING_MED_MS = 20_000;
 
 const DOSE_IN_LABEL = /(\d+(?:\.\d+)?)\s*(mg|mcg|g|mL|units?|J)\b/i;
+/** A patient identified from the card or the spoken name with no EHR match: a record that is not a record. */
+const CARD_ONLY = 'ID card';
+const NO_EHR = 'unknown (no EHR record)';
 /** "MG", "ml", "unit" → the Unit the checks and spoken units use. */
 function normUnit(raw: string): Unit {
   const u = raw.toLowerCase();
@@ -482,14 +485,15 @@ export class Brain {
   private async handleReadback(rb: ReadbackMatch, text: string, gen: number) {
     const s = readState(this.conn);
     const dose: DoseVerdict = rb.drug ? checkDoseRange(rb.drug, rb.dose, rb.unit) : { verdict: 'no_range' };
-    const allergy = rb.drug ? checkAllergy(rb.drug, s.record?.allergies ?? []) : { allergic: false };
+    const ehr = s.record && s.record.source !== CARD_ONLY ? s.record : undefined;
+    const allergy = rb.drug ? checkAllergy(rb.drug, ehr?.allergies ?? []) : { allergic: false };
     const out = composeReadback(rb, dose, allergy);
     const inc = s.incident;
     // RB9: a spoken dose for a drug the camera just saw merges into that event and confirms it: nothing to ask.
     const seenWaiting = !!inc && !out.flagged && [...this.conn.db.event.iter()].some(e =>
       e.incidentId === inc.id && e.kind === rb.eventKind && e.status === 'flagged' && e.sources.some(x => x.kind === 'seen') && Date.now() - tsMs(e.ts) < PENDING_DOSE_MS);
     const spokenText = seenWaiting ? rb.spoken : out.spoken;
-    await step(this.conn, 'read_back', `${rb.label}${out.flagged ? ` FLAGGED (${out.reason})` : seenWaiting ? ' (camera saw it: confirms)' : ' · asked "Log it?"'}${!s.record && rb.drug ? ' · no record yet, allergy not checked' : ''}`);
+    await step(this.conn, 'read_back', `${rb.label}${out.flagged ? ` FLAGGED (${out.reason})` : seenWaiting ? ' (camera saw it: confirms)' : ' · asked "Log it?"'}${!ehr && rb.drug ? ' · no EHR record, allergy not checked' : ''}`);
     // Speak first (RB2 latency), then log.
     await this.policy.say(spokenText, 0, 'readback');
 
@@ -613,7 +617,11 @@ export class Brain {
     if (this.stale(gen, inc?.id)) return;
     if (matches.length === 0) {
       await step(this.conn, 'search_ehr', 'no match');
-      await this.policy.say(`No record found for ${name}.`, 1, 'ask', undefined, () => !this.stale(gen, inc?.id));
+      // The identity still counts (Alan, Sun ~06:45): the hospital sees the name and birth date from the card or the
+      // medic's words, marked as having no EHR record. Allergies, medications and code status are "unknown", never
+      // "none": the checks treat this record as no record.
+      if (inc) await this.saveCardOnlyRecord(inc, name, birthDate, method, gen);
+      await this.policy.say(`No EHR record for ${name}. Identified from the ${method === 'voice' ? 'spoken name' : 'ID card'}.`, 1, 'ask', undefined, () => !this.stale(gen, inc?.id));
       return;
     }
     if (matches.length > 1) {
@@ -696,6 +704,27 @@ export class Brain {
     }
     if (!this.stale(gen, inc.id)) await step(this.conn, 'log_event', `${ev.kind}: ${ev.label} (seen${conf})`);
     return 'logged';
+  }
+
+  /**
+   * A patient with a name and birth date but no EHR match: saved as a record from the card (source `ID card`,
+   * patientRef `card:<name>-<date>`), so the dashboard and the report show who it is, with every clinical field
+   * "unknown (no EHR record)". `identify_patient` then points the incident at it. Done once per incident.
+   */
+  private async saveCardOnlyRecord(inc: Incident, name: string, birthDate: string, method: 'voice' | 'ID card', gen: number) {
+    const patientRef = `card:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${birthDate}`;
+    if ([...this.conn.db.patientRecord.iter()].some(r => r.incidentId === inc.id && r.patientRef === patientRef)) return;
+    if (this.stale(gen, inc.id)) return;
+    try {
+      await this.conn.reducers.savePatientRecord({
+        patientRef, name, birthDate,
+        allergies: [NO_EHR], medications: [NO_EHR], conditions: [], codeStatus: NO_EHR, source: CARD_ONLY,
+      });
+      await step(this.conn, 'save_patient_record', `${name}, born ${birthDate}: no EHR record; identity from the ${method} saved as "${CARD_ONLY}"`);
+      if (inc.patientRef !== patientRef) await this.conn.reducers.identifyPatient({ patientRef, method });
+    } catch (err) {
+      await step(this.conn, 'save_patient_record', `card-only record failed: ${(err as Error).message.slice(0, 80)}`);
+    }
   }
 
   /**
@@ -795,7 +824,7 @@ export class Brain {
     const gen = this.gen;
     const drug = ev.kind.slice(4).replace(/_/g, ' ');
     const s = readState(this.conn);
-    const allergy = checkAllergy(drug, s.record?.allergies ?? []);
+    const allergy = checkAllergy(drug, s.record && s.record.source !== CARD_ONLY ? s.record.allergies : []);
     // The label carries the printed dose when the camera could read one ("Epinephrine 1 mg"); never a guess.
     const printed = DOSE_IN_LABEL.exec(ev.label);
     const unit = printed ? normUnit(printed[2]) : undefined;

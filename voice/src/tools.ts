@@ -231,9 +231,11 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
     }
     case 'check_allergy': {
       const s = readState(conn);
-      const out = checkAllergy(String(args.drug ?? ''), s.record?.allergies ?? []);
-      await step(conn, 'check_allergy', `${args.drug}: ${out.allergic ? `ALLERGY (${out.match})` : s.record ? 'no recorded allergy' : 'no record pulled yet'}`);
-      return remember(j({ ...out, recordAvailable: !!s.record }));
+      // A record from the ID card alone (no EHR match) has no allergy list: unknown, never "no allergy".
+      const ehr = s.record && s.record.source !== 'ID card' ? s.record : undefined;
+      const out = checkAllergy(String(args.drug ?? ''), ehr?.allergies ?? []);
+      await step(conn, 'check_allergy', `${args.drug}: ${out.allergic ? `ALLERGY (${out.match})` : ehr ? 'no recorded allergy' : s.record ? 'unknown: identified from the ID card, no EHR record' : 'no record pulled yet'}`);
+      return remember(j({ ...out, recordAvailable: !!ehr, ...(s.record && !ehr ? { note: 'identified from the ID card only; no EHR record, allergies unknown' } : {}) }));
     }
     case 'search_ehr': {
       const name = String(args.name ?? '').trim();
