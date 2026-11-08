@@ -1,0 +1,29 @@
+spacetime/README.md
+  s_d2e6ed95ebf846::t_ab25d591461616 83-89,131-133,187
+spacetime/src/helpers.ts
+  s_d2e6ed95ebf846::t_5a8c9891ac9f2a 303-344
+spacetime/src/index.ts
+  s_d2e6ed95ebf846::t_7069c51f568bfb 31,38,107-108,114-115,120-121,394-396
+spacetime/src/sessions.ts
+  s_d2e6ed95ebf846::t_a62f3034260d8f 3,86-159
+spacetime/test/test_sessions.py
+  s_d2e6ed95ebf846::t_5c03de9ea5f3b6 92-118
+voice/pipecat/analyze_recording.py
+  s_d2e6ed95ebf846::t_cf03850a337f4b 1-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d85d1010e83063a4dde82543eb71a553eb5d435",
+  "prompts": {},
+  "sessions": {
+    "s_d2e6ed95ebf846": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_d2e6ed95ebf846",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
