@@ -60,8 +60,9 @@ are inserted. Patient and Tracing play the hosted file directly; the host must a
 
 ## Deployment order for camera sessions
 
-Publish the module first, preserving all existing rows (`--delete-data=never`). Then update `hub/hub.py`,
-`hub/phone.html`, and `bridge/hub_bridge.py` on the Pi and restart the hub/bridge services. Reload the phone
+Publish the module first, preserving all existing rows (`--delete-data=never`). Then apply the session changes
+from `hub/hub.py`, `hub/phone.html`, and `bridge/hub_bridge.py` on the Pi and restart the hub/bridge services.
+Preserve any deployed phone/hub differences unless a full replacement has been approved. Reload the phone
 page and start the camera to mint its session UUID. Deploying the bridge before the reducer is available
 would hold readings while registration retries. `UNIT` and `BODYCAM_DEVICE` configure its session identity.
 
@@ -72,11 +73,12 @@ with a misleading timestamp; the bridge logs why they were not forwarded.
 
 ## Local integration checks
 
-Use a disposable local server, never the shared demo database:
+Use a disposable local server, never the shared demo database. Sign in with `spacetime login` first so
+subsequent publishes use the same identity (`--anonymous` creates a different publisher each time).
 
 ```bash
 spacetime start --listen-addr 127.0.0.1:3900 --in-memory --non-interactive
-spacetime publish handoff-hospital-test --server http://127.0.0.1:3900 --module-path spacetime --anonymous --delete-data=never --yes=skip-login
+spacetime publish handoff-hospital-test --server http://127.0.0.1:3900 --module-path spacetime --delete-data=never --yes=skip-login
 python -m unittest discover -s spacetime/test -v
 ```
 

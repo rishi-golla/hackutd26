@@ -16,6 +16,12 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Rishi): decision 26 deployed.** Published the module to Maincloud preserving existing rows.
+  Applied only session-ID/frame-registration changes to the Pi's existing phone page and hub; updated the
+  bridge and restarted both services. The Pi's older phone UI and its hub trailing-slash handling remain
+  intact by user choice. Reload the phone and tap Start to use the new UUID protocol. Relay ingestion was
+  verified after restart; a fresh physical camera run still needs that reload/Start. No demo video URLs
+  have been supplied or attached.
 - **Sun (Rishi): live harness workflow, retained patient vitals and hosted recordings** (§0.1 decision 26).
   Live Operations becomes the camera/relay demonstration. A new actual camera session opens an encounter;
   its readings persist after close. Hosted HTTPS videos can be attached to an explicit encounter through
