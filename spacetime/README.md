@@ -98,7 +98,8 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Any | `start_incident(unit)` | no-op if an incident is already active; status `on_scene`, DEMO TIMING on |
 | Any | `set_status(status, sourceKind, sourceDetail)` | `on_scene` `arrest` `rosc` `en_route` `arrived` `closed`; the source is the timeline chip, e.g. `("arrest", "voice", "her heart stopped")`. Any transition is allowed (demo controls need it) |
 | Any | `heartbeat(device, kind)` | keeps the `device` row's `lastSeen` fresh |
-| Bodycam | `pushCpr({rate?, count, sinceLastS, paused, compressing})` | phone detector output, about 2×/s. Before the first compression, send `sinceLastS` = seconds since the page started; the server caps pauses at the time since the arrest began. `count` may reset on page reload |
+| Bodycam | `pushCpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s. Before the first compression, send `sinceLastS` = seconds since the page started. `count` may reset on page reload. Ignored while a demo override is on |
+| Bodycam (CPR assistance) | `pushCprAssist({assist, bpm, onBeatPct?, phaseErrMs?})` | About 2×/s, right after `pushCpr` (no-op until a `cpr_state` row exists). `assist` = the phone is coaching (the server's CPR callouts then stay quiet but are still logged, except under a demo override; it counts only while this reducer arrived in the last 3 s, `cpr_state.assistAt`); `bpm` 0 = no metronome; `onBeatPct` = % within 120 ms of the beat; `phaseErrMs` = mean error (+ late); both undefined = no data. Sent by `web/src/cpr/` (SPEC decision 18) |
 | Bodycam | `addTranscript({text})` | one row per sentence |
 | Bodycam | `identifyPatient({patientRef, method})` | method `ID card` / `voice` / `manual` |
 | Bodycam | `logEvent({kind, label, sourceKind, sourceDetail})` | read-backs etc. See event kinds below |
@@ -148,7 +149,7 @@ same event as another source. That's how voice plus label becomes one epi event 
 - `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`, `status_<status>`
 - written by the rules: `cpr_coached`, `cpr_paused`, `vitals_alarm_hr`, `vitals_alarm_spo2` (a merged alarm shows
   the newest number); by `synthesize_seizure`: `simulation`, `simulation_end`
-- `sourceKind` is the chip: `voice`, `read-back`, `label`, `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
+- `sourceKind` is the chip: `voice`, `read-back`, `label`, `tap`, `MARK`, `motion`, `callout`, `phone coaching` (CPR assistance muted the server's callout), `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
 
 ## Synthetic seizure (`synthesize_seizure`)

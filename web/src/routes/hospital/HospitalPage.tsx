@@ -347,7 +347,10 @@ function ResusRow(props: { cpr?: CprState; inArrest: boolean; epi?: Timer; cycle
             ? 'not in arrest'
             : !cpr
               ? 'no data from bodycam'
-              : `${cpr.count - cpr.countBase} compressions · pause ${cpr.compressing ? 0 : Math.round(cpr.sinceLastS)} s`
+              : `${cpr.count - cpr.countBase} compressions · pause ${cpr.compressing ? 0 : Math.round(cpr.sinceLastS)} s` +
+                (cpr.assist && cpr.bpm > 0 && cpr.source !== 'override'
+                  ? ` · ${cpr.onBeatPct === undefined ? 'beat: no data' : `${Math.round(cpr.onBeatPct)}% on beat`} (phone coaching)`
+                  : '')
         }
       />
       <TimerTile label="Next epi" timer={epi} now={now} demo={demo} />

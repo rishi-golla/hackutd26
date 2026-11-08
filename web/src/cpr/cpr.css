@@ -1,0 +1,79 @@
+/* CPR assistance panel (chest phone). Large and glanceable; dark like the rest of the app. */
+.cpr {
+  --text: #e6edf3;
+  --muted: #8a99a8;
+  --panel: #121922;
+  --live: #3ddc84;
+  --alarm: #ff5c5c;
+  --amber: #f2b33d;
+  --accent: #5ab0ff;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--panel);
+  box-shadow: 0 0 0 1px oklch(1 0 0 / 0.08);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.cpr--waiting_for_sensor { box-shadow: 0 0 0 1px var(--amber); }
+.cpr--paused { box-shadow: 0 0 0 1px var(--alarm); }
+
+.cpr__start {
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #001a33;
+  cursor: pointer;
+  transition-property: scale;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.cpr__start:not(:disabled):active { scale: 0.96; }
+.cpr__hint { margin: 0; color: var(--muted); font-size: 14px; }
+.cpr__error { margin: 0; color: var(--alarm); }
+
+.cpr__state { display: flex; align-items: center; gap: 12px; font-size: 20px; }
+.cpr__beat {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #24303d;
+  transition-property: background-color;
+  transition-duration: 80ms;
+  transition-timing-function: ease-out;
+}
+.cpr__beat.is-on { background: var(--live); }
+
+.cpr__big { font-size: 72px; font-weight: 800; line-height: 1; }
+.cpr__big span { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+.cpr__big.is-off { color: var(--alarm); }
+.cpr__row { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 8px; font-size: 17px; color: var(--muted); }
+.cpr__row b { color: var(--text); }
+.cpr__row em { font-style: normal; color: var(--amber); }
+.cpr__cue { margin: 6px 0 0; color: var(--accent); font-weight: 600; }
+
+.cpr__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+.cpr__ok { color: var(--live); }
+.cpr__warn { color: var(--amber); }
+.cpr__calibrate {
+  margin-left: auto;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid oklch(1 0 0 / 0.15);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.cpr__calibrate:disabled { opacity: 0.45; cursor: default; }

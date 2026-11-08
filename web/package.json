@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "generate": "spacetime generate --lang typescript --out-dir src/module_bindings --module-path ../spacetime",
-    "dev:https": "vite --mode https"
+    "dev:https": "vite --mode https",
+    "test:cpr": "tsx --test src/cpr/*.test.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -17,10 +18,12 @@
     "spacetimedb": "2.14.*"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^5.0.2",
+    "tsx": "^4.23.15",
     "typescript": "~5.6.2",
     "vite": "^7.1.5"
   }

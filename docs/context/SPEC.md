@@ -16,6 +16,16 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~22:30 (Josh): CPR assistance built** (§0.1 decision 18, `web/src/cpr/`, mounted on `/bodycam`).
+  - **What it does:** a 110/min metronome, compression detection (the hardware branch's tested detector, ported),
+    an on-beat check, and short cues ("Faster", "Slower", "Follow the beat", "Resume compressions", "Place the
+    finger sensor").
+  - **Contract change (additive):** a new reducer `push_cpr_assist({assist, bpm, onBeatPct?, phaseErrMs?})`, and
+    `cpr_state` gains six columns. `push_cpr` is unchanged, so existing callers keep working.
+  - **Server:** its CPR callouts stay quiet while the phone coaches; the events are still logged, cited as
+    "phone coaching". Under the demo CPR override the server speaks as before.
+  - **Hospital side:** the dashboard and the report show "% on the beat".
+
 - **Sat ~20:15 (Josh): hospital dashboard redesign.**
   - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
   - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
@@ -132,7 +142,9 @@ section and add a change-log line.
 13. **Real-time voice agent replaces on-device voice** (Alan approved, Sat evening). The bodycam streams mic audio
     to a voice agent worker on the laptop and plays its audio back, over WebRTC. The on-device layer is the
     degraded-mode fallback. Doses and allergies are checked by deterministic tools, never by the model's own
-    judgement. Details in §19.
+    judgement. Details in §19. **Exception (decision 18):** during an arrest the phone's CPR assistance speaks its
+    own short CPR cues on the device, outside degraded mode. The voice agent's WebRTC audio doesn't go through the
+    shared `speak()` yet, so the two can overlap; coordinate with the voice lane (§28 when-to-speak).
 14. **Settled at the 15:36 meeting:** the Pixel 9 Pro on the chest harness is the bodycam (rear camera; the
     universal plate is the backup for other phones); the relay box stays off the harness and clips to the jump
     bag by its carry loop; the finger sensor is the MVP; all data goes to SpacetimeDB Maincloud; the Nemotron
@@ -159,6 +171,30 @@ section and add a change-log line.
       `SPACETIMEDB_DB_NAME=<your local db>`).
     - **No lock in code for now; the team stays mindful of it.** If it bites, add a lock (the first copy claims
       the database).
+18. **CPR assistance runs on the chest phone** (Josh, Sat ~22:30).
+    - **Where:** `web/src/cpr/`, mounted on `/bodycam`.
+    - **Start:** it runs while the incident status is `arrest`. The voice gate's confirmed "starting CPR" calls
+      `set_status('arrest', 'voice', <what was said>)`; the demo's "Simulated arrest" works too.
+    - **Finger-sensor gate:** it starts only once the finger sensor is detected (any fresh relay status except
+      `no finger`; a real arrest has no pulse to read). Once running, taking the finger off never stops the beat.
+    - **Coaching:** all of it is on the phone, on one clock with the accelerometer:
+      - a 110/min Web Audio metronome
+      - a compression counts as on the beat within 120 ms, judged over a window of the last 8
+      - short cues, at most one every 4 s, never over other speech: "Faster" / "Slower" (the §15 thresholds:
+        5 s, repeat 10 s), "Resume compressions" (10 s without compressions, counted from activation), "Follow the
+        beat" (in range but under 60 % on the beat for 3 s), "Place the finger sensor" (every 20 s while waiting)
+      - an optional 10 s calibration learns the rescuer's own timing offset; a sloppy run is rejected
+    - **One voice:** while it coaches (`cpr_state.assist`), the server's CPR callouts (Push faster, Slow down,
+      Resume compressions) are logged but not spoken. Cycle and epi prompts are unchanged.
+    - **Demo CPR override** (`/controls` "CPR slow / good"): the phone keeps only the beat and the server speaks the
+      CPR callouts from the override, as before.
+    - **Freshness:** `assist` counts only while `push_cpr_assist` arrived in the last 3 s (`cpr_state.assistAt`),
+      so a phone that dies never leaves the server muted.
+    - **Not yet on the hospital screen (D2):** the phone's own cues are spoken, not logged. The timeline shows
+      "phone coaching: server callout … muted" when a server CPR rule fires while the phone coaches. Follow-up.
+    - **Testing B5/B11:** "Push faster" checks need assistance off (no finger sensor, or the demo override).
+    - **Shared speech:** the voice gate should use the same `speak()` (`web/src/cpr/speech.ts`), so nothing talks
+      over anything else, and the metronome ducks under speech.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -176,7 +212,8 @@ Conflicts resolved when this file was created (for the record):
 | --- | --- | --- | --- |
 | **Hospital node** | Josh | `spacetime/` (module, seed, `tick_rules`), `web/` scaffold + `web/src/db/` (connection + bindings) + `web/src/routes/hospital/`, `ehr/` (mock FHIR R4 server), `agent/` (W1, W4), report route | H1–H5, H7, H9, W1, W4, X2, E1 (display-only; H6 is the same panel), §15 rules, §22 |
 | **Relay** | relay owner | `relay/` (Pi sender, LCD1602 with OLED fallback, temperature probe), hardware | R1–R8, L1–L3 |
-| **Chest camera** | camera owner | `web/src/routes/bodycam/`, WebRTC video sender, vision sampler (frames from the live stream, on the laptop), W6 (ID card or spoken name → EHR search) | B1–B11, RB1–RB7 (phone side), X1, X3–X8, W6 |
+| **CPR assistance** | Josh | `web/src/cpr/` (metronome, compression detector, beat sync, coach, shared `speak()`), mounted on `/bodycam` | B4, §15 CPR cues on the phone (decision 18) |
+| **Chest camera** | camera owner | `web/src/routes/bodycam/`, WebRTC video sender, vision sampler (frames from the live stream, on the laptop), W6 (ID card or spoken name → EHR search) | B1–B3, B5–B11 (B4 is CPR assistance), RB1–RB7 (phone side), X1, X3–X8, W6 |
 | **Voice agent worker** | unassigned | folder **[OPEN]** | §19 voice agent, the agent side of B3/B5/B10, §15 when-to-speak policy, RB4/RB7 as tools |
 | **Unassigned** | team decides | `/controls` demo-controls page (`web/src/routes/controls/`; the code still has it as `web/src/routes/monitor/`, rename pending, §28), Devpost/video | D1, H8; W2 and W3 (optional) have no owner yet |
 
@@ -194,7 +231,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Caller | Reducers it calls | Subscribes to |
 | --- | --- | --- |
 | Relay (HTTP) | `push_vitals`, `push_waveform`, `mark`, `toggle_incident` (2 s hold) | `incident` (optional) |
-| Bodycam (TS SDK) | `push_cpr`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; `add_transcript` (degraded mode; see the voice row); for W6: `save_patient_record`, `add_callout`, `log_agent_step` | `callout` (unspoken), `rtc_signal`, `patient_record`, `incident` |
+| Bodycam (TS SDK) | `push_cpr`, `push_cpr_assist`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; `add_transcript` (degraded mode; see the voice row); for W6: `save_patient_record`, `add_callout`, `log_agent_step` | `callout` (unspoken), `rtc_signal`, `patient_record`, `incident`; CPR assistance also `vitals`, `cpr_state` |
 | Controls `/controls` (TS SDK) | `demo_control` | `incident`, `cpr_state`, `timer`, `patient_record` |
 | Hospital + agent (TS SDK) | `send_rtc_signal`, `set_destination`, `er_message_out`, `log_agent_step`, `request_report`, `save_report` | everything |
 | Voice agent worker (TS SDK, new) | **[OPEN]**, follows the tool list (§19). Existing reducers only, for example `add_transcript`, `log_event`, `set_event_status`, `callout_spoken`, `log_agent_step` | the state it summarizes: `incident`, latest `vitals`, `cpr_state`, `timer`, `event`, `patient_record`, `callout`, `transcript` |
@@ -234,7 +271,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Pi relay bring-up tools | Written and tested in simulation (pytest suite plus a 21-check self-test), on the `hardware` branch. Real-hardware verdicts: ask Alan |
 | Phone test page | Written (camera/zoom probe, compression-rate detector, speaker, wake lock), on the `hardware` branch. Rear camera decided |
 | SpacetimeDB module | Built and published on Maincloud as `handoff-hackutd26` (17:26): schema, reducers, §15 rules in `tick_rules` |
-| Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/bodycam` and `/monitor` are placeholders; `/controls` doesn't exist yet |
+| Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/bodycam` mounts CPR assistance (decision 18) and is otherwise a placeholder; `/monitor` is a placeholder; `/controls` doesn't exist yet |
 | Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
 | Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
 | Not started | W6, voice agent worker, relay SpacetimeDB sender, `/controls` |
@@ -825,7 +862,7 @@ agent.
 | --- | --- | --- |
 | Camera | Live video (WebRTC, peer to peer to `/hospital`); vision uses the same stream | Video: the hospital page, handshake in `rtc_signal`. Vision: the sampler on the laptop takes ~1 frame/s from the stream (§19) |
 | Microphone | WebRTC audio to the voice agent worker, echo cancellation on. Degraded mode: Web Speech API, continuous, restarts itself on end or error, one row per sentence | Voice agent worker → `transcript`. Degraded mode: `add_transcript` from the phone |
-| Motion sensor | CPR detector (existing, self-tested): band-pass, peak timing → rate, count, paused | `cpr_state`, written twice a second (`push_cpr`) |
+| Motion sensor | CPR detector (existing, self-tested): band-pass, peak timing → rate, count, paused; plus CPR assistance's beat timing (decision 18) | `cpr_state`, written twice a second (`push_cpr`, `push_cpr_assist`) |
 | Speaker | Plays the voice agent's audio. Degraded mode: phone read-backs first, then `callout` rows by priority, one at a time, with on-device TTS or cached audio | `callout_spoken` after a rule callout is spoken |
 
 **Screen (mockup), readable at arm's length:**
@@ -1132,6 +1169,11 @@ override is on); vitals count only if the relay reported in the last 5 s with st
 incident; unspoken callouts older than 20 s are deleted so stale words are never spoken; a fired CPR or vitals
 rule also writes a timeline event (cited as `demo` and labelled "(SIMULATED)" when it came from an override or
 simulated data, §28). The "ER acknowledged" callout does not exist.
+
+**CPR assistance (decision 18):** while the phone coaches (`cpr_state.assist`, fresh, not an override), the three CPR
+rules still fire on their thresholds and write their events, but queue no `callout`; the chip is "phone coaching"
+with the detail `server callout "Push faster" muted` (the server doesn't claim what the phone said). The phone
+speaks its own cues with the same thresholds, plus "Follow the beat" and "Place the finger sensor".
 
 ## 16. Medication read-back
 
@@ -1594,7 +1636,7 @@ active get `incidentId = 0`.
 | `device` | `id` PK, `kind`, `lastSeen` | Who's connected and when last seen (`heartbeat`, and relay/bodycam writes) |
 | `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. `hr`/`spo2` stored only when `status` is `pulse`. Kept 30 min |
 | `waveform` | `id`, `incidentId`, `ts`, `device`, `samples` f32[], `rateHz`, `simulated` | Raw `ir` batches, about 5 per second, up to 200 samples each. Kept 30 s |
-| `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples` |
+| `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS`, `assist`, `bpm`, `onBeatPct?`, `phaseErrMs?`, `onBeatSum`, `onBeatSamples`, `assistAt?` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples`; average % on the beat = `onBeatSum / onBeatSamples` (decision 18). `assist`, `bpm`, `onBeatPct?`, `phaseErrMs?`, `assistAt?` are written by `push_cpr_assist` (`assist` counts only while `assistAt` is under 3 s old); the totals count only during an arrest, while compressing, with beat data, and not under an override |
 | `transcript` | `id`, `incidentId` (index), `ts`, `text` | One row per sentence, up to 500 characters |
 | `rtc_signal` | `id`, `ts`, `sessionId`, `sender`, `kind`, `payload` | WebRTC video handshake (§22.5). Keyed by session, not incident. Kept 10 min |
 | `event` | `id`, `incidentId` (index), `ts`, `kind`, `label`, `sources` (array of `{kind, detail, ts}`), `mergedCount`, `status` | The timeline. `status`: logged, flagged, confirmed, cancelled. Merging in §18, kinds in §22.7 |
@@ -1635,6 +1677,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Any | `set_status(status, sourceKind, sourceDetail)` | Any transition allowed; the source becomes the timeline chip, e.g. `("arrest", "voice", "her heart stopped")` |
 | Any | `heartbeat(device, kind)` | Keeps `device.lastSeen` fresh |
 | Bodycam | `push_cpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s (§22.4). Ignored while a demo override is on |
+| Bodycam (CPR assistance) | `push_cpr_assist({assist, bpm, onBeatPct?, phaseErrMs?})` | About 2×/s, right after `push_cpr` (§22.4). No-op until a `cpr_state` row exists |
 | Bodycam / voice worker | `add_transcript({text})` | One row per sentence |
 | Bodycam (W6) | `identify_patient({patientRef, method})` | method `ID card`, `voice` or `manual`; sets `incident.patientRef` and logs `patient_identified` |
 | Bodycam / agents | `log_event({kind, label, sourceKind, sourceDetail})` | Read-backs, findings, procedures (§22.7) |
@@ -1716,10 +1759,18 @@ The detector in `hardware/software/phone/` (on the `hardware` branch) reads
 `{rate, count, sinceLast, paused, compressing}` (rate is the median interval of recent compressions; `paused`
 after a gap). Self-tests in `dsp_selftest.js`.
 
-The bodycam sends it about twice a second as
-`pushCpr({ rate, count, sinceLastS: sinceLast, paused, compressing })`. `rate` may be undefined. Before the first
-compression, send `sinceLastS` = seconds since the page started; the server caps pauses at the time since the
-arrest began. `count` may reset on page reload (the server tracks `countBase`).
+The port in `web/src/cpr/dsp.ts` keeps the algorithm unchanged, with the same tests (`cd web && npm run test:cpr`).
+CPR assistance (decision 18) sends about twice a second, in this order on one connection:
+`pushCpr({ rate, count, sinceLastS: sinceLast, paused, compressing })`, then
+`pushCprAssist({ assist, bpm, onBeatPct, phaseErrMs })`.
+- `rate`, `onBeatPct` and `phaseErrMs` may be undefined. `onBeatPct` / `phaseErrMs` are undefined ("no data",
+  never 0 %) while not compressing, under the demo override, or before any compression after a pause.
+- `assist` = the phone is coaching (metronome running, mode active or paused).
+- `bpm` is 0 when the metronome is off.
+- `onBeatPct` = % of the last ~8 compressions within 120 ms of the beat.
+- `phaseErrMs` = mean signed timing error (+ = late).
+- Before the first compression, send `sinceLastS` = seconds since the page started; the server caps pauses at the
+  time since the arrest began. `count` may reset on page reload (the server tracks `countBase`).
 
 ### 22.5 WebRTC video signaling (`rtc_signal`)
 
@@ -1759,7 +1810,7 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
 - Others: `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`,
   `status_<status>`. Rules also write `cpr_coached`, `cpr_paused`, `vitals_alarm_hr` and `vitals_alarm_spo2`
   (a merged alarm shows the newest number). `synthesize_seizure` writes `simulation` and `simulation_end`.
-- `sourceKind` is the chip: `voice`, `read-back`, `label`, `seen` (the camera saw it given), `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
+- `sourceKind` is the chip: `voice`, `read-back`, `label`, `seen` (the camera saw it given), `tap`, `MARK`, `motion`, `callout`, `phone coaching`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
 
 ### 22.8 Browser clients (TS SDK)
@@ -2069,7 +2120,8 @@ hackutd26/
     src/db/                     connection + config (hospital lane)
     src/module_bindings/        generated by `npm run generate`; don't edit by hand
     src/routes/hospital/        hospital lane
-    src/routes/bodycam/         chest-camera lane (placeholder)
+    src/routes/bodycam/         chest-camera lane (placeholder; mounts CPR assistance)
+    src/cpr/                    CPR assistance (Josh, decision 18; `npm run test:cpr`)
     src/routes/monitor/         placeholder from the dropped monitor page; becomes /controls (§28)
   ehr/                          mock FHIR R4 EHR, synthetic patients, port 4100 (hospital lane; README)
   agent/                        workflow agent W1 + W4, Nemotron with template fallback (hospital lane; README)

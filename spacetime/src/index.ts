@@ -207,7 +207,7 @@ export const heartbeat = spacetimedb.reducer({ device: t.string(), kind: t.strin
 // Bodycam
 // ---------------------------------------------------------------------------
 
-/** The phone detector output {rate, count, sinceLast, paused, compressing} (AGENTS.md 4.3). */
+/** The phone detector output {rate, count, sinceLast, paused, compressing} (SPEC §22.4). Unchanged contract. */
 export const pushCpr = spacetimedb.reducer(
   {
     rate: t.option(t.f32()),
@@ -243,9 +243,45 @@ export const pushCpr = spacetimedb.reducer(
         existing?.longestPauseS ?? 0,
         inArrest && inc?.arrestStartedAt ? Math.min(sinceLastS, secondsBetween(inc.arrestStartedAt, ctx.timestamp)) : 0
       ),
+      // CPR-assistance fields belong to push_cpr_assist; keep what it last wrote.
+      assist: existing?.assist ?? false,
+      bpm: existing?.bpm ?? 0,
+      onBeatPct: existing?.onBeatPct,
+      phaseErrMs: existing?.phaseErrMs,
+      onBeatSum: existing?.onBeatSum ?? 0,
+      onBeatSamples: existing?.onBeatSamples ?? 0,
+      assistAt: existing?.assistAt,
     };
     if (existing) ctx.db.cprState.incidentId.update(row);
     else ctx.db.cprState.insert(row);
+  }
+);
+
+/**
+ * CPR assistance on the chest phone (SPEC decision 18), sent next to push_cpr about twice a second.
+ * assist = the phone is coaching (metronome + its own cues; the server's CPR callouts then stay quiet but are
+ * logged). bpm = metronome tempo, 0 = off. onBeatPct / phaseErrMs = timing vs the beat, undefined = no data.
+ * A separate reducer so push_cpr's contract (used by other lanes) doesn't change.
+ */
+export const pushCprAssist = spacetimedb.reducer(
+  { assist: t.bool(), bpm: t.f32(), onBeatPct: t.option(t.f32()), phaseErrMs: t.option(t.f32()) },
+  (ctx, { assist, bpm, onBeatPct, phaseErrMs }) => {
+    const inc = activeIncident(ctx);
+    const incidentId = inc?.id ?? 0n;
+    const existing = ctx.db.cprState.incidentId.find(incidentId);
+    if (!existing) return; // push_cpr creates the row; the next tick lands here
+    const countBeat =
+      inc?.status === 'arrest' && assist && existing.source !== 'override' && existing.compressing && onBeatPct !== undefined;
+    ctx.db.cprState.incidentId.update({
+      ...existing,
+      assist,
+      bpm,
+      onBeatPct,
+      phaseErrMs,
+      onBeatSum: existing.onBeatSum + (countBeat ? onBeatPct : 0),
+      onBeatSamples: existing.onBeatSamples + (countBeat ? 1 : 0),
+      assistAt: ctx.timestamp,
+    });
   }
 );
 
