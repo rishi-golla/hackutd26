@@ -22,7 +22,10 @@ from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # n
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 LED = 0x24
-HOLD_S = 3.0                               # keep showing the last good HR through short glitches
+HOLD_S = 3.0
+# Button light ring, common + to 3.3 V, so a color is on when its pin is LOW. Wired: GPIO22 lights blue, GPIO24 red
+# (checked by eye on 2026-11-07); the green leg on GPIO23 is not connected.
+BLUE, RED = 22, 24                               # keep showing the last good HR through short glitches
 
 
 # Hub (hub.py on this Pi): every reading also goes there, so the phone and dashboard see it. Never blocks the sensor.
@@ -130,9 +133,10 @@ def main():
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)    # MARK button: pin 11 to ground (pin 9)
+    GPIO.setup([BLUE, RED], GPIO.OUT, initial=GPIO.HIGH)
     st = {"m": None, "err": 0, "got_at": time.time(), "R": [], "I": [], "o2": [], "finger": False, "base": 15000.0, "ac_ok": [],
           "hist": [], "recent": [], "last_ok": 0.0, "hr": 0, "state": None, "linked": False, "btn": False,
-          "marks": 0, "unsub_at": None, "dev_at": 0.0}
+          "marks": 0, "mark_at": 0.0, "unsub_at": None, "dev_at": 0.0}
     # base: no-finger IR level, first guess 15k (11-16k measured), then learned from this sensor and room
 
     def sample():
@@ -159,8 +163,19 @@ def main():
             st["marks"] += 1
             say(True, ev="mark", n=st["marks"])
             hub("mark", st["marks"])
+            st["mark_at"] = time.time()
         st["btn"] = pressed
         return True
+
+    def light(s, now):
+        """The button ring shows the state at a glance: steady blue = reading, blinking blue = finger on but no
+        reading yet (measuring or adjust the finger), off = no finger, blinking red = sensor not responding,
+        a short red flash = MARK registered."""
+        blink = int(now * 2) % 2 == 0
+        blue = s == "live" or (s not in ("no_finger", "sensor_error") and blink)
+        red = (s == "sensor_error" and blink) or now - st["mark_at"] < 0.4
+        GPIO.output(BLUE, GPIO.LOW if blue else GPIO.HIGH)
+        GPIO.output(RED, GPIO.LOW if red else GPIO.HIGH)
 
     def state(s, **k):
         if s != st["state"]:
@@ -223,6 +238,7 @@ def main():
             say(True, hr=hr)
         st["hr"] = hr
         state(s)
+        light(s, now)
         try:
             # the handheld gets nothing while the sensor is unreadable (it then shows signal lost), else every tick
             linked = st["linked"]
@@ -263,6 +279,7 @@ def main():
     finally:
         if st["m"]:
             st["m"].close()
+        GPIO.output([BLUE, RED], GPIO.HIGH)
 
 
 if __name__ == "__main__":

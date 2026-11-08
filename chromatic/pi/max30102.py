@@ -11,6 +11,7 @@ from scipy.signal import find_peaks
 ADDR = 0x57
 FS = 100.0                      # 400 Hz sampling, 4-sample averaging
 WIN = int(FS * 4)               # samples analysed per estimate
+CAL_FILE = "/home/cmx/spo2_cal.json"   # this sensor's SpO2 correction, written by `max30102.py calibrate`
 
 
 class Max30102:
@@ -92,14 +93,13 @@ def estimate(ir):
     return out
 
 
-def spo2(red, ir):
-    """SpO2 % from the last 3-4 s of red and IR, or None when the signal can't support a number.
+def ratio(red, ir):
+    """The SpO2 ratio R from the last 3-4 s of red and IR, or None when the signal can't support it.
     Maxim's per-beat method (MAXREFDES117, SparkFun spo2_algorithm): per beat between two IR troughs, AC is the pulse
-    height above the line joining the troughs, R = (AC_red/DC_red) / (AC_ir/DC_ir), and the median R goes through
-    Maxim's curve. Every gate must pass: no saturation or step, red and IR pulses correlate >= 0.9, >= 3 beats at
-    40-180 bpm with IR heights within 20 %, per-beat R within 15 %, perfusion 0.05-5 %, R 0.2-1.0.
-    On 2026-11-07 recordings: 0 readings below 95 for a healthy subject and 0 on noise, where the old ratio method
-    gave 87 and always a number. Uncalibrated: not fitted against a reference oximeter."""
+    height above the line joining the troughs, R = (AC_red/DC_red) / (AC_ir/DC_ir), median over the beats. Every
+    gate must pass: no saturation or step, red and IR pulses correlate >= 0.9, >= 3 beats at 40-180 bpm with IR
+    heights within 20 %, per-beat R within 15 %, perfusion 0.05-5 %, R 0.2-1.0. On 2026-11-07 recordings this gave
+    0 readings below 95 for a healthy subject and 0 on noise; the old ratio method gave 87 and always a number."""
     red, ir = np.asarray(red, float), np.asarray(ir, float)
     if len(ir) < FS * 3 or len(red) != len(ir):
         return None
@@ -124,7 +124,44 @@ def spo2(red, ir):
     r, perfusion = np.median(rs), np.median(ac_i) / ir.mean()
     if ac_i.std() > 0.2 * ac_i.mean() or not 0 < rs.std() < 0.15 * r or not 0.0005 <= perfusion <= 0.05 or not 0.2 <= r <= 1.0:
         return None
-    return int(round(min(100.0, -45.060 * r * r + 30.354 * r + 94.845)))
+    return float(r)
+
+
+def curve(r):
+    """Maxim's ratio-to-SpO2 curve, before this sensor's correction."""
+    return -45.060 * r * r + 30.354 * r + 94.845
+
+
+def _correction():
+    try:
+        return float(json.load(open(CAL_FILE))["offset"])
+    except (OSError, ValueError, KeyError):
+        return 0.0                                          # not calibrated yet: Maxim's curve as is
+
+
+OFFSET = _correction()
+
+
+def spo2(red, ir):
+    """SpO2 % from the last 3-4 s of red and IR, or None. Maxim's curve plus this sensor's measured correction."""
+    r = ratio(red, ir)
+    return None if r is None else int(round(min(100.0, curve(r) + OFFSET)))
+
+
+def calibrate(raw_file, reference):
+    """One-point calibration: the median R over every clean 4 s window of a recording made while a reference
+    oximeter read `reference` %, and the offset that makes the curve agree. Saved to CAL_FILE with its evidence."""
+    d = json.load(open(raw_file))
+    red, ir = d["red"], d["ir"]
+    rs = [r for end in range(WIN, len(ir) + 1, 25) for r in [ratio(red[end - WIN:end], ir[end - WIN:end])] if r]
+    if len(rs) < 20:
+        sys.exit(f"only {len(rs)} clean windows (need 20): hold the finger firmly and still, then record again")
+    r = float(np.median(rs))
+    cal = {"offset": round(reference - curve(r), 2), "r": round(r, 4), "reference": reference,
+           "windows": len(rs), "r_spread": round(float(np.percentile(rs, 90) - np.percentile(rs, 10)), 4),
+           "date": time.strftime("%Y-%m-%d %H:%M")}
+    json.dump(cal, open(CAL_FILE, "w"), indent=1)
+    print(json.dumps(cal))
 
 
 def steady_spo2(values, new):
@@ -150,7 +187,10 @@ def shown(recent, hist, hr):
 
 if __name__ == "__main__":
     # python3 max30102.py [secs]               one estimate per second
-    # python3 max30102.py record SECS FILE     raw red/IR samples for test_sensor.py's testdata/ (stop the service first)
+    # python3 max30102.py record SECS FILE     raw red/IR samples, e.g. for testdata/ (stop the service first)
+    # python3 max30102.py calibrate FILE REF   SpO2 correction from a recording taken while a reference read REF %
+    if sys.argv[1:2] == ["calibrate"]:
+        sys.exit(calibrate(sys.argv[2], float(sys.argv[3])))
     rec = sys.argv[1:2] == ["record"]
     secs = float(sys.argv[2 if rec else 1]) if len(sys.argv) > (2 if rec else 1) else 20
     m = Max30102()
