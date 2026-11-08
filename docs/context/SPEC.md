@@ -16,6 +16,10 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~07:00 (Rishi): the hospital dashboard becomes three pages** (§0.1 decision 25, §14; `web/` only, no
+  table or reducer changes; hospital lane, pending Josh's OK). Live Operations, Patient and Tracing behind one
+  sidebar, light with dark mode, built from the tables only; the mockups' invented capacity, fleet, map, BP and
+  checklist are left out.
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
 - **Sun ~05:50 (Alan): model advisories off for the demo** (`VOICE_PROACTIVE=off` in the demo laptop's
@@ -566,6 +570,28 @@ section and add a change-log line.
         "Handoff, what have we given so far?" (seen live) is overruled and the question is answered. A softer cue
         (a request, a follow-up) lets the model answer but its DROP stands, and a bare "can you" / "could you" is
         not a request to Handoff ("Hey can you pass me the tape" was answered "Sure, I'll grab a roll", live).
+25. **The hospital dashboard is three pages behind one sidebar** (Rishi, Sun ~07:00; hospital lane, needs Josh's
+    OK before merge). Replaces the Sat ~21:30 five-panel `/hospital` (§14). Light theme with a dark-mode switch.
+    The original five-panel dashboard remains at `/hospital/classic`, with its own stylesheet and a sidebar link.
+    - **Pages:** `/hospital` Live Operations (every call, the next arrival, the activity feed), `/hospital/patient`
+      (one patient: live view, vitals, record, care timeline with the decision log, ER messages, the handoff
+      report) and `/hospital/tracing` (one session: live view, a status-phase bar, session events, and Transcript /
+      Overview / Logs tabs). `?incident=<id>` picks the call; without it, the newest.
+    - **Layout refinement (Rishi):** match the supplied lavender reference: narrow sidebar, translucent panels,
+      compact summary cards and larger calls/activity panels. Live Operations has just its title (no eyebrow or
+      subtitle). Live ambulance video and current-patient details occupy the map/capacity positions; those
+      unsupported mockup features remain omitted. Other routes retain their concise context captions.
+    - **Historical calls:** never show another call's live vitals or camera. Closed calls show no live readings
+      or video (there is no recording). `request_report` targets the newest incident without an ID argument, so
+      only that call can request a report; older calls can view an existing report.
+    - **Real data only.** The design mockups' invented parts are left out: hospital capacity and bed counts, ETA
+      and volume trends, other ambulances, a map (no GPS feed exists), blood pressure (not measured), acuity, an
+      assigned team, patient ID numbers, attached files, a receiving-plan checklist, a video scrubber (only live
+      frames exist, nothing is recorded), search, notifications and user accounts. Every honesty rule of §14 and
+      §24 stands: "—" for a missing reading, a brief dimmed hold, "from EHR" / "cached copy", no HR/SpO₂
+      alarm colour in an arrest, one action (Generate Handoff), and its "no reply" state after 30 s.
+    - **Reverses** these Sat ~21:30 removals now that there is room: route and ETA (shown only when the agent set a
+      destination), and the spoken transcript (Patient's "Heard from the medic", Tracing's Transcript tab).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1491,20 +1517,31 @@ What the ER sees, on the Mac and any second screen. Judges see the agent act and
 updates through the event timeline. Its only action is **Generate Handoff**; expanding a decision is view-only.
 No demo controls here.
 
-**Layout (five panels, Sat ~21:30; Alan's sketch; the code in `web/src/routes/hospital/` is the reference):** fits
-1440×900 without scrolling. Dark, quiet panels in the style of the Pipecat Playground; Inter.
+**Layout (decision 25):** three pages with a narrow sidebar, light lavender surfaces, DM Sans, and a persisted
+dark-mode switch. The original dark five-panel dashboard is kept at `/hospital/classic` for fallback. Its
+original Inter typography, video, status, vitals, timeline and patient panels remain available there.
 
-| Left | Right |
+| Page | Content |
 | --- | --- |
-| **Live view** (large): the bodycam video, click to enlarge. Before the first frame, a halftone heart floats slowly in the panel (Canvas UI's Dithered Object, loaded only then); on stale the last frame stays under the Stale badge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
-| | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show three breathing dots while the sensor settles (relay status `acquiring`/`calibrating`, or SpO₂ not in yet), hold the last good number dimmed through a dropout of up to 6 s, then fall back to the dots or "—"; during an arrest they show the demo's simulated arrest (HR 0, SpO₂ "—", decision 15) and "—" for the real clip (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds; no alarm colour during an arrest) |
-| **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. Up to two live decision lines sit above the events; completed decisions expand to their recorded updates. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
+| **Live Operations**, `/hospital` | Compact cards for active calls, next arrival, pending read-backs and today's calls. Live ambulance view and current patient above a larger calls table and activity feed. Clicking a call opens its patient page. Counts and ETA come from database rows; no capacity, GPS map, fleet or trend data is invented. |
+| **Patient**, `/hospital/patient` | Name, age, actual record reference, unit, status and ETA. Three columns: live video and latest medic transcripts above the care timeline; vitals and EHR clinical details; ER communication log and handoff report. A ready report opens in the video panel with a Live / Report switch. |
+| **Tracing**, `/hospital/tracing` | Selected call, unit, start and duration; live video and a phase bar from recorded status events above session events. Transcript / Overview / Logs tabs show spoken or queued lines, counts, and the decision timeline. No video recording or playback controls. |
 
-Panel titles use the same small monospace caption style. Nothing explains itself on screen, and nothing moves
-except clocks, live values, the placeholder heart before video and the brief decision-line transition
-(disabled under reduced motion). The decision log is restored by decision 24. Still absent: route and ETA,
-source chips (still in the report),
-trend lines and the pulse waveform, the big spoken-callout text, and the simulated / demo-timing marks.
+`?incident=<id>` selects a call. Missing IDs never silently fall back to another patient. Without a selection,
+the newest call is shown. Historical or closed calls never show another incident's current vitals or camera.
+Live view retains the halftone heart before the first frame, stale badge after 3 s, click to enlarge and Escape
+to minimize. No recording is available for closed calls.
+
+Vitals retain H3: HR, SpO₂, temperature, CPR rate, next epi and elapsed; measuring dots while settling, dimmed
+last-good values for at most 6 s, then dots or "—". During arrest the real clip is blank; simulated HR 0 is
+allowed (decision 15). CPR rate and epi timing appear only during arrest. Alarm thresholds are unchanged.
+The record is labelled "from EHR" or "cached copy", and allergies are highlighted. Flagged events use amber
+"awaiting confirmation" labels. Up to two live decision lines precede the timeline and completed decisions
+expand into their recorded updates; reduced motion disables their transitions.
+
+Generate Handoff remains the only clinical write action. It is enabled only for the newest incident because
+the reducer has no incident argument. Existing reports for older calls remain readable with their source
+chips. Failed, queued and overdue requests are labelled without claiming success.
 
 | ID | Requirement | Done when |
 | --- | --- | --- |

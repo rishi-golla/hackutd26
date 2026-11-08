@@ -15,7 +15,7 @@ import LiveVideo from './LiveVideo';
 import ReportView from './ReportView';
 import { LiveThought, ThoughtRow } from './ThoughtRows';
 import { groupThoughts, liveThoughts, type Thought } from './thoughts';
-import './hospital.css';
+import './hospital-classic.css';
 
 const VITALS_STALE_MS = 5000;
 // A dropout shorter than this (finger shifts, one noisy second) keeps the last good number, dimmed.

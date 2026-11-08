@@ -1,19 +1,21 @@
-import { StrictMode, useMemo } from 'react';
+import { lazy, Suspense, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SpacetimeDBProvider } from 'spacetimedb/react';
 import { makeConnectionBuilder } from './db/connection';
-import HospitalPage from './routes/hospital/HospitalPage';
+const HospitalApp = lazy(() => import('./routes/hospital/HospitalApp'));
+const ClassicHospitalPage = lazy(() => import('./routes/hospital/HospitalPage'));
 import BodycamPage from './routes/bodycam/BodycamPage';
 import ControlsPage from './routes/controls/ControlsPage';
 import './styles.css';
 
-// Plain path routing: /hospital (hospital lane), /bodycam (camera lane), /controls (demo controls; hidden, so
-// the index doesn't link it).
+// Plain path routing: /hospital and its pages (hospital lane), /bodycam (camera lane), /controls (demo controls;
+// hidden, so the index doesn't link it).
 function Route() {
   const path = window.location.pathname.replace(/\/+$/, '');
   if (path === '/bodycam') return <BodycamPage />;
   if (path === '/controls') return <ControlsPage />;
-  if (path === '/hospital') return <HospitalPage />;
+  if (path === '/hospital/classic') return <ClassicHospitalPage />;
+  if (['/hospital', '/hospital/patient', '/hospital/tracing'].includes(path)) return <HospitalApp />;
   return (
     <main className="index">
       <h1>Handoff</h1>
@@ -30,7 +32,7 @@ function Root() {
   const connectionBuilder = useMemo(() => makeConnectionBuilder(), []);
   return (
     <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
-      <Route />
+      <Suspense fallback={<main className="placeholder">Loading dashboard…</main>}><Route /></Suspense>
     </SpacetimeDBProvider>
   );
 }
