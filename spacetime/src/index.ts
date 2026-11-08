@@ -373,6 +373,15 @@ export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.stri
     case 'start':
       beginIncident(ctx, arg || 'Medic 12', 'demo');
       return;
+    case 'normal':
+      // Realistic normal vitals while the finger clip is off or unreliable (/controls "Normal vitals"). Same override
+      // path as the seizure: the relay's rows are ignored until it's stopped, replaced, closed or reset.
+      startVitalsOverride(ctx, 'normal', 'demo control');
+      break;
+    case 'sim_off':
+      // Stop whatever synthetic scenario is on; the relay's real data flows again.
+      endVitalsOverride(ctx, activeIncident(ctx)?.id, 'demo control');
+      break;
     case 'arrest':
     case 'rosc':
       // The demo's arrest and ROSC also play their vitals (scenarios.ts), overriding the real finger clip, so

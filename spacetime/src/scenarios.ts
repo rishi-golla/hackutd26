@@ -99,13 +99,27 @@ const PULSE_WAVEFORM: number[][] = [0, 1, 2, 3].map(b =>
   }),
 );
 
-type Scenario = { label: string; vitals: SyntheticVitals[]; waveform: number[][] };
+/**
+ * Normal vitals for a patient teammate whose finger clip is off or unreliable (/controls "Normal vitals", Sun ~06:15).
+ * 60 one-second rows that loop: HR drifts 72–84 with small beat-to-beat jitter, SpO₂ 97–99, temperature 36.6–36.8.
+ * Deterministic (a fixed pseudo-random sequence), so every run looks the same and nothing here is a measurement.
+ */
+export const NORMAL_VITALS: SyntheticVitals[] = Array.from({ length: 60 }, (_, i) => {
+  const slow = Math.sin((i / 60) * 2 * Math.PI); // one slow swing over the minute
+  const jitter = ((i * 7919) % 7) - 3; // -3..3, fixed per second
+  const hr = Math.round(78 + 5 * slow + jitter * 0.6);
+  const spo2 = 98 + (((i * 31) % 10) < 2 ? -1 : ((i * 31) % 10) > 8 ? 1 : 0);
+  return { hr, spo2, tempC: Math.round((36.7 + 0.1 * slow) * 10) / 10, status: 'pulse' };
+});
+
+type Scenario = { label: string; vitals: SyntheticVitals[]; waveform: number[][]; /** wrap around instead of holding the last row */ loop?: boolean };
 
 /** Every scenario by vitals_override.scenario name. */
 export const SCENARIOS: Record<string, Scenario> = {
   seizure: { label: 'seizure', vitals: SEIZURE_VITALS, waveform: SEIZURE_WAVEFORM },
   arrest: { label: 'arrest (no pulse)', vitals: ARREST_VITALS, waveform: FLAT_WAVEFORM },
   rosc: { label: 'ROSC', vitals: ROSC_VITALS, waveform: PULSE_WAVEFORM },
+  normal: { label: 'normal vitals', vitals: NORMAL_VITALS, waveform: PULSE_WAVEFORM, loop: true },
 };
 
 /** Device name on rows written by a scenario (sim-seizure, sim-arrest, sim-rosc), never mistaken for the relay. */
@@ -113,12 +127,12 @@ export function syntheticDevice(scenario: string) {
   return `sim-${scenario}`;
 }
 
-/** The synthetic row for second `index` of a scenario (holds the last row after the end). */
+/** The synthetic row for second `index` of a scenario (holds the last row after the end, or loops when `loop` is set). */
 export function scenarioFrame(scenario: string, index: number) {
   const sc = SCENARIOS[scenario] ?? SCENARIOS.seizure;
   const i = Math.max(0, index);
   return {
-    vitals: sc.vitals[Math.min(i, sc.vitals.length - 1)],
+    vitals: sc.vitals[sc.loop ? i % sc.vitals.length : Math.min(i, sc.vitals.length - 1)],
     waveform: sc.waveform[i % sc.waveform.length],
   };
 }
