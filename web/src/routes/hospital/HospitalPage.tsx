@@ -1,5 +1,6 @@
 // Hospital dashboard (hospital lane, spec §14). One action: Generate Handoff.
-// Honesty rules: a missing or stale reading shows "—" (no data), never a number; SpO₂ is labelled experimental;
+// Honesty rules: a missing or stale reading shows "—" (no data), never a number; SpO₂ carries no "experimental"
+// label here (decision 10, Sun ~01:30) but the caveat is still said if asked (§24.1);
 // the patient record says whether it came from the EHR or a cached copy.
 //
 // Five panels (Alan's sketch): live view and event timeline on the left; overall status (coloured by status),
@@ -165,7 +166,7 @@ export default function HospitalPage() {
         {/* Every live metric. HR and SpO₂ read nothing useful through chest compressions, so they show no data
             during an arrest (§9); CPR rate and the epi timer only exist during one. */}
         <Metric label="Heart rate" unit="bpm" value={inArrest ? undefined : v?.hr} alarm={!inArrest && v?.hr !== undefined && (v.hr < 50 || v.hr > 150)} />
-        <Metric label="SpO₂ (experimental)" unit="%" value={inArrest ? undefined : v?.spo2} alarm={!inArrest && v?.spo2 !== undefined && v.spo2 < 90} />
+        <Metric label="SpO₂" unit="%" value={inArrest ? undefined : v?.spo2} alarm={!inArrest && v?.spo2 !== undefined && v.spo2 < 90} />
         <Metric label="Temperature" unit="°C" digits={1} value={v?.tempC} />
         <Metric label="CPR rate" unit="/min" value={rate} alarm={rate !== undefined && (rate < 100 || rate > 120)} />
         <Metric label="Next epi" text={inArrest ? epiText(epi, now) : undefined} alarm={inArrest && isDue(epi, now)} />
