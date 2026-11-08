@@ -1,0 +1,47 @@
+web/src/routes/hospital/LogsPage.tsx
+  s_7c808c9c036e61::t_39a41824d8982d 6,35,37,72
+web/src/routes/hospital/OpsPage.tsx
+  s_7c808c9c036e61::t_b75514281b787f 1-3,13,15-35,53-61,63,65,72
+web/src/routes/hospital/PatientPage.tsx
+  s_7c808c9c036e61::t_18dc523a2a9df6 3,8,10,45-46,49-76,78-80,83-84,104-106,110,126-127,130,140,153
+web/src/routes/hospital/PatientsPage.tsx
+  s_7c808c9c036e61::t_59ce8cf79edd1b 8-10,15-16,59,70,74,88-89,92,96
+web/src/routes/hospital/RecordingTimeline.tsx
+  s_7c808c9c036e61::t_cff4afe42f1451 1-176
+web/src/routes/hospital/Stamp.tsx
+  s_7c808c9c036e61::t_8485dd137ef658 1-17
+web/src/routes/hospital/ThoughtRows.tsx
+  s_7c808c9c036e61::t_2f714c55b167d6 5,29,44
+web/src/routes/hospital/TracingPage.tsx
+  s_7c808c9c036e61::t_5c54947f14885f 1-2,4,7-8,10,17,36,42-43,51,64,69,81,88
+web/src/routes/hospital/hospital.css
+  s_7c808c9c036e61::t_27551f26cfd8b6 98,152,154,276,298,300,381,415-449
+web/src/routes/hospital/recordings.ts
+  s_7c808c9c036e61::t_4fc033488729c3 5-10,16-25,43-44
+web/src/routes/hospital/sessionDetails.ts
+  s_7c808c9c036e61::t_ec629fa731c1a1 1-94
+web/src/routes/hospital/thoughts.ts
+  s_7c808c9c036e61::t_17200936a4bf32 44-46,229,240-241
+web/src/routes/hospital/ui.tsx
+  s_7c808c9c036e61::t_cb5859077758ec 4,7-8,131,134-135,139,144,162,165
+web/src/routes/hospital/useHospital.ts
+  s_7c808c9c036e61::t_a4809d38d59f39 9-11,77-87,111,115-117,122,151,154-155,158,165,171-173
+web/src/routes/hospital/vitals.ts
+  s_7c808c9c036e61::t_7c3cb097200bc2 6,68,70-75,90,93,95,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b468f7c2217f0bb5236736295fabd075fb409bc",
+  "prompts": {},
+  "sessions": {
+    "s_7c808c9c036e61": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_7c808c9c036e61",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
