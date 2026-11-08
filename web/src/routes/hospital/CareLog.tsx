@@ -7,7 +7,7 @@ import { Icon, time } from './ui';
 type CareEvent = Extract<TimelineRow, { kind: 'event' }>;
 
 function presentation(kind: string) {
-  if (kind === 'medication' || kind.startsWith('med_')) return { label: 'Medication', icon: 'pill', tone: 'violet' };
+  if (kind === 'medication' || kind.startsWith('med_')) return { label: 'Medication', icon: 'pill', tone: 'accent' };
   if (kind.startsWith('cpr_') || kind === 'shock') return { label: 'Resuscitation', icon: 'heart', tone: 'green' };
   if (kind.startsWith('sim_')) return { label: 'Simulation', icon: 'monitor', tone: 'grey' };
   if (kind === 'bodycam_started') return { label: 'Harness', icon: 'video', tone: 'blue' };

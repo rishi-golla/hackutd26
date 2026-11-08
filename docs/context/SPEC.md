@@ -31,6 +31,13 @@ necessarily when the decision was made.
   intact by user choice. Reload the phone and tap Start to use the new UUID protocol. Relay ingestion was
   verified after restart; a fresh physical camera run still needs that reload/Start. No demo video URLs
   have been supplied or attached.
+- **Sun (Rishi): hospital dashboard restyle, top navigation** (§0.1 decision 25 amended, §14; `web/` only).
+  The sidebar becomes a top bar: brand, pill navigation (Live Operations, Patients, Tracing; the active page is
+  a solid dark pill) and round controls for the classic dashboard and the light/dark switch. Logs leaves the
+  navigation; `/hospital/logs` still works and is reached from Live Operations' "All logs" link. Neutral
+  palette replaces lavender: one rounded shell on a soft backdrop, off-white panels holding white tiles,
+  Inter at light weights, large thin page titles. Live Operations' title row carries the date and the
+  "Patient details" action. Content and honesty rules are unchanged.
 - **Sun (Rishi): live harness workflow, retained patient vitals and hosted recordings** (§0.1 decision 26).
   Live Operations becomes the camera/relay demonstration. A new actual camera session opens an encounter;
   its readings persist after close. Hosted HTTPS videos can be attached to an explicit encounter through
@@ -626,7 +633,10 @@ section and add a change-log line.
       report) and `/hospital/tracing` (one session: live view, a status-phase bar, session events, and Transcript /
       Overview / Logs tabs). `?incident=<id>` picks the call; without it, the newest.
     - **Layout refinement (Rishi):** match the supplied lavender reference: narrow sidebar, translucent panels,
-      compact summary cards and larger calls/activity panels. Live Operations has just its title (no eyebrow or
+      compact summary cards and larger calls/activity panels. *Amended Sun (Rishi):* the sidebar is now a top
+      pill navigation with three entries (Live Operations, Patients, Tracing); Logs is reached from Live
+      Operations' "All logs" link and keeps its route. Neutral palette (rounded shell, off-white panels with
+      white inner tiles, Inter) replaces the lavender surfaces. Live Operations has just its title (no eyebrow or
       subtitle). Live ambulance video and current-patient details occupy the map/capacity positions; those
       unsupported mockup features remain omitted. Other routes retain their concise context captions.
     - **Historical calls:** never show another call's live vitals or camera. Closed calls show no live readings
@@ -1622,8 +1632,9 @@ What the ER sees, on the Mac and any second screen. Judges see the agent act and
 updates through the event timeline. Actions are **Generate Handoff** and **New patient** on Patients (decision
 27; confirmation is required before ending an active encounter). Other demo controls stay on `/controls`.
 
-**Layout (decision 25):** pages with a narrow sidebar, light lavender surfaces, DM Sans, and a persisted
-dark-mode switch. The original dark five-panel dashboard is kept at `/hospital/classic` for fallback. Its
+**Layout (decision 25, amended):** pages behind one top pill navigation (Live Operations, Patients, Tracing),
+one rounded shell on a soft backdrop, off-white panels holding white tiles, Inter, and a persisted dark-mode
+switch. Logs is not in the navigation; Live Operations links to it. The original dark five-panel dashboard is kept at `/hospital/classic` for fallback. Its
 original Inter typography, video, status, vitals, timeline and patient panels remain available there.
 
 | Page | Content |

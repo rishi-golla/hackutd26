@@ -18,15 +18,20 @@ export default function OpsPage({ data }: { data: HospitalData }) {
   } as Record<string, string>)[data.sensorStatus ?? ''] ?? (data.sensorStatus || 'Waiting for fresh relay readings');
   return (
     <>
-      <header className="page__head"><h1>Live Operations</h1></header>
+      <header className="page__head">
+        <h1>Live Operations</h1>
+        <div className="page__actions">
+          <span className="chip-date"><Icon name="calendar" size={16} />{new Date(data.now).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          {current && <button className="action" type="button" onClick={() => go('/hospital/patient', current.id)}>Patient details <Icon name="arrow" size={14} /></button>}
+        </div>
+      </header>
       <div className="capture-session">
         <span className="capture-session__icon"><Icon name="user" /></span>
         <div className="capture-session__identity">
           <b>{current ? patientLine(data.record) ?? 'Unidentified patient' : 'Ready for the next session'}</b>
           <span>{current ? `${current.unit} · Encounter ${current.id}` : 'Camera preview · no active encounter'}</span>
         </div>
-        {current && <><span className="capture-session__duration">{mmss(data.elapsedS)}</span><StatusPill status={current.status} />
-          <button className="action action--soft" type="button" onClick={() => go('/hospital/patient', current.id)}>Patient details <Icon name="arrow" size={14} /></button></>}
+        {current && <><span className="capture-session__duration">{mmss(data.elapsedS)}</span><StatusPill status={current.status} /></>}
       </div>
       <div className="capture">
         <Card title="Bodycam" icon="video" className="capture__camera">
