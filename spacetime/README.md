@@ -150,7 +150,7 @@ same event as another source. That's how voice plus label becomes one epi event 
   `med_epinephrine` event starts the epi timer.
 - `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`, `status_<status>`
 - written by the rules: `cpr_coached`, `cpr_paused`, `vitals_alarm_hr`, `vitals_alarm_spo2` (a merged alarm shows
-  the newest number); by `synthesize_seizure`: `simulation`, `simulation_end`
+  the newest number); by scenarios: `simulation_<name>`, `simulation_end_<name>`; CPR start: `cpr_started`
 - `sourceKind` is the chip: `voice`, `read-back`, `label`, `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
 
@@ -169,15 +169,38 @@ Makes the patient look like they're deteriorating, even though the teammate on t
 - **Relay lane:** `push_vitals` still returns success while it's on, so the relay LCD keeps showing the real
   pulse while the other screens show the seizure. To show it on the LCD, poll `SELECT * FROM vitals_override`
   (a row means on).
-- **Not in an arrest:** vitals alarms are off during an arrest (spec §9), and the held rows still say `pulse`.
-  Turn it off before the arrest if the story needs no pulse. It does not solve the mock-arrest pulse question.
+- **Not in an arrest:** vitals alarms are off during an arrest (spec §9). The demo controls' Arrest replaces the
+  seizure with the `arrest` scenario (no pulse); see below.
 - **Known gap:** the synthetic waveform is one fixed trace (too fast for the HR, one batch per second). Nothing
   draws a waveform yet; fix it when H3's waveform is built.
   Calling `true` while it's already on does nothing (the scenario doesn't restart).
-- Start and stop add timeline events (`simulation` / `simulation_end`, source `demo`). The normal vitals alarms
+- Start and stop add timeline events (`simulation_seizure` / `simulation_end_seizure`, source `demo`). The normal vitals alarms
   apply (not during an arrest): about 20 s in, "Heart rate one sixty-…", then "Oxygen saturation eighty-…".
 - Change the numbers in `src/scenarios.ts` and republish. Where it's called from (`/controls`, the agent, a
   hotkey) is not decided yet.
+
+### Arrest and ROSC scenarios (Alan, Sun ~02:00)
+
+The same override, started by the demo controls instead of `synthesize_seizure`:
+
+- `demo_control('arrest')` sets the status and starts the `arrest` scenario: HR 0, no SpO₂, status `no pulse`,
+  temperature 36.6 °C, a flat waveform; device `sim-arrest`. Held until ROSC, close or reset.
+- `demo_control('rosc')` sets the status and switches to `rosc`: HR 38 → ~104 and SpO₂ (from the 4th second)
+  84 → ~93 over ~10 s, then held; a calm ~100/min waveform; device `sim-rosc`. En route and arrived keep it.
+- A scenario's hr/spo2 are stored as written, so the arrest's HR 0 is in the row even though the status isn't
+  `pulse`. Readers that only trust `pulse` rows (the §15 alarms, the agents' "valid" flag) treat it as no valid
+  pulse, which is right.
+- `synthesize_seizure(true)` replaces either one; `synthesize_seizure(false)` only stops the seizure. Close and
+  reset stop any scenario. Arrest set any other way (`set_status`, the voice agent) doesn't start one, but leaving
+  the arrest any way ends its scenario (ROSC switches to `rosc`).
+- Timeline kinds are per scenario: `simulation_<name>` and `simulation_end_<name>`.
+
+### CPR start (Alan, Sun ~02:15)
+
+Arrest doesn't start CPR. CPR starts with `demo_control('cpr_start')` (also `cpr_slow` / `cpr_good` during an
+arrest), or `log_event('cpr_started', …)` from the voice agent when the medic says it. That sets the arrest if
+needed, starts the cycle timer, resets the CPR stats and logs "CPR started" once; again is a no-op. The CPR
+callouts (push faster, slow down, resume compressions) only run after it.
 
 ## Callouts
 

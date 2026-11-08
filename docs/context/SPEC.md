@@ -21,6 +21,21 @@ necessarily when the decision was made.
   as the hub's own `/dash`. The Vite dev server passes `/hub/*` through to the hub (`HUB_URL`, default
   `http://handoff-pi:8000` over Tailscale), so the hub needs no change. The WebRTC receiver stays and wins if a
   sender ever offers. No module changes.
+- **Sun ~02:15 (Alan): an arrest doesn't mean CPR has started** (§9, §15, D1; module, voice and `/controls`).
+  Arrest is logged as "Cardiac arrest recognised" only. CPR starts when (a) the operator taps **Start CPR** on
+  `/controls` (`demo_control('cpr_start')`; CPR slow/good during an arrest count too), or (b) the medic says it's
+  starting: the voice agent logs `log_event('cpr_started')`, which the module turns into the CPR start. That starts
+  the 2-minute cycle timer, resets the CPR stats and logs "CPR started"; the CPR callouts wait for it. "Starting
+  CPR" without an arrest sets the arrest first. However the arrest ends (demo, voice, agent), its no-pulse
+  scenario ends too: ROSC switches to the recovery scenario, other statuses stop it. Scenario events use one kind
+  per scenario (`simulation_<name>`, `simulation_end_<name>`) so they don't merge.
+- **Sun ~02:00 (Alan): Arrest and ROSC play simulated vitals** (decision 15, §22, §28; module change, hospital
+  lane: needs Josh's OK and a republish to Maincloud). `demo_control('arrest')` also starts an `arrest`
+  scenario: HR 0, no SpO₂, status `no pulse`, flat waveform, device `sim-arrest`. `demo_control('rosc')` switches
+  to `rosc`: HR 38 → ~104 and SpO₂ (readable after ~3 s) → ~93 over ~10 s, then held. Like the seizure, the real
+  finger clip is ignored while one runs, so the dashboard and the agents read the scenario; close or reset ends
+  it, and the seizure button replaces it. The dashboard shows a scenario's HR/SpO₂ during the arrest (it still
+  blanks the real clip then), and a dropout hold never carries a number from one source to another.
 - **Sun ~01:45 (Alan): HR and SpO₂ cells show the sensor settling and ride out jitter** (§14, H3, §24.1). While
   the relay reports `acquiring`/`calibrating` (finger on, sensor settling), or HR is reading and SpO₂ isn't yet,
   the cell shows three softly breathing dots instead of "—". If a reading drops out, the last good number stays,
@@ -249,9 +264,12 @@ section and add a change-log line.
     (HR, SpO₂, temperature, waveform) with a hardcoded seizure from `spacetime/src/scenarios.ts`: HR climbs to
     about 170 and SpO₂ falls to 80 over 30 s, then holds. Rows are stored with device `sim-seizure` and
     `simulated = true`. While it's on, the relay's calls succeed but aren't stored. `synthesize_seizure(false)`,
-    closing the incident or reset ends it. It covers the deterioration beat; it does **not** settle the
-    mock-arrest pulse question (§28). Where it's called from is [OPEN] (§28). The data is hardcoded on purpose,
-    to be tuned later.
+    closing the incident or reset ends it. It covers the deterioration beat. Where else it's called from is
+    [OPEN] (§28). The data is hardcoded on purpose, to be tuned later. **Arrest and ROSC scenarios** (Alan, Sun
+    ~02:00): the demo controls' Arrest also starts an `arrest` scenario (HR 0, no SpO₂, status `no pulse`, flat
+    waveform; device `sim-arrest`), and ROSC switches to a `rosc` scenario (HR back to ~104 and SpO₂ to ~93
+    over ~10 s, then held; device `sim-rosc`). Same override path: the real clip is ignored while one runs, and
+    close or reset ends it. This settles the mock-arrest pulse question (§28).
 16. **The camera logs drugs it sees being given: stretch** (Alan, Sat ~18:20; made a stretch goal at the 19:31
     meeting). In the MVP, medications are logged from what the medic says, through the voice read-back. If the
     stretch is built, the camera also logs what it sees: a medication seen being given is logged even if nobody
@@ -870,7 +888,7 @@ source.*
 | 0:40 Suit up | Hands-on | Patient teammate lies down on the mat. Fitter puts the harness on the judge. Demo operator starts the incident from `/controls`. | Wears the harness; the hospital screen shows live video from the chest camera. | Goes live; video flows to the hospital. | | Status ON SCENE. Live video from the chest camera starts. | |
 | 1:00 Your vitals | Hands-on | Fitter hands the judge the finger clip and the temperature probe. | Clips the finger sensor onto the patient teammate's finger and tapes the temperature probe to their wrist. The patient's real heart rate appears on the LCD and the hospital screen within about 10 s. | | Shows the patient's HR, SpO₂ and temperature, with LINK OK. | Vitals tiles fill with the patient's real numbers. | |
 | 1:20 Who is it? | Hands-on | Narrator: "Find out who your patient is: check their pocket, show the card to your camera, and say 'Handoff, look'." | Takes the ID card from the patient teammate's pocket, holds it 20–50 cm from the chest camera and says "Handoff, look" (or reads the name and birth date aloud). Hears the record summary. | ★ After about 3 s: "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." | | ★ The patient section fills from the EHR: name, age, allergies, medications, history, code status. | Reads the name and birth date off the card (or hears them), decides to search the EHR, pulls the record and queues the spoken summary; asks if more than one patient matches. |
-| 1:45 Arrest and CPR | Hands-on | Demo operator triggers the simulated arrest from `/controls`. Narrator: "Your patient's heart just stopped. Hands above the chest, don't touch. Start compressions." | Kneels beside the patient and mimes compressions: stacked hands hover a few centimetres above the chest, no contact. | ★ "Push faster" if under 100/min; silent if in range. | | Status ARREST; CPR rate live in the vitals grid. The pre-arrival alert and the destination appear in the event timeline. | Picks the hospital, posts the alert. |
+| 1:45 Arrest and CPR | Hands-on | Demo operator triggers the simulated arrest from `/controls` (HR drops to 0). Narrator: "Your patient's heart just stopped. Hands above the chest, don't touch. Start compressions." CPR starts when the judge says "starting CPR" or the operator taps Start CPR. | Kneels beside the patient and mimes compressions: stacked hands hover a few centimetres above the chest, no contact. | ★ "Push faster" if under 100/min; silent if in range. | | Status ARREST; CPR rate live in the vitals grid. The pre-arrival alert and the destination appear in the event timeline. | Picks the hospital, posts the alert. |
 | 2:10 Pause | Hands-on | Narrator: "Stop, check for a pulse." | Stops and lifts their hands away. | ★ After 10 s: "Resume compressions." | | Timeline: "Compressions paused 10 s". | |
 | 2:20 Drugs | Hands-on | Narrator hands over the line card. | Says "Administering one milligram of epi IO." Then "Giving three hundred milligrams of amiodarone." | ★ "Copy. Epinephrine, one milligram, I-O." Then: "Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Say confirm or correction." | | Next epi starts counting down when the dose is logged. The epi event appears in the timeline; the amiodarone attempt is flagged in soft red. | Logs the read-back (merging the camera's finding if the stretch is built); logs the allergy flag. |
 | 2:40 Hospital screen | Explain | Narrator: "Transport." ER host walks the judge through the screen: the live video, the patient panel from the EHR, the vitals and the event timeline with the pre-arrival alert. Then points out the CPR numbers, the record's history and the source chips on the report. | ★ Clicks Generate Handoff and reads their own report on the hospital screen. | "Epi due" when the 45 s DEMO TIMING countdown ends. | | Status ARRIVED. The report shows the judge's own CPR numbers and the record's history, with a source chip on every line. | Writes the sourced report, with the EHR as a source. |
@@ -934,7 +952,7 @@ Numbering note: the 15:36 copy and the old `AGENTS.md` had D1–D6, where D5 was
 no QR codes) and D6 was demo timing (now D5). ROSC, Transport and Arrived are not on the D1 list (§28).
 
 Built so far: the `demo_control` reducer already supports `start`, `arrest`, `rosc`, `en_route`, `arrived`,
-`close`, `reset`, `cpr_slow` (forces 90/min), `cpr_good` (forces 110/min), `cpr_clear`, `epi_due_now`,
+`close`, `reset`, `cpr_start` (Sun ~02:15), `cpr_slow` (forces 90/min), `cpr_good` (forces 110/min), `cpr_clear`, `epi_due_now`,
 `identify` (default `pt-0001`) and `demo_timing` (`on`/`off`). Reset deletes every incident and its rows and
 re-seeds the hospitals; `device` rows stay, so devices stay connected.
 
@@ -1000,8 +1018,11 @@ stateDiagram-v2
 | `closed` | None; the record is read-only | None |
 
 As built: `standby` means there is no active incident (no row). Starting an incident (`start_incident`, demo
-Start, or the relay's 2 s hold) creates one in `on_scene` with DEMO TIMING on. Entering `arrest` starts the cycle
-timer and resets the CPR stats for this arrest; leaving it cancels the timers. `set_status` and `demo_control`
+Start, or the relay's 2 s hold) creates one in `on_scene` with DEMO TIMING on. Entering `arrest` doesn't start
+CPR (Alan, Sun ~02:15): CPR starts when the demo operator taps Start CPR (or CPR slow/good during an arrest) on
+`/controls`, or the medic says it's starting (the voice agent logs `cpr_started`). That starts the cycle timer,
+resets the CPR stats for this arrest and adds "CPR started" to the timeline; the CPR callouts (§15) only run
+after it. Leaving the arrest cancels the timers. `set_status` and `demo_control`
 allow any transition, so the demo can force every beat. `tick_rules` moves `en_route` to `arrived` when the ETA
 reaches 0. `save_report` closes the incident.
 
@@ -1254,7 +1275,7 @@ is **Generate Handoff**. No demo controls here.
 | Left | Right |
 | --- | --- |
 | **Live view** (large): the bodycam video, click to enlarge. Before the first frame, a halftone heart floats slowly in the panel (Canvas UI's Dithered Object, loaded only then); on stale the last frame stays under the Stale badge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
-| | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show three breathing dots while the sensor settles (relay status `acquiring`/`calibrating`, or SpO₂ not in yet), hold the last good number dimmed through a dropout of up to 6 s, then fall back to the dots or "—"; they show "—" during an arrest (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds) |
+| | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show three breathing dots while the sensor settles (relay status `acquiring`/`calibrating`, or SpO₂ not in yet), hold the last good number dimmed through a dropout of up to 6 s, then fall back to the dots or "—"; during an arrest they show the demo's simulated arrest (HR 0, SpO₂ "—", decision 15) and "—" for the real clip (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds; no alarm colour during an arrest) |
 | **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
 
 Panel titles use the same small monospace caption style. Nothing explains itself on screen, and nothing moves
@@ -1805,7 +1826,7 @@ active get `incidentId = 0`.
 | --- | --- | --- |
 | `incident` | `id` u64 PK auto, `unit`, `status`, `startedAt`, `updatedAt`, `arrestStartedAt?`, `destinationId?` u64, `etaAt?` timestamp, `patientRef?`, `demoMode` bool | `status`: standby, on_scene, arrest, rosc, en_route, arrived, closed. The active incident is the newest one not `closed`. `etaAt` is the arrival time (remaining minutes = `etaAt` − now). New incidents start with `demoMode` on |
 | `device` | `id` PK, `kind`, `lastSeen` | Who's connected and when last seen (`heartbeat`, and relay/bodycam writes) |
-| `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. `hr`/`spo2` stored only when `status` is `pulse`. Kept 30 min |
+| `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. From the relay, `hr`/`spo2` are stored only when `status` is `pulse`; a synthetic scenario's are stored as written (the arrest's HR 0 with status `no pulse`, written only by scenarios). Readers trust hr/spo2 only on `pulse` rows. Kept 30 min |
 | `waveform` | `id`, `incidentId`, `ts`, `device`, `samples` f32[], `rateHz`, `simulated` | Raw `ir` batches, about 5 per second, up to 200 samples each. Kept 30 s |
 | `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples` |
 | `transcript` | `id`, `incidentId` (index), `ts`, `text` | One row per sentence, up to 500 characters |
@@ -1818,7 +1839,7 @@ active get `incidentId = 0`.
 | `hospital` | `id` PK, `name`, `capabilities` (comma-separated), `driveMin`, `bedsFree` | Seeded, fictional: 1 Avon General (ed, 6 min, 4 beds), 2 Avon Heart Institute (ed, cath_lab, 9 min, 2 beds), 3 Northside Community (ed, 12 min, 6 beds) |
 | `patient_record` | `incidentId` PK, `patientRef`, `name`, `birthDate`, `allergies` string[], `medications` string[], `conditions` string[], `codeStatus`, `source` (EHR or cached), `updatedAt` | The record pulled from the mock EHR |
 | `report` | `incidentId` PK, `status` (requested, ready, failed), `requestedAt`, `readyAt?`, `contentJson` | Generate Handoff sets `requested`; W4 saves `ready` |
-| `vitals_override` | `key` PK (always `vitals`), `scenario` (e.g. `seizure`), `startedAt` | A row means a synthetic scenario replaces the relay's data (§0.1 decision 15). While on, `tick_rules` writes one `vitals` row and one `waveform` batch per second with device `sim-seizure` and `simulated = true` |
+| `vitals_override` | `key` PK (always `vitals`), `scenario` (`seizure`, `arrest`, `rosc`), `startedAt` | A row means a synthetic scenario replaces the relay's data (§0.1 decision 15). While on, `tick_rules` writes one `vitals` row and one `waveform` batch per second with device `sim-<scenario>` and `simulated = true`. A scenario's hr/spo2 are stored as written (the arrest's HR 0 with status `no pulse`) |
 | `rule_state`, `tick_schedule` | private | Rule bookkeeping (hold timers, last fired) and the 1 s schedule |
 
 **Not built** (in the earlier spec sketch, deliberately left out or not yet needed):
@@ -1982,7 +2003,7 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
   `med_epinephrine` event starts the epi timer.
 - Others: `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`,
   `status_<status>`. Rules also write `cpr_coached`, `cpr_paused`, `vitals_alarm_hr` and `vitals_alarm_spo2`
-  (a merged alarm shows the newest number). `synthesize_seizure` writes `simulation` and `simulation_end`.
+  (a merged alarm shows the newest number). Scenarios write `simulation_<name>` and `simulation_end_<name>`; the CPR start writes `cpr_started`.
 - `sourceKind` is the chip: `voice`, `read-back`, `label`, `seen` (the camera saw it given), `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
 
@@ -2218,7 +2239,7 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | **Phone ↔ laptop audio at the venue:** the Pipecat WebRTC endpoint needs the phone to reach the laptop (hotspot or TURN, same as video) and HTTPS for the mic off-localhost | Voice agent and camera lanes |
 | **ElevenLabs** as a sponsor tie-in: is it a track, and would it take the third slot? | Team, help desk |
 | **Live vs simulated, and SIMULATED labelling.** Which data is live and which is simulated in the demo, and how the screens show it. Decide at the end. Note: the voice brief says "anything simulated is labelled SIMULATED", which conflicts with this deferral; it stays open. Current state: the backend labels events from demo overrides and simulated relay data "(SIMULATED)", the dashboard shows a SIMULATED tag on simulated vitals, and `push_vitals` requires a `simulated` flag | Team |
-| During the mock arrest the patient teammate's real heart rate keeps showing a normal pulse (the dashboard hides HR during an arrest today). Decide with the live-vs-simulated question at the end | Team |
+| ~~During the mock arrest the patient teammate's real heart rate keeps showing a normal pulse~~ Settled Sun ~02:00 (Alan): the demo controls' Arrest plays a simulated `arrest` scenario (HR 0, no SpO₂) that overrides the real clip, and ROSC a `rosc` recovery (decision 15) | — |
 | **Relay `simulated` flag:** the module requires `"simulated"` in every `push_vitals`/`push_waveform` JSON (§22.2a). Keep it required, or default it to false? Until decided, the relay sends it | Josh, relay lane |
 | The `/monitor` route is gone (replaced by `/controls`, Sun ~01:00); the `monitor_tap` reducer from the dropped monitor page is still in the module — hospital lane to remove. | Josh |
 | **D1 list gap:** `/controls` now has ROSC, En route, Arrived and Close (in H8 and the module), plus CPR live, Seizure and Demo timing (Alan, Sun ~01:00). Team to confirm the wider D1 list | Team |

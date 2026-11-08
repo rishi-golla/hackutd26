@@ -187,7 +187,8 @@ export function stateJson(s: State) {
     record: s.record
       ? { name: s.record.name, birthDate: s.record.birthDate, allergies: s.record.allergies, medications: s.record.medications, conditions: s.record.conditions, codeStatus: s.record.codeStatus, source: s.record.source }
       : null,
-    vitals: s.vitals ? { hr: s.vitals.hr ?? null, spo2: s.vitals.spo2 ?? null, tempC: s.vitals.tempC ?? null, status: s.vitals.status, valid: s.vitals.valid, simulated: s.vitals.simulated, ageS: Math.round(s.vitals.ageS) } : null,
+    // A number only when the reading is valid: a scenario's HR 0 under 'no pulse' reaches the model as no reading.
+    vitals: s.vitals ? { hr: s.vitals.valid ? s.vitals.hr ?? null : null, spo2: s.vitals.valid ? s.vitals.spo2 ?? null : null, tempC: s.vitals.tempC ?? null, status: s.vitals.status, valid: s.vitals.valid, simulated: s.vitals.simulated, ageS: Math.round(s.vitals.ageS) } : null,
     cpr: s.cpr ? { rate: s.cpr.rate ?? null, compressing: s.cpr.compressing, count: s.cpr.count - s.cpr.countBase, longestPauseS: Math.round(s.cpr.longestPauseS), source: s.cpr.source, fresh: s.cpr.fresh } : null,
     timers: s.timers.map(t => ({ kind: t.kind, state: t.state, dueInS: Math.round((tsMs(t.dueAt) - s.now) / 1000) })),
     events: s.events.slice(-20).map(e => ({ id: Number(e.id), time: hhmm(e.ts), kind: e.kind, label: e.label, status: e.status, chips: [...new Set(e.sources.map(x => x.kind))] })),

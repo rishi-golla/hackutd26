@@ -102,6 +102,7 @@ export default function HospitalPage() {
   const latestVitals: Vitals | undefined = vitalsNewest[0];
   const v = latestVitals !== undefined && now - tsMs(latestVitals.ts) < VITALS_STALE_MS ? latestVitals : undefined;
   const hr = readingOf(vitalsNewest, r => r.hr, now);
+  const blankInArrest = incident?.status === 'arrest' && !v?.simulated;
   const spo2 = readingOf(vitalsNewest, r => r.spo2, now);
   const inArrest = incident?.status === 'arrest';
   const cpr = cprRows.find(c => c.incidentId === incId);
@@ -171,16 +172,21 @@ export default function HospitalPage() {
       </section>
 
       <section className="panel panel--data" aria-label="Vitals">
-        {/* Every live metric. HR and SpO₂ read nothing useful through chest compressions, so they show no data
-            during an arrest (§9); CPR rate and the epi timer only exist during one. */}
-        {/* HR and SpO₂ read nothing useful through chest compressions, so they stay blank in an arrest (§9). */}
+        {/* The real finger clip reads nothing useful through chest compressions, so HR and SpO₂ stay blank in an
+            arrest (§9) unless a simulated scenario is playing (the demo's arrest: HR 0, no SpO₂). No alarm colour in
+            an arrest: the §15 vitals alarms don't apply then. CPR rate and the epi timer only exist during one. */}
         <Metric
           label="Heart rate"
           unit="bpm"
-          reading={inArrest ? NONE : hr}
+          reading={blankInArrest ? NONE : hr}
           alarm={!inArrest && hr.value !== undefined && (hr.value < 50 || hr.value > 150)}
         />
-        <Metric label="SpO₂" unit="%" reading={inArrest ? NONE : spo2} alarm={!inArrest && spo2.value !== undefined && spo2.value < 90} />
+        <Metric
+          label="SpO₂"
+          unit="%"
+          reading={blankInArrest ? NONE : spo2}
+          alarm={!inArrest && spo2.value !== undefined && spo2.value < 90}
+        />
         <Metric label="Temperature" unit="°C" digits={1} value={v?.tempC} />
         <Metric label="CPR rate" unit="/min" value={rate} alarm={rate !== undefined && (rate < 100 || rate > 120)} />
         <Metric label="Next epi" text={inArrest ? epiText(epi, now) : undefined} alarm={inArrest && isDue(epi, now)} />
@@ -248,9 +254,12 @@ const NONE: Reading = { kind: 'none' };
 function readingOf(rows: Vitals[], pick: (r: Vitals) => number | undefined, now: number): Reading {
   const latest = rows[0];
   const fresh = latest !== undefined && now - tsMs(latest.ts) < VITALS_STALE_MS;
-  const good = rows.find(r => r.status === 'pulse' && pick(r) !== undefined);
+  // The module keeps the relay's hr/spo2 only on 'pulse' rows; a scenario's numbers (the arrest's HR 0) are kept as written.
+  const good = rows.find(r => pick(r) !== undefined);
   if (good && fresh && good === latest) return { kind: 'live', value: pick(good) };
-  if (good && now - tsMs(good.ts) < HOLD_MS) return { kind: 'held', value: pick(good) };
+  // Hold only bridges a gap in one source: a scenario taking over from the real clip (or ending) never carries
+  // the other's number across.
+  if (good && good.device === latest?.device && now - tsMs(good.ts) < HOLD_MS) return { kind: 'held', value: pick(good) };
   if (fresh && (MEASURING_STATUS.has(latest.status) || latest.status === 'pulse')) return { kind: 'measuring' };
   return NONE;
 }
