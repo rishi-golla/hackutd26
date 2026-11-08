@@ -6,7 +6,8 @@
 import { recognizeDrug } from './readback.js';
 
 export type SeenFinding =
-  | { type: 'id_card'; name: string; birthDate: string; confidence?: number; detail?: string }
+  /** birthDate is missing when the card shows no complete date of birth: it is never guessed. */
+  | { type: 'id_card'; name: string; birthDate?: string; confidence?: number; detail?: string }
   | { type: 'medication'; drug: string; dose?: string; confidence?: number; detail?: string }
   | { type: 'aed_pads' | 'airway_device' | 'iv_io'; confidence?: number; detail?: string }
   /** What is happening in view, one sentence (decision 24): context for Nemotron's turns; one trace row, never an event or transcript. */
@@ -41,8 +42,9 @@ export function parseSeen(body: Record<string, unknown>): SeenFinding | undefine
   if (type === 'id_card') {
     const name = personName(String(body.name ?? ''));
     const birthDate = String(body.birthDate ?? body.birth_date ?? '').trim();
-    if (!/^[A-Za-z][A-Za-z'’-]* [A-Za-z][A-Za-z'’ -]*$/.test(name) || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return undefined;
-    return { type, name, birthDate, confidence, detail };
+    if (!/^[A-Za-z][A-Za-z'’-]* [A-Za-z][A-Za-z'’ -]*$/.test(name)) return undefined;
+    // No complete date on the card: the finding stands without one (the brain identifies by name alone).
+    return /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? { type, name, birthDate, confidence, detail } : { type, name, confidence, detail };
   }
   if (type === 'medication') {
     const drug = String(body.drug ?? '').trim();
