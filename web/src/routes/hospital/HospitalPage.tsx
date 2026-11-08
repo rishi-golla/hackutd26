@@ -16,6 +16,11 @@ import ReportView from './ReportView';
 import './hospital.css';
 
 const VITALS_STALE_MS = 5000;
+// A dropout shorter than this (finger shifts, one noisy second) keeps the last good number, dimmed.
+const HOLD_MS = 6000;
+// Relay statuses that mean "finger on, sensor still settling" (bridge/hub_bridge.py maps measuring, settling,
+// moving, weak and noisy to acquiring).
+const MEASURING_STATUS = new Set(['acquiring', 'calibrating']);
 const CPR_STALE_MS = 3000;
 const REPORT_SLOW_MS = 30000;
 
@@ -93,8 +98,11 @@ export default function HospitalPage() {
       .map(m => ({ key: `m${m.id}`, t: tsMs(m.ts), text: `Alert to ER: ${m.text}`, flagged: false })),
   ].sort((a, b) => b.t - a.t);
 
-  const latestVitals: Vitals | undefined = [...vitalsRows].sort(byNewest)[0];
+  const vitalsNewest = [...vitalsRows].sort(byNewest);
+  const latestVitals: Vitals | undefined = vitalsNewest[0];
   const v = latestVitals !== undefined && now - tsMs(latestVitals.ts) < VITALS_STALE_MS ? latestVitals : undefined;
+  const hr = readingOf(vitalsNewest, r => r.hr, now);
+  const spo2 = readingOf(vitalsNewest, r => r.spo2, now);
   const inArrest = incident?.status === 'arrest';
   const cpr = cprRows.find(c => c.incidentId === incId);
   const cprFresh = cpr !== undefined && (cpr.source === 'override' || now - tsMs(cpr.updatedAt) < CPR_STALE_MS);
@@ -165,8 +173,14 @@ export default function HospitalPage() {
       <section className="panel panel--data" aria-label="Vitals">
         {/* Every live metric. HR and SpO₂ read nothing useful through chest compressions, so they show no data
             during an arrest (§9); CPR rate and the epi timer only exist during one. */}
-        <Metric label="Heart rate" unit="bpm" value={inArrest ? undefined : v?.hr} alarm={!inArrest && v?.hr !== undefined && (v.hr < 50 || v.hr > 150)} />
-        <Metric label="SpO₂" unit="%" value={inArrest ? undefined : v?.spo2} alarm={!inArrest && v?.spo2 !== undefined && v.spo2 < 90} />
+        {/* HR and SpO₂ read nothing useful through chest compressions, so they stay blank in an arrest (§9). */}
+        <Metric
+          label="Heart rate"
+          unit="bpm"
+          reading={inArrest ? NONE : hr}
+          alarm={!inArrest && hr.value !== undefined && (hr.value < 50 || hr.value > 150)}
+        />
+        <Metric label="SpO₂" unit="%" reading={inArrest ? NONE : spo2} alarm={!inArrest && spo2.value !== undefined && spo2.value < 90} />
         <Metric label="Temperature" unit="°C" digits={1} value={v?.tempC} />
         <Metric label="CPR rate" unit="/min" value={rate} alarm={rate !== undefined && (rate < 100 || rate > 120)} />
         <Metric label="Next epi" text={inArrest ? epiText(epi, now) : undefined} alarm={inArrest && isDue(epi, now)} />
@@ -222,17 +236,55 @@ function epiText(timer: Timer | undefined, now: number) {
   return isDue(timer, now) ? 'Due now' : mmss((tsMs(timer.dueAt) - now) / 1000);
 }
 
-/** One live metric. A missing reading shows a dash, never a stale number. */
-function Metric(props: { label: string; unit?: string; value?: number; digits?: number; text?: string; alarm?: boolean }) {
-  const { label, unit, value, digits = 0, text, alarm } = props;
-  const shown = text ?? (value !== undefined ? value.toFixed(digits) : undefined);
+type Reading = { kind: 'live' | 'held' | 'measuring' | 'none'; value?: number };
+const NONE: Reading = { kind: 'none' };
+
+/**
+ * What a pulse-oximeter metric shows, from the vitals rows (newest first):
+ * live — the newest row carries it; held — it dropped out less than HOLD_MS ago, so the last good number stays
+ * (dimmed); measuring — finger on and the sensor still settling, or HR is reading and this one hasn't come yet;
+ * none — finger off, a sensor fault, or the relay silent.
+ */
+function readingOf(rows: Vitals[], pick: (r: Vitals) => number | undefined, now: number): Reading {
+  const latest = rows[0];
+  const fresh = latest !== undefined && now - tsMs(latest.ts) < VITALS_STALE_MS;
+  const good = rows.find(r => r.status === 'pulse' && pick(r) !== undefined);
+  if (good && fresh && good === latest) return { kind: 'live', value: pick(good) };
+  if (good && now - tsMs(good.ts) < HOLD_MS) return { kind: 'held', value: pick(good) };
+  if (fresh && (MEASURING_STATUS.has(latest.status) || latest.status === 'pulse')) return { kind: 'measuring' };
+  return NONE;
+}
+
+/** One live metric. A missing reading shows a dash, never a stale number (a held one is dimmed and brief). */
+function Metric(props: {
+  label: string;
+  unit?: string;
+  value?: number;
+  reading?: Reading;
+  digits?: number;
+  text?: string;
+  alarm?: boolean;
+}) {
+  const { label, unit, digits = 0, text, alarm } = props;
+  const reading: Reading = props.reading ?? (props.value !== undefined ? { kind: 'live', value: props.value } : NONE);
+  const shown = text ?? (reading.value !== undefined ? reading.value.toFixed(digits) : undefined);
   return (
     <div className={`metric${alarm ? ' is-alarm' : ''}`}>
       <p className="metric__label">{label}</p>
-      <p className={`metric__value${shown === undefined ? ' metric__value--none' : ''}`}>
-        {shown ?? '—'}
-        {shown !== undefined && unit && <span className="metric__unit">{unit}</span>}
-      </p>
+      {reading.kind === 'measuring' && text === undefined ? (
+        <p className="metric__value" aria-label="measuring">
+          <span className="measuring" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </p>
+      ) : (
+        <p className={`metric__value${shown === undefined ? ' metric__value--none' : ''}${reading.kind === 'held' ? ' is-held' : ''}`}>
+          {shown ?? '—'}
+          {shown !== undefined && unit && <span className="metric__unit">{unit}</span>}
+        </p>
+      )}
     </div>
   );
 }
