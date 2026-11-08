@@ -105,6 +105,7 @@ async function openCamera() {
   stream.getTracks().forEach((t) => { t.onended = () => { dot('dCam', 'off'); dot('dMic', 'off'); hint('Camera stopped. Tap Start.', true); stopped(); }; });
   hint('');
   startMic();
+  connectVoice().catch(() => hint('Voice agent unreachable. Camera and mic still go to the hub.', true));
 }
 
 // Mic: 1 s chunks into one webm file on the hub, a fresh file each time the mic starts.
@@ -131,6 +132,34 @@ setInterval(() => {
   inFlight++;
   canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
+
+// Voice agent (spec §19): with ?voice=https://<worker>, mic and camera also go to the Pipecat worker over WebRTC,
+// and its spoken replies play here. Without it the page works as before.
+const voiceUrl = new URLSearchParams(location.search).get('voice');
+const voiceOut = document.createElement('audio');
+voiceOut.autoplay = true;
+document.body.appendChild(voiceOut);
+let voicePc = null;
+async function connectVoice() {
+  if (!voiceUrl || !stream) return;
+  if (voicePc) voicePc.close();
+  const pc = voicePc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+  pc.ontrack = (e) => { if (e.track.kind === 'audio') voiceOut.srcObject = new MediaStream([e.track]); };
+  pc.onconnectionstatechange = () => {
+    if (pc !== voicePc) return;
+    if (pc.connectionState === 'failed') hint('Voice link failed. Tap Flip twice to retry.', true);
+  };
+  await pc.setLocalDescription(await pc.createOffer());
+  await new Promise((done) => {
+    if (pc.iceGatheringState === 'complete') return done();
+    pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && done();
+    setTimeout(done, 2000);
+  });
+  const r = await fetch(voiceUrl.replace(/\/$/, '') + '/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }) });
+  await pc.setRemoteDescription(await r.json());
+}
 
 function stopped() { running = false; $('start').disabled = false; $('start').textContent = 'Start'; }
 

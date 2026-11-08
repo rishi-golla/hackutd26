@@ -1,0 +1,6 @@
+pipecat-ai[webrtc,silero,nvidia,openai]==0.0.108
+fastapi
+uvicorn[standard]
+httpx
+pillow
+python-dotenv

@@ -16,6 +16,16 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~21:55 (Devin for Rishi): voice agent worker built in `voice/`** (Pipecat, per §19).
+  - **Path:** phone mic and camera → Pipecat SmallWebRTC (its own signaling over HTTP, not `rtc_signal`) →
+    Nemotron ASR (NVIDIA cloud) → Nemotron 3 Nano Omni self-hosted on a Brev H100 (vLLM, tools) → speech policy →
+    Kokoro TTS on the same H100 → WebRTC audio back. `hub/phone.html?voice=<worker url>` opens the link; without the
+    parameter the page is unchanged.
+  - **Vision:** about 1 frame a second to Omni; ID cards go through `identify_patient` (method "ID card"), meds being
+    given become `med_*` events with source "seen", then the deterministic allergy and dose checks run.
+  - **Writes only existing reducers:** `add_transcript`, `identify_patient`, `log_event`, `add_callout`,
+    `callout_spoken`, `log_agent_step` (workflows "Voice" and "Vision"). No schema change. W6 still owns the record pull.
+  - **Measured end of speech → first reply audio: 1.6–2.9 s** with synthetic speech. The 700–1200 ms target is not met.
 - **Sat ~20:15 (Josh): hospital dashboard redesign.**
   - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
   - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
@@ -237,7 +247,8 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/bodycam` and `/monitor` are placeholders; `/controls` doesn't exist yet |
 | Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
 | Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
-| Not started | W6, voice agent worker, relay SpacetimeDB sender, `/controls` |
+| Voice agent worker | Built: `voice/` (Pipecat + WebRTC, Nemotron ASR, self-hosted Omni, Kokoro), local DB only. See `voice/README.md` |
+| Not started | W6, relay SpacetimeDB sender, `/controls` |
 | Pre-event prep | Enclosures were designed and printed and parts bought before the event; all software is built at the event. Say so plainly (§27) |
 
 ---

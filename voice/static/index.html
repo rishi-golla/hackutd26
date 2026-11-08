@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff voice link (test page)</title>
+<style>
+  body { font: 16px system-ui, sans-serif; background:#111; color:#eee; margin:0; padding:16px; }
+  video { width:100%; max-width:480px; background:#000; border-radius:8px; }
+  button { font-size:18px; padding:12px 20px; border-radius:8px; border:0; background:#2d7; color:#000; }
+  #log { font: 13px ui-monospace, monospace; white-space:pre-wrap; color:#aaa; }
+</style>
+</head>
+<body>
+<h3>Handoff voice link: test page</h3>
+<p>Synthetic prototype. The bodycam page (hub/phone.html) has the same link; this page is for testing the worker.</p>
+<video id="v" autoplay playsinline muted></video><br><br>
+<button id="go">Start</button>
+<audio id="a" autoplay></audio>
+<p id="log"></p>
+<script>
+const log = (t) => { document.getElementById('log').textContent += t + '\n'; };
+async function connect(stream, base) {
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  stream.getAudioTracks().forEach((t) => pc.addTrack(t, stream));
+  stream.getVideoTracks().forEach((t) => pc.addTrack(t, stream));
+  pc.ontrack = (e) => { if (e.track.kind === 'audio') document.getElementById('a').srcObject = e.streams[0] || new MediaStream([e.track]); };
+  pc.onconnectionstatechange = () => log('link: ' + pc.connectionState);
+  await pc.setLocalDescription(await pc.createOffer());
+  await new Promise((r) => { if (pc.iceGatheringState === 'complete') r(); pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && r(); setTimeout(r, 2000); });
+  const res = await fetch(base + '/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }) });
+  await pc.setRemoteDescription(await res.json());
+  return pc;
+}
+document.getElementById('go').onclick = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+  document.getElementById('v').srcObject = stream;
+  await connect(stream, location.origin);
+  log('offer sent');
+};
+</script>
+</body>
+</html>
