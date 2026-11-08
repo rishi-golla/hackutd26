@@ -145,7 +145,14 @@ export default function ControlsPage() {
         </div>
         <dl className="ctl__facts">
           <dt>Patient</dt>
-          <dd>{record ? record.name : active?.patientRef ? `${active.patientRef} · pulling record` : 'not identified'}</dd>
+          {/* §24.1: a record always says where it came from (EHR, or the cached copy). */}
+          <dd>
+            {record
+              ? `${record.name} · ${record.source === 'cached' ? 'cached copy' : 'from EHR'}`
+              : active?.patientRef
+                ? `${active.patientRef} · pulling record`
+                : 'not identified'}
+          </dd>
           <dt>CPR</dt>
           <dd>
             {inArrest && !cprOn
@@ -157,7 +164,8 @@ export default function ControlsPage() {
           <dt>Vitals</dt>
           <dd>{scenario ? `simulated ${SCENARIO_TEXT[scenario] ?? scenario}` : 'from the relay'}</dd>
           <dt>Timers</dt>
-          <dd>{active ? (active.demoMode ? 'demo timing (epi 45 s)' : 'real timing (epi 4 min)') : '—'}</dd>
+          {/* Decision 10: compressed timers are always tagged DEMO TIMING (except on /hospital). */}
+          <dd>{active ? (active.demoMode ? 'DEMO TIMING (epi 45 s)' : 'real timing (epi 4 min)') : '—'}</dd>
         </dl>
       </section>
 
