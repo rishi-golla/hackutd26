@@ -35,7 +35,7 @@ install -m 600 "$CONF.new" "$CONF" && rm "$CONF.new"
 
 wpa_cli -i wlan0 reconfigure >/dev/null
 echo "Connecting to $SSID..."
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   IP=$(ip -4 -o addr show wlan0 | awk '{print $4}' | cut -d/ -f1)
   ON=$(wpa_cli -i wlan0 status | grep -x "ssid=$SSID")
   [ -n "$IP" ] && [ -n "$ON" ] && { echo "Connected. Pi address: $IP"; ping -c 1 -W 3 1.1.1.1 >/dev/null && echo "Internet: OK" || echo "Internet: no (network may need device registration)"; exit 0; }
