@@ -65,6 +65,12 @@ hub/deploy.sh wifi "NAME" "PASS"  # same, and join a Wi-Fi network (for example 
 The deploy ends by printing the public link (`https://….trycloudflare.com`). The services start at every boot. The
 link changes when the Pi reboots, and the newest link is always on the dashboard.
 
+**Remote access with Tailscale.** Campus Wi-Fi such as CometNet blocks laptops from reaching the Pi directly.
+`setup-pi.sh` installs Tailscale. Log the Pi in once with `sudo tailscale up --hostname=handoff-pi` and open the link
+it prints. Any laptop signed in to the same Tailscale account (or invited to it) can then run `ssh cmx@handoff-pi`, open
+`http://handoff-pi:8000/dash`, and deploy with `PI_HOST=handoff-pi hub/deploy.sh`. The current public link is in
+`curl -s http://handoff-pi:8000/state`.
+
 **Over Wi-Fi instead of the USB cable**, set `PI_HOST` to the Pi's address, e.g. `PI_HOST=192.168.1.20 hub/deploy.sh`
 or `PI_HOST=192.168.1.20 chromatic/tools/pi.sh`. Without `captures/private/pi_key` the scripts use your own
 `~/.ssh/id_ed25519`. Add it to the Pi once with
