@@ -1,0 +1,35 @@
+docs/context/SPEC.md
+  s_a06b2a3eb24170::t_0f1b49d85b87ca 19-28,44-54,401-403,714-726,738-740,749-760
+hub/phone.html
+  s_a06b2a3eb24170::t_48e6876c5454cb 51,118,155-213,273,352,366
+voice/README.md
+  s_a06b2a3eb24170::t_92935b9121ebae 174
+voice/pipecat/recording.py
+  s_a06b2a3eb24170::t_d85449f9aa6a8b 1-62
+voice/pipecat/run.py
+  s_a06b2a3eb24170::t_9a5109ab15f555 51,206,269,350-364
+voice/pipecat/test_recording.py
+  s_a06b2a3eb24170::t_3bcf4ab959e176 1-58
+voice/src/api.ts
+  s_a06b2a3eb24170::t_3dde211ca32a4e 10,29,74-84,105
+voice/src/recording.ts
+  s_a06b2a3eb24170::t_c007a01dedaa69 1-54
+voice/test/recording.test.ts
+  s_a06b2a3eb24170::t_35239489307ac1 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "704ddd78ff945fa33407dc51720c67c9ef640b7e",
+  "prompts": {},
+  "sessions": {
+    "s_a06b2a3eb24170": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_a06b2a3eb24170",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
