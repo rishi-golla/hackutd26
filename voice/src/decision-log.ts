@@ -80,6 +80,10 @@ const GROUNDED: [RegExp, RegExp][] = [
   // Vitals words need a valid reading on the VITALS line: with the clip off the model said "SpO2 dropping to zero"
   // (live Sun ~05:12, Maincloud, status "no finger").
   [/\b(?:spo2|oxygen saturation|sats?|desaturat\w*|heart rate|pulse ox|tachycard\w*|bradycard\w*)\b/i, /^VITALS \((?:relay|simulated), \d+ s ago\)/m],
+  // A direction needs the TREND line to say so: at ROSC (SpO2 84 → 93, HR 38 → 104) the model said "oxygen
+  // saturation falling fast" (live Sun ~05:45).
+  [/\b(?:falling|dropping|drops?|declin\w*|desaturat\w*|worsening|deteriorat\w*|crashing)\b/i, /^TREND .*(?:falling|WORSENING)/m],
+  [/\b(?:rising|climbing|increasing|tachycard\w*)\b/i, /^TREND .*rising/m],
   // Airway and oxygen advice needs a reason in the state: a worsening trend, a valid SpO2, or an airway event.
   // "Consider airway and oxygen" with the clip off and no trend (live Sun ~05:41) is the model filling silence.
   [/\b(?:airway|oxygen|ventilat\w*|suction|bag[- ]?valve|bvm)\b/i, /^TREND .*WORSENING|^VITALS \((?:relay|simulated), \d+ s ago\).*SpO2|\bairway\b/im],

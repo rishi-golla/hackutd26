@@ -335,3 +335,11 @@ test('sensor-state sentences and ungrounded airway advice are never advisories (
   const seizure = corpus.replace('VITALS no valid reading (acquiring)', 'VITALS (simulated, 1 s ago) HR 160 · SpO2 84 (experimental)\nTREND (last 30 s) SpO2 97 → 84 · SpO2 falling fast · WORSENING');
   assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', seizure), undefined);
 });
+
+test('a direction word needs the TREND line to say so (ROSC: SpO2 rising, the model said "falling fast", live Sun ~05:45)', async () => {
+  const { ungroundedTerm } = await import('../src/decision-log.js');
+  const rosc = 'INCIDENT Medic 12 · status ROSC\nPATIENT Jordan Avery, 58 (EHR) · allergies: amiodarone\nVITALS (simulated, 1 s ago) HR 104 · SpO2 93 (experimental)\nTREND (last 9 s) SpO2 84 → 93 · HR 38 → 104 · SpO2 rising, HR rising';
+  assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', rosc), 'falling');
+  const seizure = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)\nVITALS (simulated, 1 s ago) HR 160 · SpO2 84 (experimental)\nTREND (last 30 s) SpO2 97 → 84 · HR 96 → 160 · SpO2 falling fast, HR rising fast · WORSENING';
+  assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', seizure), undefined);
+});
