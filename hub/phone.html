@@ -100,12 +100,36 @@ setInterval(() => {
   $('vHr').classList.toggle('off', $('hr').textContent === '—');
 }, 1000);
 
+// The main rear lens, by device. On a Pixel 9 Pro, Chrome's "environment" camera can be the telephoto or the macro
+// lens: the preview is a dark blur of whatever is a few centimetres away (seen live, Sun ~05:30). Android labels the
+// lenses "camera2 0, facing back", "camera2 2, facing back", …; the main wide camera has the lowest number. Labels are
+// known only after the first permission, so the first Start may open the default lens and switch at once.
+async function mainRearCamera() {
+  try {
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput' && /back|rear|environment/i.test(d.label));
+    cams.sort((a, b) => parseInt((a.label.match(/\d+/) || ['99'])[0], 10) - parseInt((b.label.match(/\d+/) || ['99'])[0], 10));
+    return cams[0] || null;
+  } catch (_) { return null; }
+}
+
 async function openCamera() {
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (stream) stream.getTracks().forEach((t) => t.stop());
   // Echo cancellation on: the speaker sits on the chest next to the mic, and the voice agent must not hear itself.
-  stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  const size = { width: { ideal: 1280 }, height: { ideal: 720 } };
+  let rear = facing === 'environment' ? await mainRearCamera() : null;
+  stream = await navigator.mediaDevices.getUserMedia({ video: rear ? { deviceId: { exact: rear.deviceId }, ...size } : { facingMode: facing, ...size }, audio });
+  if (facing === 'environment' && !rear) {
+    // First time: the permission just granted gives us the labels. If the default lens isn't the main one, swap now.
+    rear = await mainRearCamera();
+    const current = stream.getVideoTracks()[0]?.getSettings().deviceId;
+    if (rear && current && rear.deviceId !== current) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: rear.deviceId }, ...size }, audio });
+    }
+  }
+  if (rear) console.log('rear camera:', rear.label);
   video.srcObject = stream;
   stream.getTracks().forEach((t) => { t.onended = () => { dot('dCam', 'off'); dot('dMic', 'off'); hint('Camera stopped. Tap Start.', true); stopped(); }; });
   hint('');
