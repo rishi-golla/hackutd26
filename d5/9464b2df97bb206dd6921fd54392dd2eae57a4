@@ -1,0 +1,34 @@
+docs/context/SPEC.md
+  h_f876d4e77222e2 19-22,683-699,1622-1623,1632,1642-1645,1650,1659
+spacetime/README.md
+  h_f876d4e77222e2 46-56,177
+spacetime/src/index.ts
+  h_f876d4e77222e2 37,374,380-382
+spacetime/src/sessions.ts
+  h_f876d4e77222e2 3-27
+spacetime/test/test_sessions.py
+  h_f876d4e77222e2 97-140
+web/src/routes/hospital/CareLog.tsx
+  h_f876d4e77222e2 50,56,61
+web/src/routes/hospital/PatientPage.tsx
+  h_f876d4e77222e2 8,11,61,108
+web/src/routes/hospital/PatientsPage.tsx
+  h_f876d4e77222e2 1-3,11-48,53-58,60
+web/src/routes/hospital/hospital.css
+  h_f876d4e77222e2 83-86
+web/src/routes/hospital/ui.tsx
+  h_f876d4e77222e2 6,95-96,99-107
+web/src/routes/hospital/useHospital.ts
+  h_f876d4e77222e2 165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d59464b2df97bb206dd6921fd54392dd2eae57a4",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
