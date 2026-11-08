@@ -1,0 +1,25 @@
+voice/pipecat/README.md
+  s_d5252f67521b0d::t_bc29a153f1cdba 145-154,212,214-216
+voice/pipecat/brain_bridge.py
+  s_d5252f67521b0d::t_a5ad80d25e2371 50-54,103-104,130,138-140,142,146-147,155-158,162-163,186-189,194-206
+voice/pipecat/run.py
+  s_d5252f67521b0d::t_1687cff35c7c38 59-62,88,103-105
+voice/pipecat/test_bridge.py
+  s_d5252f67521b0d::t_d4d1d6380b2ea3 109,210-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0597f64a2795d48108282e8d203758ea22770924",
+  "prompts": {},
+  "sessions": {
+    "s_d5252f67521b0d": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_d5252f67521b0d",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
