@@ -13,9 +13,50 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 
 ## Change log
 
-Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
+Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
+  `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
+- **Sun ~05:50 (Alan): model advisories off for the demo** (`VOICE_PROACTIVE=off` in the demo laptop's
+  `voice/.env.local`; decision 21 default unchanged). In the first full phone run the unprompted Nemotron advisories
+  ("Note: warfarin and metoprolol on board", "Consider checking pulse after CPR cycle") were low value and talked over
+  the medic's drug lines, and every one of them took a slot in the one-at-a-time speech queue, so answers felt slow.
+  What still speaks: read-backs and "Log it?", the allergy and dose warnings, "Record found…", answers when spoken
+  to, the `tick_rules` callouts, and the deterministic vitals-trend note (its own 5 s timer runs when advisories are
+  off). Also seen: a second voice worker (older code) on Maincloud answered the same question a second time;
+  decision 18 (one voice worker per database) has to be enforced by hand before a demo.
+- **Sun ~05:00 (Alan): the agent speaks only when spoken to, watches the vitals trend, and sees what the camera
+  sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` plus one caption for the new `trend` step in
+  `web/src/routes/hospital/thoughts.ts` (hospital lane, for Josh's OK); no table, reducer or audio-link changes). Found
+  in the first live phone test (Sun ~04:00): while medications were given, the agent read the model's free-text
+  reasoning out loud.
+  - **Addressed only:** a Nemotron turn's free text is spoken only when the line was addressed to Handoff and the
+    text reads as speech (one or two sentences, no lists, JSON, tool names or reasoning markers). Otherwise nothing
+    is spoken and the dashboard gets a generic row, never the model's words. `speak` is refused for an
+    unaddressed line. Read-backs, "Record found…", allergy and dose warnings and the fixed control words are
+    unchanged. Keep/drop (decision 21) unchanged.
+  - **Trend:** the state summary gains a `TREND` line (SpO₂ and HR over the last 60 s, valid readings only). A
+    change in the trend words triggers the proactive review (decision 21), and if the model gives no advisory the
+    brain speaks one fixed note per episode ("Note: oxygen saturation falling, ninety-seven to eighty-eight."). The
+    `tick_rules` alarms are unchanged. This is the seizure beat (decision 15).
+  - **Camera context:** the vision sampler's reply also carries a one-sentence `scene`. It goes to the brain's
+    `POST /seen` when it changes (at most every 5 s), is kept in memory for 60 s, and shows in the state summary
+    as a `CAMERA` line and on the dashboard as one "Nemotron · vision" row. It informs the model; it never logs a
+    fact by itself. No extra model call.
+  - **Vision sampler leak fixed:** in PR #18's live test every ended WebRTC session left its sampler's hub-poll task
+    running, and after reconnects several samplers hit the vision model at once (429). The sampler and the
+    bridge now release their tasks and HTTP sessions in Pipecat's `cleanup()` as well as on Cancel/End frames.
+- **Sun ~04:30 (Alan): live decision log on `/hospital`** (§0.1 decision 24, H4/H5, §19). Restores the
+  in-progress line and expandable decision rows removed Sat ~21:30. Nemotron publishes short public progress
+  and outcomes, including a decision to keep monitoring without speaking. Requests, successful outcomes and
+  failures are distinct; no raw model reasoning or dropped room conversation is exposed. Uses existing
+  `agent_step` / `log_agent_step`; no schema change. This work includes the hospital UI at Alan's request.
+- **Sun ~03:45 (Josh): the bodycam page keeps an open mic to the voice agent by itself** (§0.1 decision 23, §22.6).
+  The voice worker announces its https link to the Pi hub (`voice/pipecat/link.sh`: a Cloudflare quick tunnel,
+  posted as `{"what":"voice"}`), and `hub/phone.html` opened from the Pi's usual link connects its mic and camera to
+  it with no `?voice=`, for as long as the bodycam runs. Drops reconnect on their own (2, 4, 8, then every 15 s).
+  No module changes; no degraded-mode speech yet.
 - **Sun ~02:30 (Rishi): the voice agent asks before it logs, documents what it hears, and speaks up on its
   own** (§0.1 decision 21; `voice/` only, no table or reducer changes). Every action the medic says is read back
   and ends with "Log it?" ("Log it anyway?" after an allergy or dose warning): medications and shocks from the
@@ -28,9 +69,15 @@ necessarily when the decision was made.
   - **Amended Sun ~03:05 (Josh, review):** (1) **keep or drop:** every heard line is decided first and stored
     after. Nemotron reads it with the voice log (the last lines heard, kept or dropped) and either keeps it
     (documents, replies, or stays silent) or answers DROP; a dropped line (room talk, filler, our own words) is
-    written nowhere, not even to `transcript`. No wake word. (2) An unanswered routine item stays `logged`; only an
+    written nowhere, not even to `transcript` (decision 24 later allows generic model progress/outcomes
+    without those words). No wake word. (2) An unanswered routine item stays `logged`; only an
     allergy or dose warning is `flagged` (the dashboard and the report show `flagged` as a problem). (3) The
     no-model status shortcut takes only unambiguous, non-negated phrases.
+- **Sun ~02:20 (Josh): `/hospital` shows the bodycam's live frame feed from the Pi hub** (§0.1 decision 22, H2).
+  The video tile long-polls the hub's `/frame.jpg` (about 10 frames a second, never older than 3 s), the same feed
+  as the hub's own `/dash`. The Vite dev server passes `/hub/*` through to the hub (`HUB_URL`, default
+  `http://handoff-pi:8000` over Tailscale), so the hub needs no change. The WebRTC receiver stays and wins if a
+  sender ever offers. No module changes.
 - **Sun ~02:15 (Alan): an arrest doesn't mean CPR has started** (§9, §15, D1; module, voice and `/controls`).
   Arrest is logged as "Cardiac arrest recognised" only. CPR starts when (a) the operator taps **Start CPR** on
   `/controls` (`demo_control('cpr_start')`; CPR slow/good during an arrest count too), or (b) the medic says it's
@@ -226,7 +273,10 @@ section and add a change-log line.
    phone hotspot, then a TURN relay. (Josh, 17:42) The vision model samples about one frame a second on the laptop;
    the phone uploads no separate frames to SpacetimeDB. (Alan, ~18:30) Amended ~23:30 (decision 20): the frames
    come from the phone's WebRTC link to the voice worker (its camera track rides along with the mic), or from the
-   Pi hub's `/frame.jpg` when that link is down, not from the hospital's video.
+   Pi hub's `/frame.jpg` when that link is down, not from the hospital's video. **Amended Sun ~02:20 (decision
+   22):** no WebRTC sender to the hospital exists, so `/hospital` shows the Pi hub's live frame feed (about
+   10 frames a second, never older than 3 s) until one does; WebRTC wins when it plays. Other sections that still
+   say "WebRTC only" or "no snapshot / low-frame mode" mean this.
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
    (Josh, 17:42) Superseded by decisions 18 and 20: the whole of W6 now runs in `voice/` (`VOICE_W6=on`): the
    vision sampler reads the ID card, the brain searches the EHR, calls `identify_patient`, pulls and saves the
@@ -342,7 +392,8 @@ section and add a change-log line.
       findings to the brain's `POST /seen`, which does all database writes. The camera lane owns the phone page
       and the hospital video. Decision 1 amended accordingly.
     - **The phone page is `hub/phone.html`** for now: `?voice=<worker>` turns the voice link on; the worker can
-      serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam.
+      serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam. (Amended by
+      decision 23: the page finds the worker through the Pi hub, so `?voice=` is only an override.)
     - **Vision model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, hosted; `VISION_MODEL` overrides.
     - PRs #5 and #6 are closed; their descriptions and test notes are history.
 21. **The voice agent confirms before it logs and helps without being asked** (Rishi, Sun ~02:30). Agent path
@@ -350,13 +401,16 @@ section and add a change-log line.
     - **Read back, then "Log it?"** for every action: medications and shocks (deterministic parser, §16) and
       procedures and airway devices (Nemotron's `log_event`). After an allergy or dose warning it asks "Log it
       anyway?". Findings and MARKs are logged quietly, never acknowledged out loud.
-    - **Keep or drop, then store (Josh, Sun ~03:05).** Every line the mic hears is decided before anything is
+    - **Keep or drop, then store (Josh, Sun ~03:05; fixed ~03:30).** A line nobody could judge (no API key, the
+      rate budget, a model error) is stored undecided, so nothing clinical is lost; once any tool ran the line is
+      kept (DROP only counts as Nemotron's first, tool-free answer); a kept line is stored under the incident it was
+      said in, never the next one. Every line the mic hears is decided before anything is
       written. Kept: read-backs, answers ("yes", "correction"), status phrases, a spoken identity, "Handoff,
       mark/look", and every line Nemotron keeps. Nemotron sees the line with the **voice log** (the last 10 lines
       heard in 2 min, each marked kept or dropped) and the recent conversation, and keeps a line only if it is
       about this patient's care or meant for Handoff; anything else (small talk, other people's conversations, the
-      demo) gets the answer DROP. A kept line is written to `transcript` and acted on; a dropped one is written
-      nowhere (no `transcript` row, no event, no agent step). Filler and our own words coming back are dropped
+      demo) gets the answer DROP. A kept line is written to `transcript` and acted on; a dropped one has no `transcript` row or event and its words are never written to the database.
+      Decision 24 allows generic model progress/outcome rows without those words. Filler and our own words coming back are dropped
       without a model call. No wake word.
     - **Written at once, flagged only for a warning.** The event is logged immediately (so the epi timer and the
       hospital see it). "yes", "yeah, log it", "go ahead" → `confirmed` and "Logged."; "no", "don't log it" →
@@ -381,6 +435,137 @@ section and add a change-log line.
       "Note:" wording, never an order, never a number the state doesn't hold, never a repeat of a rule callout.
     - **ASR:** IO, IV and IM are no longer boosted (they turned "I'm" into "IM" and noise into "IO"); the long
       forms (intraosseous, intravenous, intramuscular) are boosted instead.
+22. **The hospital's live view is the Pi hub's frame feed** (Josh, Sun ~02:20). Nobody sends WebRTC video to
+    `/hospital` yet (the phone page sends its camera to the voice worker and, as JPEG frames, to the hub). So the
+    video tile shows the hub's frames: the phone uploads about 10 a second, `/hospital` fetches each new one as it
+    arrives, and the hub never serves one older than 3 s. It's a continuous live relay, not periodic snapshots, but
+    frame-based (choppier than WebRTC over Tailscale or a tunnel).
+    - **How:** `web/src/routes/hospital/LiveVideo.tsx` long-polls `/hub/frame.jpg?after=<seq>`; `web/vite.config.ts`
+      passes only that path to the hub (`HUB_URL` in the shell or `web/.env.local`, read in every mode; default
+      `http://handoff-pi:8000`, which needs Tailscale on the hospital laptop). Works with `npm run dev`,
+      `dev:https` and `preview`; a static deploy would need the hub to allow cross-origin requests instead.
+    - **Honest "Live":** the hub answers a request that's behind with its newest frame, which can be up to 3 s
+      old. So the first frame after a gap (page load, reload, error) is shown under "Connecting…"/"Stale"; "Live"
+      needs a second frame within 3 s. "Stale" 3–3.5 s after the last frame (H2).
+    - **The hub's contract** (`hub/hub.py`, kgand) is now shared: `GET /frame.jpg?after=<seq>` waits up to 5 s,
+      answers 204 when nothing is newer, never serves a frame older than 3 s, and sends `X-Seq`. Don't change it
+      without telling the hospital lane.
+    - **If it fails:** the tile says "Connecting…" or "Stale". Check Tailscale on the laptop, or set `HUB_URL` to
+      the Pi's address on the hotspot. Hotspot or TURN alone don't help this path.
+    - **Lanes:** decision 20 gives "the hospital video" to the camera lane; this only picks the receiver's source,
+      in the hospital lane's tile. Camera lane's OK still to record.
+    - **WebRTC stays:** if a bodycam sends an offer through `rtc_signal` (§22.5), its video wins while it plays.
+
+23. **The bodycam page finds the voice agent through the Pi hub and keeps the open mic up** (Josh, Sun ~03:45).
+    (22 is the hospital's live frame feed, PR #15.)
+    - **Discovery:** the laptop that runs the voice worker also runs `voice/pipecat/link.sh`: a free Cloudflare
+      quick tunnel to the worker's port 7860 (https, so the phone's page may call it), announced to the hub as
+      `{"from":"voice","what":"voice","value":"https://….trycloudflare.com"}` at once and every 30 s. The hub keeps
+      the newest value and replays it to a page that connects.
+    - **The page** (`hub/phone.html`) takes the worker from `?voice=` (`off` = none), else its own origin when the
+      worker serves it, else the newest hub `voice` link. From Start until the camera stops it keeps one WebRTC
+      link up (mic + camera up, the agent's voice down, §22.6), reconnects by itself after a drop, a failure or 15 s
+      without connecting (backoff 2, 4, 8, then 15 s), and switches when a new link is announced. The "Voice" dot
+      shows it; the hint says "Voice agent reconnecting…" while it's down.
+    - **Not built yet:** with the link down the phone speaks no callouts (B11's degraded mode: §22.6 Failover and
+      §23 describe it, but `hub/phone.html` doesn't do it). One phone runs the bodycam at a time (the worker takes
+      one connection); a stopped page never reconnects, and a worker that keeps ending sessions is retried more and
+      more slowly. A replayed hub link older than 90 s is ignored, so a dead link from an earlier run never returns.
+    - **Exposure:** the hub's `/send` and `/state` have no auth, so anyone with the Pi's public link could post a
+      `voice` link (and get the bodycam's mic and camera) or read the worker's link and its TURN password. Fine for
+      a hackathon demo; use throwaway TURN passwords and stop `link.sh` when not demoing.
+    - **Network:** the tunnel carries only the handshake; audio is phone ↔ laptop WebRTC, so the same Wi-Fi or the
+      phone's hotspot, or a TURN relay (`TURN_URL`/`TURN_USER`/`TURN_PASS`).
+
+24. **Live decision log** (Alan, Sun ~04:30): the hospital event timeline shows brief public progress and decision
+    summaries while Nemotron processes information. Reverses the Sat ~21:30 removal of the on-screen trace.
+    - Before a voice model request or tool request, publish a plain sentence describing the work underway.
+      When finished, publish a separate outcome. A request in progress never implies success. Speech queued
+      through the policy is labelled queued, not delivered.
+    - State-change advisory calls return a short public summary in the same response, including when the
+      decision is to keep monitoring without an additional advisory. No extra model call for logging, and
+      log-only summaries never go to TTS. Existing rate budgets, speech policy and `tick_rules` still apply.
+      Summaries are selected from a small set of public sentences generated from the supplied state (generic
+      monitoring, no valid pulse data, no record yet, recent callouts, recorded ROSC). Only offered sentences
+      are accepted; arbitrary model wording falls back to generic monitoring. They cannot invent a diagnosis,
+      improvement, stability, compression depth, or treatment conclusion. Empty or malformed structured output is a failed review, never a successful monitoring decision.
+    - Keep/drop still governs transcript and event storage. A dropped line's words remain unstored. A generic
+      progress/outcome pair (e.g. "Ignored unrelated audio; continuing to monitor") is allowed for a model review.
+      Filler and echoes still produce no model request and no decision row.
+    - Correlated updates use existing `log_agent_step({workflow: 'voice', tool: 'decision', summary})`.
+      `summary` is JSON `{v: 1, id, phase, text}`: a unique operation ID, phase `progress` / `complete` / `error`,
+      and a brief sentence. The envelope stays within the voice client's 300-character limit. No schema,
+      reducer, generated binding or audio-link change. Completion/error writes recheck the incident generation.
+    - `/hospital` subscribes to `agent_step`, filters to the displayed incident, and shows up to two current
+      lines above the events. Every operation remains available as an expandable timeline row with its updates.
+      IDs keep overlapping Nemotron operations separate from each other and from deterministic read-backs.
+      Model decision rows are "Nemotron · voice"; fixed-code and unproven legacy workflow steps are "Agent";
+      vision model rows are "Nemotron · vision". Legacy tool rows remain readable; pending requests have neutral labels and failure summaries never
+      gain a successful-action caption. Completed actions use past tense.
+    - A decision leaves the live line on completion/error, disconnection or incident close. Without a terminal
+      update it expires after 20 seconds and says "No completion received"; it never invents success. No more than
+      two pinned lines; other active operations retain their current status in the normal list. Historical rows
+      survive reconnect through the subscribed table, and reset/incident replacement clears the displayed run.
+      Live updates use a short fade/slide; reduced motion swaps text directly. Repeated legacy camera updates
+      collapse and are cut into groups at 60 seconds. User authorization covers resuming this hospital UI draft;
+      the PR remains available for Josh's hospital-lane review before merge.
+    - **Follow-up window shortened (Alan, Sun):** an implicit follow-up is addressed only within 5 s of
+      Nemotron's reply, reduced from 45 s after Alan flagged the window as too long. After that, the line needs
+      its own addressed cue; listening, documentation, read-backs and proactive warnings are unchanged.
+    - **Amended Sun ~05:00 (Alan, after the first live phone test): speaks only when spoken to; trend; camera.**
+      `voice/` only; no table, reducer or audio-link change; keep/drop (decision 21) is unchanged.
+      - **Addressed only, never its reasoning.** In the test the agent spoke the model's free-text reasoning aloud
+        while medications were given. Now a Nemotron turn's free text is spoken only if (a) the line was addressed
+        to Handoff (it ends in "?", says "Handoff", is a direct request such as "look up", "pull up", "can you",
+        "tell me" or "what's", or follows a reply Nemotron itself gave within 5 s: the latest Nemotron turn must
+        be one where Handoff spoke, so a kept-but-silent line in between closes the window; read-backs and "Record
+        found…" don't open it) and (b) the text reads as speech (at most three short sentences, 45 words; no
+        lists, JSON, tool names or reasoning markers; `voice/src/speech.ts`). Anything else is not
+        spoken, and the dashboard gets only the generic decision row "Reviewed the clinical update; nothing to say
+        aloud.", never the model's words. The `speak` tool is refused when the line was not addressed, so
+        background conversation cannot trigger a reply (a refused `speak` is not a tool that ran: the line is still
+        dropped if the model then answers DROP). Read-backs, "Record found…", allergy and dose warnings, the
+        trend note and the fixed control words are deterministic and unchanged. The camera's scene sentence is
+        left out of the facts-only number check, so a number the vision model wrote is never something to say.
+      - **Vitals trend (the seizure beat, decision 15).** The state summary gains a `TREND` line built from the
+        valid readings (status `pulse`) in the last 60 s: two readings at least 5 s apart, never extrapolated. Its
+        words are "SpO2 falling fast" / "falling" / "rising" and "HR rising fast" / "rising" / "falling", or
+        "steady" (then the line is left out). Worsening means SpO₂ down 6 or more, or HR up 40 or more **from a
+        rate of 50 or above** (a heart rate climbing back from under 50, as in the ROSC scenario's 38 → 104, is a
+        recovery, never a worsening trend), inside the window. A change in the trend words is a state change for
+        the proactive review (decision 21): Nemotron is asked for one advisory with the trend in view, its decision
+        rows show on `/hospital`, and "Reviewed the worsening vitals trend; an advisory was considered." joins the
+        offered public summaries while the line says WORSENING. If the model gives no advisory (or fails, or is
+        off), the brain speaks one fixed note per episode, P2, through the policy layer, with numbers taken from the
+        state only ("Note: oxygen saturation falling, ninety-seven to eighty-eight."; the heart-rate form is
+        similar). The note is fixed code, not the model: it is written as plain `trend` steps and spoken with kind
+        `trend`, so the dashboard labels it "Agent", never "Nemotron"; it keeps the 15-word cap and the 4 s spacing
+        but not the 15 s advisory gap. An episode ends when valid readings show the trend is no longer worsening
+        (a dropped reading does not end it). The `tick_rules` alarms (SpO₂ under 90 held 10 s, HR outside 50–150,
+        §15) are unchanged and stay the safety net: the note is about the movement, the alarm about the threshold.
+      - **The camera informs the decisions.** The vision sampler's per-frame reply also carries one sentence,
+        `scene` ("medic's gloved hands over the patient's chest, syringe in the right hand"). When it changes (at
+        most every 5 s) the sampler posts `{"type":"scene","text":"…","confidence":1}` to `POST /seen` (the
+        confidence is ignored). The brain keeps it in memory only (no event, no transcript), writes one `agent_step`
+        row (tool `vision`, "Camera: …", shown as "Nemotron · vision") and adds a `CAMERA (N s ago) …` line to the
+        state summary for the next 60 s, so voice turns and advisories see what the camera sees. The model may use
+        it as context and never logs it as a fact on its own; the prompt limits the sentence to actions and
+        equipment (no names, printed text or bystanders, §24.3). No extra model call: the scene rides in the same
+        vision call. A dashboard sentence the model puts in the advisory field ("Reviewed…", "Monitoring…") is a
+        keep-monitoring decision, never speech (seen live Sun ~04:45).
+      - **Quieter advisories (Sun ~05:30, from the first live run against the model).** (1) The first look at an
+        incident (brain start, or a new incident) is the baseline, not a change to review: a cold start reviewed
+        "everything changed" and the model invented "Consider checking pulse post-shock" with no shock anywhere.
+        (2) A new event alone no longer triggers a review (a read-back or rule just spoke; the review only restated
+        it): flags, status, timers, the record, vitals bands, CPR and the trend do. (3) Facts only: an advisory that
+        names a shock, arrest/ROSC, a seizure or stroke, a drug, an allergy, a blood thinner, CPR, the record or the
+        ID card when the state doesn't hold it is dropped, with a `policy` row saying what was not in the state.
+        (4) The same unprompted note is never said twice within two minutes. (5) One note per worsening episode,
+        whoever says it: once the trend was noted, another advisory about the oxygen saturation or heart rate in the
+        same episode is a repeat. (6) A line that names Handoff or is a question is never dropped: a DROP on
+        "Handoff, what have we given so far?" (seen live) is overruled and the question is answered. A softer cue
+        (a request, a follow-up) lets the model answer but its DROP stands, and a bare "can you" / "could you" is
+        not a request to Handoff ("Hey can you pass me the tape" was answered "Sure, I'll grab a roll", live).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1302,8 +1487,9 @@ facing the medic. The `kit_slot` table and `kit_update` reducer are not built (�
 
 ## 14. Hospital dashboard
 
-What the ER sees, on the Mac and any second screen. Judges see the agent act through the event timeline. Its only button
-is **Generate Handoff**. No demo controls here.
+What the ER sees, on the Mac and any second screen. Judges see the agent act and read its public decision
+updates through the event timeline. Its only action is **Generate Handoff**; expanding a decision is view-only.
+No demo controls here.
 
 **Layout (five panels, Sat ~21:30; Alan's sketch; the code in `web/src/routes/hospital/` is the reference):** fits
 1440×900 without scrolling. Dark, quiet panels in the style of the Pipecat Playground; Inter.
@@ -1312,20 +1498,21 @@ is **Generate Handoff**. No demo controls here.
 | --- | --- |
 | **Live view** (large): the bodycam video, click to enlarge. Before the first frame, a halftone heart floats slowly in the panel (Canvas UI's Dithered Object, loaded only then); on stale the last frame stays under the Stale badge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
 | | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show three breathing dots while the sensor settles (relay status `acquiring`/`calibrating`, or SpO₂ not in yet), hold the last good number dimmed through a dropout of up to 6 s, then fall back to the dots or "—"; during an arrest they show the demo's simulated arrest (HR 0, SpO₂ "—", decision 15) and "—" for the real clip (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds; no alarm colour during an arrest) |
-| **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
+| **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. Up to two live decision lines sit above the events; completed decisions expand to their recorded updates. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
 
 Panel titles use the same small monospace caption style. Nothing explains itself on screen, and nothing moves
-except clocks, live values and the placeholder heart before video. Not on the dashboard any
-more (the data is unchanged): route and ETA, the agent's tool-level trace, source chips (still in the report),
+except clocks, live values, the placeholder heart before video and the brief decision-line transition
+(disabled under reduced motion). The decision log is restored by decision 24. Still absent: route and ETA,
+source chips (still in the report),
 trend lines and the pulse waveform, the big spoken-callout text, and the simulated / demo-timing marks.
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
 | H1 | Status, coloured by state, top right | — |
-| H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
+| H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5). Today the source is the Pi hub's frame feed (decision 22) | Shows stale after 3 s without video |
 | H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed; measuring dots while the sensor settles | A missing reading shows "—"; a dropout keeps the last good HR/SpO₂ dimmed for at most 6 s, never longer; "Epi due" matches the bodycam to the second |
-| H4 | Event timeline, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
-| H5 | Agent trace: not on the dashboard; the agent's results (destination, alert) appear as timeline rows | Judges can see the agent act from the timeline |
+| H4 | Event timeline and public decision rows, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
+| H5 | Live decision log (decision 24): brief progress, outcomes and keep-monitoring decisions; up to two current lines, expandable history | A real request is visible before completion; silent outcomes appear without speech; errors and missing completions never imply success; overlapping decisions and fixed code keep separate source labels |
 | H6 | Pre-arrival alert, display-only, as a timeline row (a typed ER chat is optional) | Alert appears within 20 s of the arrest |
 | H7 | Generate Handoff opens the report (§20) | Full report within 30 s |
 | H8 | Demo controls (the `/controls` page, not this dashboard): start, simulated arrest or deterioration, ROSC, en route, arrived, reset | Every demo beat can be forced if a sensor fails |
@@ -1631,7 +1818,8 @@ dose is spoken, RB9). Event kinds and source chips: §22.7.
 ## 19. AI agent
 
 Rules handle the time-critical safety net. The agent handles judgement, language, speaking and paperwork. Every
-step it takes is written to `agent_step`; its results (destination, alert) show as rows in the dashboard's event timeline. Model: Nemotron through NVIDIA's API,
+step it takes is written to `agent_step`; its public progress, decision summaries and results show in the
+dashboard's event timeline (decision 24). These are short activity updates, not raw internal reasoning. Model: Nemotron through NVIDIA's API,
 which supports tool calling. The agent decides for itself when to call a tool, such as the EHR search.
 
 There are two parts:
@@ -1653,16 +1841,34 @@ There are two parts:
   round trip (no model call); Nemotron answers 1–3 s more.
 - **What it sees:** a plain-text state summary of about 250 tokens, rebuilt every turn: incident and status,
   patient record, latest valid vitals (or "no valid reading"), CPR rate/count/pause, timers, the last 8 events
-  with chips, recent speech, the last 6 transcript lines. Format in `voice/README.md`. Never raw waveforms.
+  with chips, recent speech, the last 6 transcript lines. Since Sun ~05:00 (decision 24) it also has a `TREND`
+  line (SpO₂ and HR over the last 60 s from valid readings only, with the words "falling fast", "rising fast" or
+  "WORSENING"; two readings at least 5 s apart, never extrapolated) and, for 60 s after the camera's scene
+  sentence changes, a `CAMERA (N s ago) …` line. The camera line is context only: the model never logs it as a
+  fact on its own. Format in `voice/README.md`. Never raw waveforms.
+- **Speaks only when spoken to (decision 24, amended Sun ~05:00).** A Nemotron turn's free text is spoken only if
+  the line was addressed to Handoff (a question, "Handoff", a direct request, or a follow-up within 5 s of
+  Handoff's own reply) and the text reads as speech (one or two sentences; no lists, JSON, tool names or
+  reasoning markers). Anything else is not spoken: the dashboard shows a generic decision row, never the model's
+  words, and the `speak` tool is refused for a line that was not addressed. The model's reasoning is never
+  spoken. Read-backs, "Record found…", warnings and the fixed control words are deterministic and unchanged.
 - **Proactive speech:** the deterministic triggers always speak (record found, "Saw epinephrine. What dose?",
   allergy warnings). Nemotron advisories are on by default (`VOICE_PROACTIVE`, decision 21): one model call when
-  the state changed (checked every 10 s), one advisory per 15 s at most, 15 words or fewer, "Consider…" wording. The policy layer (`voice/src/policy.ts`) keeps §15:
+  the state changed (checked every 10 s), one advisory per 15 s at most, 15 words or fewer, "Consider…" / "Note:" wording (decision 21); a status sentence in the advisory field ("Reviewed…", "Monitoring…") is never spoken, an advisory naming something the state doesn't hold (a shock, a drug, a seizure, the record) is dropped as invented, the same note is never repeated within two minutes, and the first look at an incident is a baseline, not a change (decision 24, Sun ~05:30). The policy layer (`voice/src/policy.ts`) keeps §15:
   one callout per 4 s across rules and agent (read-backs exempt), P0–P3, the server drops identical unspoken
   words, never talk over the medic (the mouth reports `user_speaking`). `tick_rules` stays the safety net.
+  **Vitals trend note (decision 24, amended Sun ~05:00):** when the `TREND` words change, the proactive review
+  asks Nemotron for one advisory with the trend in view. If it gives none (or fails, or is off), the brain speaks
+  one fixed note per episode, P2, through the same policy layer (speech kind `trend`: 15 words, spoken numbers, the
+  4 s spacing, but not the 15 s advisory gap), with numbers from the state only: "Note: oxygen saturation falling,
+  ninety-seven to eighty-eight." (or the heart-rate form). It is fixed code, written as plain `trend` steps that the
+  dashboard labels "Agent". An episode ends when valid readings show the trend is no longer worsening; a heart rate
+  climbing back from under 50 (ROSC) never counts as worsening. The `tick_rules` alarms (§15) are unchanged: the note is about the movement, the alarm
+  about the threshold.
 - **Tools (as built):** `get_state`, `get_recent_transcript`, `get_timeline`, `log_event` (airway, procedure,
   finding, mark only; `med_*` refused), `set_status` (arrest, rosc, en_route), `check_dose_range`,
   `check_allergy`, `search_ehr`, `pull_record`, `speak` (through the policy layer; numbers must appear in the
-  state or tool results). W1/W4's `set_destination`, `post_er_message` and `save_report` stay in `agent/`.
+  state or tool results; refused when the line was not addressed to Handoff, decision 24). W1/W4's `set_destination`, `post_er_message` and `save_report` stay in `agent/`.
 - **Models:**
   - Voice turns: `nvidia/nemotron-3.5-lightning-30b-a3b` (fast 30B MoE; tool calling per third-party listings,
     untested), thinking off; falls back to `nvidia/nemotron-3-ultra-550b-a55b` if the slug is rejected.
@@ -1757,9 +1963,13 @@ sequenceDiagram
 - Dose and allergy answers come only from the deterministic tools; the model speaks their result.
 - Its own unprompted advisory callouts are 15 words or fewer, at most one every 15 s, and always inside the §15
   policy layer (decision 21).
+- Speaks only when addressed, and never its reasoning (decision 24). The exceptions are deterministic: read-backs,
+  the record summary, allergy and dose warnings, the fixed control words, the `tick_rules` alarms and the trend
+  note.
 - Advisory, protocol wording ("Epi due", "Consider…"), never orders.
 - Never claims compression depth.
-- Every step goes to the trace (`log_agent_step`).
+- Every step goes to the trace (`log_agent_step`), except for lines the voice agent drops as room talk, which leave
+  nothing in the database (decision 21).
 - If Nemotron is slow or down, the rules still speak and the report falls back to a template filled from the
   tables.
 
@@ -1773,6 +1983,17 @@ As built (`voice/pipecat/vision.py`, decision 20; ported from Devin's PR #6):
   is the fallback when no WebRTC video arrives. The phone uploads nothing to SpacetimeDB.
 - Looks for AED pads on, an airway device, IV/IO, a medication being given (the label's drug, and dose if
   printed, plus the push, injection or nebuliser), and an ID card (it reads the printed name and birth date).
+- **Scene sentence (decision 24, amended Sun ~05:00).** The same reply carries one sentence, `scene` ("medic's
+  gloved hands over the patient's chest, syringe in the right hand"). When it changes (at most every 5 s) the
+  sampler posts `{"type":"scene","text":"…"}` to `POST /seen`. The brain keeps it in memory only (no event, no
+  transcript), writes one `agent_step` row (tool `vision`, "Camera: …", shown as "Nemotron · vision") and adds
+  a `CAMERA (N s ago) …` line to the state summary for the next 60 s, so voice turns and advisories see what the
+  camera sees. It is context, never a logged fact on its own. No extra model call: the scene rides in the same
+  vision call (`max_tokens` 260).
+- **Cleanup (found in PR #18's live test).** Each ended WebRTC session used to leave the sampler's hub-poll task
+  running, so after reconnects several samplers called the vision model at once (429). The sampler and the bridge
+  now release their tasks and HTTP sessions in Pipecat's `cleanup()` as well as on Cancel/End frames, and nothing
+  starts a call after a stop.
 - Returns findings with a confidence; only 0.7 or higher is acted on, with the frame kept as evidence under
   `voice/pipecat/evidence/` (the file name is the event's source detail).
 - Findings go to the brain (`POST /seen`, `voice/README.md`), which owns the database: an ID card runs the W6
@@ -1911,7 +2132,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Any | `set_status(status, sourceKind, sourceDetail)` | Any transition allowed; the source becomes the timeline chip, e.g. `("arrest", "voice", "her heart stopped")` |
 | Any | `heartbeat(device, kind)` | Keeps `device.lastSeen` fresh |
 | Bodycam | `push_cpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s (§22.4). Ignored while a demo override is on |
-| Bodycam / voice worker | `add_transcript({text})` | One row per sentence |
+| Bodycam / voice worker | `add_transcript({text})` | One row per sentence. The voice worker stores a line only after handling it, and only if it was kept (decision 21) |
 | Bodycam (W6) | `identify_patient({patientRef, method})` | method `ID card`, `voice` or `manual`; sets `incident.patientRef` and logs `patient_identified` |
 | Bodycam / agents | `log_event({kind, label, sourceKind, sourceDetail})` | Read-backs, findings, procedures (§22.7) |
 | Bodycam / agents | `set_event_status({eventId, status})` | `cancelled` on "Correction", `confirmed`, `flagged`. Cancelling an epi event cancels the epi timer |
@@ -2002,7 +2223,8 @@ arrest began. `count` may reset on page reload (the server tracks `countBase`).
 
 ### 22.5 WebRTC video signaling (`rtc_signal`)
 
-Live video only, never snapshots. The camera lane owns the sender; the hospital lane owns the receiver tile.
+Live video only, never snapshots. The camera lane owns the sender; the hospital lane owns the receiver tile. No
+sender exists yet; until one does, the tile shows the Pi hub's live frame feed instead (decision 22).
 
 `rtc_signal {sessionId, sender: "bodycam" | "hospital", kind: "offer" | "answer" | "ice" | "request", payload}`.
 `payload` is `JSON.stringify(description)` or `JSON.stringify(candidate)` (empty for `request`).
@@ -2014,7 +2236,8 @@ Live video only, never snapshots. The camera lane owns the sender; the hospital 
    the tile stale after 3 s without frames and re-requests every 10 s.)
 4. Each side ignores rows from itself and from other sessions.
 
-If the peer connection can't be made: phone hotspot, then a TURN relay. No low-frame fallback.
+If the peer connection can't be made: phone hotspot, then a TURN relay. No low-frame fallback for WebRTC itself;
+until a sender exists, the tile shows the Pi hub's frame feed (decision 22).
 
 ### 22.6 Bodycam ↔ voice agent worker audio and video link
 
@@ -2022,8 +2245,11 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
   echo cancellation on (the speaker is next to the mic) and the camera track for the vision sampler (decision 20).
   Down: the agent's voice.
 - **Endpoint:** the voice agent worker on the laptop (`voice/pipecat/`, Pipecat with its SmallWebRTC transport).
-- **Signaling:** served by `voice/pipecat/run.py` on the laptop, port 7860. The phone page (`hub/phone.html`,
-  opened with `?voice=https://<laptop>:7860`) does `GET /api/ice` then `POST /api/offer` with `{sdp, type}`; the
+- **Discovery (decision 23):** the worker's https link reaches the phone through the Pi hub as the message
+  `{"from":"voice","what":"voice","value":"<https url>"}` (`voice/pipecat/link.sh`, at once and every 30 s); the
+  phone page connects to the newest one. `?voice=<url>` still overrides it, and `?voice=off` turns it off.
+- **Signaling:** served by `voice/pipecat/run.py` on the laptop, port 7860. The phone page (`hub/phone.html`)
+  does `GET /api/ice` then `POST /api/offer` with `{sdp, type}`, and reconnects by itself after a drop; the
   prebuilt test page at `/client` does `POST /start` then `POST`/`PATCH /sessions/<id>/api/offer`. `--ssl` serves
   https with a self-signed cert so the phone's mic works off-localhost; `ICE_SERVERS` or `TURN_URL`/`TURN_USER`/
   `TURN_PASS` add a TURN relay for both peers. With `HUB_URL` set, the worker also serves the phone page at
@@ -2033,7 +2259,8 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
   video (hotspot, then TURN).
 - **Data:** the worker reads state from SpacetimeDB (compact summary, never raw 25 Hz waveforms) and writes
   through existing reducers only. No new tables without the hospital lane.
-- **Failover:** when the link or pipeline drops, the bodycam switches to on-device mode (B11).
+- **Failover:** when the link or pipeline drops, the bodycam switches to on-device mode (B11). **Not built yet in
+  `hub/phone.html`** (decision 23): it reconnects by itself but speaks no callouts while the link is down.
 
 ### 22.7 Event kinds and source chips
 
@@ -2073,14 +2300,15 @@ report under 30 s.
 
 | If this fails | You'll see | Keep going by |
 | --- | --- | --- |
-| Live video won't connect | "connecting…" on the video tile | Switch to the hotspot, then a TURN relay. No snapshot video |
-| Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Trigger: the bodycam's audio link to the worker is down (§0.1 decision 18) |
+| Live video won't connect | "connecting…" on the video tile | Today's source is the Pi hub's frame feed (decision 22): check Tailscale on the hospital laptop, or set `HUB_URL` to the Pi's hotspot address. Once a WebRTC sender exists: the hotspot, then a TURN relay |
+| Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | (Not built yet in `hub/phone.html`, decision 23: it only reconnects.) **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Trigger: the bodycam's audio link to the worker is down (§0.1 decision 18) |
 | Phone can't reach the voice agent worker (venue Wi-Fi) | No agent voice from the start | Hotspot or TURN; degraded mode meanwhile |
 | Wi-Fi or hotspot drops | "Connecting…" in the `/hospital` event timeline header, "stale" on the live view | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); switch networks; demo controls force the next beat |
 | Finger clip gives no reading | "—" (no data) in place of the number | Switch the relay to simulated vitals |
 | Phone motion misreads CPR | CPR rate shows "—" (no data) | Demo control "CPR slow / CPR good" |
 | Speech-to-text misses words | No voice chips on events | The camera and MARK still log events |
 | Nemotron slow or down | "No reply from the agent" in the timeline header after 30 s | Rules still speak; the report falls back to a template filled straight from the tables |
+| Vision model 429 / rate limit | The camera findings and the "Camera: …" rows stop or lag; the traces show failed frames | The sampler pauses unasked frames for the `Retry-After` time (5 s if none, at most 30 s); "Handoff, look" still goes through. Then `VISION_INTERVAL_S=2`, a second key in `VISION_API_KEY`, or `VISION=off` (§19 Vision). Since Sun ~05:00 a dead session no longer leaves a sampler running, so reconnects don't multiply the calls; restart the worker if you still see several |
 | The AI can't read the card | "Scanning…" on the bodycam | Say the name and birth date, or "Identify patient" on `/controls` |
 | Mock EHR down | "Pulling the record…" stays in the patient panel | Use the cached synthetic record, labelled "cached" |
 | Med kit not built (stretch) | No "kit" chips | Expected: the read-back and the camera log every dose |
@@ -2182,7 +2410,7 @@ Rows are in priority order.
 | **Voice agent worker** | Voice-to-voice ≤ ~1.2 s; barge-in works; the fallback engages when the pipeline drops. (Built in `voice/`, live mic test done ~22:15; next: the phone on `hub/phone.html?voice=`) | SpacetimeDB module, `hub/phone.html`, NVIDIA key on the laptop |
 | **Live video (WebRTC + SpacetimeDB handshake + fallback)** | Video plays on the dashboard within 3 s of tap-to-start, under 1 s delay; falls back to the hotspot, then a TURN relay. | SpacetimeDB module (`rtc_signal`), bodycam page |
 | **Hospital dashboard (live view, record panel, alert, report)** | Shows live video, timeline, patient record, pre-arrival alert and the report. (First version built) | SpacetimeDB module, live video |
-| **Nemotron agent (spots the patient on a card or by voice, EHR search, alert, report)** | Pulls the record, posts the alert, writes a sourced report, and logs each step to `agent_step`; its results show in the event timeline. | SpacetimeDB module, mock EHR |
+| **Nemotron agent (spots the patient on a card or by voice, EHR search, alert, report)** | Pulls the record, posts the alert, writes a sourced report, and logs each step to `agent_step`; its public decision updates and results show in the event timeline. | SpacetimeDB module, mock EHR |
 | **Mock EHR (five synthetic FHIR patients)** | Answers FHIR R4 queries locally in under 300 ms. | Nothing |
 | **Relay software (LCD, temperature probe, SpacetimeDB sender)** | Sender pushes real vitals once a second; the LCD shows them. | SpacetimeDB module; relay hardware for real data |
 | **Relay hardware (LCD pod and wiring, temperature probe, button)** | Button plug works and the relay boots; the LCD shows HR; the probe reads within ±0.5 °C. | Nothing |
@@ -2254,11 +2482,11 @@ Short, honest answers. If the true answer is "we didn't test that", say so; judg
 | They ask | We say |
 | --- | --- |
 | Spacetime: what does SpacetimeDB do that a normal database wouldn't? | It's the whole backend. The phone, the Pi, the controls page, the voice agent and the hospital screen all subscribe to the same live incident. Our callout rules and dose timers run inside it as scheduled functions, so there's no separate server for them. |
-| NVIDIA: how is this "beyond a chatbot"? | It isn't a chat window. It listens on scene, watches the live data, decides for itself when to speak and which tools to call (EHR search, dose and allergy checks, hospital choice, report writing), and logs every step to `agent_step`, with the results in the hospital's event timeline. That is agentic tool use. |
+| NVIDIA: how is this "beyond a chatbot"? | It isn't a chat window. It listens on scene, watches the live data, decides for itself when to speak and which tools to call (EHR search, dose and allergy checks, hospital choice, report writing), and logs every step to `agent_step`, with public progress, decision summaries (including monitoring without speaking) and results in the hospital's event timeline. That is agentic tool use. |
 | How fast is it? | Voice-to-voice is about a second (quote what we measured); sensor to screen is under a second; the record pull is a few seconds. Quote measured numbers only. |
 | Why does the voice take about a second? Why not a speech-to-speech model? | Each turn goes speech-to-text, then Nemotron with tools, then text-to-speech, all streaming; that costs roughly 0.7–1.2 s. Speech-to-speech models answer in ~0.3–0.5 s, but they can't run our model, and we wanted Nemotron calling our tools with deterministic dose and allergy checks. (If we kept the instant phone "Copy", say so.) |
 | How does it know who the patient is? | The agent reads the name and birth date off the ID card with the camera, or hears the medic say them, and decides to search the EHR. If it isn't sure, it asks. |
-| How does the live video work? | WebRTC, the same tech as video calls, straight from the phone to the hospital screen. SpacetimeDB carries the connection handshake. |
+| How does the live video work? | The phone sends about 10 camera frames a second to the Pi on the patient's side; the hospital screen pulls each new frame as it arrives and never shows one older than 3 s. (WebRTC straight from the phone is built on the receiving side; the phone side is next.) |
 | What happens without internet? | The phone falls back to on-device speech: rule callouts, read-back and cached audio keep working. Devices buffer and catch up, and real ambulances have cellular. The AI voice and the hospital link need a connection. |
 | What did you build this weekend? | All the software. We designed and printed the enclosures and bought the parts before the event. Say this plainly. |
 | Who did what? | Four of us worked across hardware, the backend and agent, the phone pages and demo controls, and the hospital dashboard and EHR, picking up whatever was next on our work board. (Say who led what, honestly.) |

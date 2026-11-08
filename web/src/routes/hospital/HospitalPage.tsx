@@ -13,6 +13,8 @@ import type { Incident, PatientRecord, Timer, Vitals } from '../../module_bindin
 import { tsMs } from '../../db/time';
 import LiveVideo from './LiveVideo';
 import ReportView from './ReportView';
+import { LiveThought, ThoughtRow } from './ThoughtRows';
+import { groupThoughts, liveThoughts, type Thought } from './thoughts';
 import './hospital.css';
 
 const VITALS_STALE_MS = 5000;
@@ -59,6 +61,10 @@ const STATUS_TEXT: Record<string, string> = {
 
 const byNewest = <T extends { id: bigint }>(a: T, b: T) => (a.id < b.id ? 1 : -1);
 
+type TimelineRow =
+  | { kind: 'event'; key: string; t: number; text: string; flagged: boolean }
+  | { kind: 'thought'; key: string; t: number; thought: Thought };
+
 /** Expand or minimize with a view transition where the browser has one (the thumbnail morphs into place). */
 function withViewTransition(update: () => void) {
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
@@ -80,6 +86,8 @@ export default function HospitalPage() {
   const [messages] = useTable(tables.erMessage);
   const [records] = useTable(tables.patientRecord);
   const [reports] = useTable(tables.report);
+  const [steps] = useTable(tables.agentStep);
+  const [openThoughts, setOpenThoughts] = useState<ReadonlySet<string>>(new Set());
 
   // The newest incident, closed or not, so the dashboard still shows a finished run.
   const incident: Incident | undefined = useMemo(() => [...incidents].sort(byNewest)[0], [incidents]);
@@ -87,16 +95,34 @@ export default function HospitalPage() {
   const record = records.find(r => r.incidentId === incId);
   const report = reports.find(r => r.incidentId === incId);
 
-  // Event timeline, newest first: what happened, and the alert the agent sent the ER.
-  const timeline = [
+  // H5: the agents' steps, grouped into thoughts. A live one is the line at the top; a finished one is a row.
+  // At most two live lines (say the voice agent and W1 at once), newest first.
+  const thoughts = useMemo(() => groupThoughts(steps.filter(s => s.incidentId === incId)), [steps, incId]);
+  const liveSet = isActive && incident?.status !== 'closed' ? liveThoughts(thoughts, now) : new Set<Thought>();
+  const live = thoughts.filter(t => liveSet.has(t)).reverse().slice(0, 2);
+
+  // Event timeline, newest first: what happened, the alert the agent sent the ER, and the agents' finished thoughts.
+  const timeline: TimelineRow[] = [
     ...events
       .filter(e => e.incidentId === incId && e.status !== 'cancelled')
-      .map(e => ({ key: `e${e.id}`, t: tsMs(e.ts), text: e.label, flagged: e.status === 'flagged' })),
+      .map(e => ({ kind: 'event' as const, key: `e${e.id}`, t: tsMs(e.ts), text: e.label, flagged: e.status === 'flagged' })),
     ...messages
       // The agent's "Handoff report ready" summary (E4) is not the pre-arrival alert.
       .filter(m => m.incidentId === incId && m.direction === 'to_er' && !m.text.startsWith('Handoff report ready'))
-      .map(m => ({ key: `m${m.id}`, t: tsMs(m.ts), text: `Alert to ER: ${m.text}`, flagged: false })),
+      .map(m => ({ kind: 'event' as const, key: `m${m.id}`, t: tsMs(m.ts), text: `Alert to ER: ${m.text}`, flagged: false })),
+    ...thoughts
+      .filter(t => !live.includes(t))
+      .map(t => ({ kind: 'thought' as const, key: t.key, t: t.startMs, thought: t })),
   ].sort((a, b) => b.t - a.t);
+
+  useEffect(() => setOpenThoughts(new Set()), [incId]);
+
+  const toggleThought = (key: string) =>
+    setOpenThoughts(prev => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const vitalsNewest = [...vitalsRows].sort(byNewest);
   const latestVitals: Vitals | undefined = vitalsNewest[0];
@@ -208,16 +234,23 @@ export default function HospitalPage() {
             {writing ? 'Writing report…' : reportReady ? 'Report ready' : 'Generate Handoff'}
           </button>
         </div>
-        {timeline.length === 0 ? (
+        {timeline.length === 0 && live.length === 0 ? (
           <p className="empty">No events yet.</p>
         ) : (
           <ol className="timeline">
-            {timeline.map(e => (
-              <li key={e.key} className={e.flagged ? 'is-alarm' : undefined}>
-                <span className="timeline__time">{new Date(e.t).toLocaleTimeString([], { hour12: false })}</span>
-                <span className="timeline__text">{e.text}</span>
-              </li>
+            {live.map(t => (
+              <LiveThought key={t.key} thought={t} />
             ))}
+            {timeline.map(e =>
+              e.kind === 'thought' ? (
+                <ThoughtRow key={e.key} thought={e.thought} active={liveSet.has(e.thought)} open={openThoughts.has(e.key)} onToggle={() => toggleThought(e.key)} />
+              ) : (
+                <li key={e.key} className={e.flagged ? 'is-alarm' : undefined}>
+                  <span className="timeline__time">{new Date(e.t).toLocaleTimeString([], { hour12: false })}</span>
+                  <span className="timeline__text">{e.text}</span>
+                </li>
+              ),
+            )}
           </ol>
         )}
       </section>

@@ -17,7 +17,7 @@ voice/
 
 History: two voice-agent PRs were built in parallel on Saturday. This tree is PR #5 (the TypeScript brain and the
 Riva Pipecat worker, live-tested with a real mic) plus the parts of Devin's PR #6 it lacked: the vision sampler,
-the phone page's WebRTC link (`hub/phone.html?voice=`), `GET /api/ice`, the phone page served from the worker,
+the phone page's WebRTC link (`hub/phone.html`, which finds the worker through the Pi hub; SPEC decision 23), `GET /api/ice`, the phone page served from the worker,
 the Pi-hub frame fallback and `test_client.py`. PR #6's self-hosted Omni and Kokoro (an H100 behind a tunnel) were
 not adopted: everything here runs on NVIDIA's hosted API with the one `nvapi-` key.
 
@@ -55,7 +55,7 @@ would read back and log everything twice).
 
 ```mermaid
 flowchart LR
-  subgraph phone[Bodycam phone: hub/phone.html?voice=]
+  subgraph phone[Bodycam phone: hub/phone.html]
     MIC[mic + camera] -->|WebRTC audio + video| PC
     PC -->|agent voice| SPK[speaker]
   end
@@ -83,17 +83,37 @@ brain does not mark callouts spoken, so the bodycam page speaks them itself with
 The bodycam should stop speaking callout rows while its WebRTC audio link to the Pipecat worker is up, and resume
 when it drops. That is the whole failover trigger.
 
+## Live decision log (H5, SPEC decision 24)
+
+The brain publishes short public status updates through the existing `log_agent_step` reducer, under workflow
+`voice`, tool `decision`. The summary is JSON `{v: 1, id, phase, text}` (at most 300 characters); `id` correlates
+one model operation and `phase` is `progress`, `complete` or `error`. No schema migration or bindings generation.
+The dashboard subscribes to `agent_step` and displays this data live, with expandable completed rows.
+
+Progress is written before model/tool requests. Outcomes describe actual tool/policy results: queued speech
+is not labelled delivered. Failures get an error, even if nothing completed. Late results are dropped when
+the incident changes. No raw dropped audio or internal model reasoning is written to these updates.
+
+Proactive reviews use the same model call and rate budget, returning JSON with `advisory` (string or null)
+and `summary` (one of the public sentences offered in the prompt). A null advisory produces a visible decision
+to continue monitoring and no speech. Offered sentences are generated from the actual state: generic monitoring,
+no valid pulse reading, no record, recent callouts, or recorded ROSC. Free-form claims are replaced with generic
+monitoring, so a model cannot invent clinical stability or a treatment conclusion in this field. Legacy SILENT
+and plain advisories remain accepted; empty responses and malformed JSON fail closed. No NVIDIA key means no model decision rows;
+existing deterministic traces still appear as Agent activity.
+
 ## The brain, step by step
 
 | Input | What the brain does | Speaks (priority) |
 | --- | --- | --- |
-| Transcript line (from Pipecat, the terminal bodycam, or a `transcript` row the bodycam wrote in degraded mode) | 0. **Decided first, stored after** (decision 21): a line is written to `transcript` only if it was kept (a step below acted on it, or Nemotron kept it); a dropped line is written nowhere. 1. **Echo guard:** drop it if it matches something the brain itself said in the last few seconds, unless it is confirm / correction / cancel. 2. **Read-back fast path (no model):** parser (§16) → `check_allergy` + `check_dose_range` → speak the read-back ending in "Log it?" ("Log it anyway?" after a warning) → `log_event` (kind `med_<drug>`, source `read-back`) → `logged` until the medic answers (`flagged` only after an allergy or dose warning, decision 21). 2b. **A medication heard in pieces** ("One milligram of" … "epinephrine IV", a lone "Amiodarone" … "three hundred milligrams", or a misheard drug name): the drug, dose and route are kept for 20 s after the last piece and filled in from later lines in any order, with unrelated or misheard lines in between; only the missing piece is asked for ("Which drug?" / "Epinephrine. What dose?"), and not again while the medic is answering. "Correction" drops it. Sound-alike drug names ("a pine fine" → epinephrine) are matched only where a dose is being given or a medication is being collected. 2c. **Status changes** stated plainly ("cardiac arrest", "we've got a pulse", "transporting now"; never a question, "history of", a conditional or a negation) → `set_status` at once with no model turn, and "Copy, cardiac arrest."; "starting compressions" / "starting CPR" is not a status: it logs `cpr_started` once (the module starts CPR and sets the arrest if needed) and says "Copy, CPR started." 3. **The answer:** a whole-line "yes" / "yeah, log it" / "go ahead" within 30 s of "Log it?" → `confirmed` + "Logged."; "no" / "don't log it" → `cancelled` + "Cancelled."; "correction" / "confirm" as before. 4. **Spoken identity** ("Patient is Jordan Avery, born March 14, 1968") → W6 search. 5. **B6 shortcuts:** "Handoff, mark" → `log_event` kind `mark` + "Marked."; "Handoff, look" is left to the vision sampler (no model turn, so one answer). 6. Pure filler ("Yeah.", "Okay, so") and lone words stop here. 7. Everything else is a **Nemotron turn** with the state summary, the **voice log** (last 10 lines heard, kept or dropped), the last 8 exchanges (5 min) and the tools. It first decides **keep or DROP**: a line not about this patient and not for Handoff is answered DROP and stored nowhere. A kept line: it logs what is clinical (procedures and airway devices are read back with "Log it?"; findings are logged quietly), and replies only when the line is meant for Handoff | Read-back P0; answers to the medic P1 |
+| Transcript line (from Pipecat, the terminal bodycam, or a `transcript` row the bodycam wrote in degraded mode) | 0. **Decided first, stored after** (decision 21): a line is written to `transcript` only if it was kept (a step below acted on it, or Nemotron kept it); a dropped line's words are not stored; only generic model progress/outcome rows may appear (decision 24). 1. **Echo guard:** drop it if it matches something the brain itself said in the last few seconds, unless it is confirm / correction / cancel. 2. **Read-back fast path (no model):** parser (§16) → `check_allergy` + `check_dose_range` → speak the read-back ending in "Log it?" ("Log it anyway?" after a warning) → `log_event` (kind `med_<drug>`, source `read-back`) → `logged` until the medic answers (`flagged` only after an allergy or dose warning, decision 21). 2b. **A medication heard in pieces** ("One milligram of" … "epinephrine IV", a lone "Amiodarone" … "three hundred milligrams", or a misheard drug name): the drug, dose and route are kept for 20 s after the last piece and filled in from later lines in any order, with unrelated or misheard lines in between; only the missing piece is asked for ("Which drug?" / "Epinephrine. What dose?"), and not again while the medic is answering. "Correction" drops it. Sound-alike drug names ("a pine fine" → epinephrine) are matched only where a dose is being given or a medication is being collected. 2c. **Status changes** stated plainly ("cardiac arrest", "we've got a pulse", "transporting now"; never a question, "history of", a conditional or a negation) → `set_status` at once with no model turn, and "Copy, cardiac arrest."; "starting compressions" / "starting CPR" is not a status: it logs `cpr_started` once (the module starts CPR and sets the arrest if needed) and says "Copy, CPR started." 3. **The answer:** a whole-line "yes" / "yeah, log it" / "go ahead" within 30 s of "Log it?" → `confirmed` + "Logged."; "no" / "don't log it" → `cancelled` + "Cancelled."; "correction" / "confirm" as before. 4. **Spoken identity** ("Patient is Jordan Avery, born March 14, 1968") → W6 search. 5. **B6 shortcuts:** "Handoff, mark" → `log_event` kind `mark` + "Marked."; "Handoff, look" is left to the vision sampler (no model turn, so one answer). 6. Pure filler ("Yeah.", "Okay, so") and lone words stop here. 7. Everything else is a **Nemotron turn** with the state summary, the **voice log** (last 10 lines heard, kept or dropped), the last 8 exchanges (5 min) and the tools. It first decides **keep or DROP**: a line not about this patient and not for Handoff is answered DROP without storing its words (decision 24 allows a generic outcome). A kept line: it logs what is clinical (procedures and airway devices are read back with "Log it?"; findings are logged quietly). **Its free text is spoken only if the line was addressed to Handoff and the text reads as speech** (decision 24, amended Sun ~05:00): addressed means it ends in "?", says "Handoff", is a direct request ("look up", "pull up", "can you", "tell me", "what's") or follows Handoff's own reply within 5 s; speech-like means one or two sentences with no list, JSON, tool name or reasoning marker (`src/speech.ts`). Otherwise nothing is said and the dashboard gets only "Reviewed the clinical update; nothing to say aloud."; the model's words are never shown. `speak` is refused for an unaddressed line | Read-back P0; answers to the medic P1 |
 | `POST /seen` from the vision sampler (`pipecat/vision.py`): an ID card with a readable name and birth date | **X1 by camera:** the same W6 search as the spoken name, `identify_patient` with method `ID card`, then the pull below. The same card again (patient already identified, record saved) does nothing | the record summary (P2) |
 | `POST /seen`: a drug being given (label read, push seen), AED pads, an airway device, IV/IO | `log_event` with source `seen`: `med_<drug>` with the printed dose in the label and never a guessed one (the drug name goes through the read-back aliases: "epi" → epinephrine; an unknown name is not logged), or `procedure` / `airway` rows. The medication row then comes back through the `event` path below | — |
+| `POST /seen` `{"type":"scene","text":"…"}` from the vision sampler (when the one-sentence scene changes, at most every 5 s) | Kept in memory only: no event, no transcript. Writes one `agent_step` row (tool `vision`, "Camera: …", "Nemotron · vision" on the dashboard) and adds a `CAMERA (N s ago) …` line to the state summary for the next 60 s, so voice turns and advisories see what the camera sees. Context only: the model never logs it as a fact on its own | — |
 | `incident.patientRef` set (ID card, spoken name, or `/controls` Identify) and no record yet | **W6:** `GET Patient/<id>/$everything` → `save_patient_record` (source `EHR`, or `cached` from the built-in copy of pt-0001 if the EHR is down, X7) | "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." (P2, X4) |
 | `event` with a `seen` source and no read-back source (the camera saw a drug given: the vision sampler, or any other client calling `log_event` with source `seen`, label = the drug, plus the printed dose if it read one) | **RB9/RB10:** the event is flagged (seen but not said) and `check_allergy` → warning (P0); a printed dose gets `check_dose_range` → out-of-range warning (P0) or "Saw epinephrine, one milligram. Confirm?" (P2); no dose → "Saw epinephrine. What dose?" (P2). A spoken dose within 30 s (a full read-back, or just "one milligram") merges in and the brain marks the event `confirmed`; "confirm" confirms a printed or allergy-flagged dose but is not enough when no dose is known | "Saw epinephrine. What dose?" (P2) |
 | `transcript` row the bodycam wrote itself (degraded mode) | The phone's parser already spoke the read-back and logged the event, so the brain skips the read-back and control paths for that line and only does W6 / Nemotron | — |
-| State change (status, events, flags, timers, the record, vitals bands, CPR), checked every 10 s, `VOICE_PROACTIVE` (on by default) | Nemotron is told what changed and decides whether one advisory helps (safety links between facts, trends, documentation gaps; never a rule callout again); the policy layer clamps it to 15 words, one per 15 s, protocol wording, never an order | P2 |
+| State change (status, events, flags, timers, the record, vitals bands, CPR), checked every 10 s, `VOICE_PROACTIVE` (on by default) | Nemotron is told what changed and decides whether one advisory helps (safety links between facts, trends, documentation gaps; never a rule callout again); the policy layer clamps it to 15 words, one per 15 s, protocol wording, never an order. **Trend:** a change in the `TREND` words (SpO₂ down 6+, or HR up 40+ from a rate of 50 or above, within 60 s: WORSENING; a heart rate climbing back from under 50, as at ROSC, is a recovery) is a state change; Nemotron is asked for one advisory with the trend in view and its decision rows show on `/hospital`. If it gives no advisory (or fails, or is off), the brain speaks one fixed note per episode, "Note: oxygen saturation falling, ninety-seven to eighty-eight." (or the heart-rate form), with numbers from the state only: fixed code, written as plain `trend` steps (labelled "Agent" on the dashboard) and spoken with kind `trend` (15 words, the 4 s spacing, no 15 s advisory gap). The episode ends when valid readings show the trend is no longer worsening; a dropped reading doesn't end it. `tick_rules` alarms are unchanged | P2 |
 
 Deadlines: the read-back path has no model call and speaks in well under a second plus the database round trip.
 A Nemotron turn gets 6 s; if it runs out, the brain stays silent (the rules are the safety net).
@@ -111,7 +131,7 @@ A Nemotron turn gets 6 s; if it runs out, the brain stays silent (the rules are 
 | `check_allergy(drug)` | Against the pulled record's allergy list | deterministic |
 | `search_ehr(name, birth_date)` | FHIR `Patient?name=&birthdate=` → matches; exactly one match is pulled at once (no separate `pull_record` round) | with several matches the model must ask, never guess (X8) |
 | `pull_record(patient_id)` | `identify_patient` (method `voice`) + `$everything` + `save_patient_record` | the spoken summary is built from the record, not by the model |
-| `speak(text, priority)` | `add_callout` through the policy layer | ≤ 30 words for an answer (a longer one keeps its leading whole sentences), ≤ 15 for an unprompted advisory, one answer per line, no numbers the state doesn't contain |
+| `speak(text, priority)` | `add_callout` through the policy layer | ≤ 30 words for an answer (a longer one keeps its leading whole sentences), ≤ 15 for an unprompted advisory, one answer per line, no numbers the state doesn't contain; **refused when the line was not addressed to Handoff** (decision 24) |
 
 The model never speaks a dose or allergy judgement of its own: it calls the check tools and the brain speaks their
 fixed wording (§16 guardrail 1). Every tool call and decision is written to `agent_step` (workflow `voice`).
@@ -124,6 +144,8 @@ Plain text, about 200–300 tokens, rebuilt for every turn:
 INCIDENT Medic 12 · status ARREST (since 14:02, 3 min) · DEMO TIMING on · destination Avon Heart Institute, ETA 7 min
 PATIENT Jordan Avery, 58 (EHR) · allergies: amiodarone · meds: warfarin, metoprolol · history: CAD, MI 2021 · full code
 VITALS (relay, 2 s ago) HR 104 · SpO2 93 (experimental) · temp 36.4 — or "no valid reading (no finger)"
+TREND (last 40 s) SpO2 97 → 88 · HR 96 → 160 · SpO2 falling fast, HR rising fast · WORSENING
+CAMERA (4 s ago) medic's gloved hands over the patient's chest, syringe in the right hand
 CPR rate 111/min · compressing · 142 compressions this arrest · longest pause 7 s
 TIMERS epi due in 0:32 · cycle 1:10
 EVENTS (last 8) 14:04 Epinephrine 1 mg IO [read-back, seen] · 14:05 Airway placed (i-gel) [voice] · 14:06 Amiodarone 300 mg [FLAGGED allergy] …
@@ -133,14 +155,20 @@ TRANSCRIPT (last 6) 14:05:58 "giving the i-gel now" · …
 
 Never raw waveforms. Numbers are copied from the tables; missing readings say so.
 
+The `TREND` line is built from the valid readings (status `pulse`) in the last 60 s: it needs two readings at
+least 5 s apart and is never extrapolated. It is left out when there are fewer readings or when they are steady
+(a steady patient costs no tokens). Worsening means SpO₂ down 6 or
+more, or HR up 40 or more, inside the window. The `CAMERA` line is the vision sampler's latest scene sentence, shown
+for 60 s after it last changed; it is left out after that.
+
 ## Local API (brain ↔ ear and mouth)
 
 `http://127.0.0.1:8787` (`VOICE_API_PORT`). Both the Pipecat worker and `mock/bodycam.ts` use exactly this.
 
 | Call | Body / messages | Notes |
 | --- | --- | --- |
-| `POST /transcript` | `{"text": "...", "source": "pipecat" \| "repl" \| "webspeech"}` → `202 {"id": "..."}` | The brain writes `add_transcript` and processes the line. Final utterances only, one sentence per call |
-| `POST /seen` | `{"type": "id_card", "name": "AVERY, JORDAN", "birthDate": "1968-03-14"}` · `{"type": "medication", "drug": "epinephrine", "dose": "1 mg"}` (dose optional, as printed) · `{"type": "aed_pads" \| "airway_device" \| "iv_io"}`; all with optional `"confidence"` and `"detail"` (where the evidence frame is) → `202` | One vision finding at confidence ≥ 0.7. The sampler dedupes (same card or drug within 60 s, procedures within 10 min); the brain also ignores a card for the patient already identified. `400` for anything else |
+| `POST /transcript` | `{"text": "...", "source": "pipecat" \| "repl" \| "webspeech"}` → `202 {"id": "..."}` | The brain handles the line first, then writes `add_transcript` only if it kept it (decision 21: room talk Nemotron drops, filler and our own words are stored nowhere). Final utterances only, one sentence per call |
+| `POST /seen` | `{"type": "id_card", "name": "AVERY, JORDAN", "birthDate": "1968-03-14"}` · `{"type": "medication", "drug": "epinephrine", "dose": "1 mg"}` (dose optional, as printed) · `{"type": "aed_pads" \| "airway_device" \| "iv_io"}` · `{"type": "scene", "text": "medic's gloved hands over the patient's chest, syringe in the right hand"}` (one sentence; context only, see the brain table); the findings with optional `"confidence"` and `"detail"` (where the evidence frame is) → `202` | One vision finding at confidence ≥ 0.7. The sampler dedupes (same card or drug within 60 s, procedures within 10 min); the brain also ignores a card for the patient already identified. A `scene` is posted when it changes, at most every 5 s, and is never a finding: no event, no transcript, no confidence. `400` for anything else |
 | `POST /say` | `{"text": "...", "priority": 1-3, "kind": "vision" \| "ask"}` → `202` | Fixed words from the worker (the answer to "Handoff, look": "AED pads on.", "Nothing I recognise."), through the policy layer (20 words, never a number the state doesn't have) and the shared queue |
 | `POST /trace` | `{"tool": "vision", "summary": "..."}` → `202` | A row in `agent_step` (workflow `voice`) for the worker's own decisions: findings kept or dropped under 0.7, model failures, "look" results |
 | `GET /state` | → the state summary as JSON and text | debugging |
@@ -190,6 +218,16 @@ mocks call those directly.
 - **Rule callouts are not the agent:** in ARREST the §15 rules say "Epi due" every 45 s and "Two minutes…" every
   30 s (DEMO TIMING). Say "ROSC" or reset between runs.
 
+## Lessons from the first phone test (Sun ~04:00)
+
+- **The agent spoke its reasoning.** While medications were given, a Nemotron turn's free text, which was the
+  model thinking out loud, went to the speaker. Now free text is spoken only when the line was addressed to Handoff
+  and reads as speech (one or two sentences, no lists, JSON, tool names or reasoning markers), and `speak` is refused
+  otherwise. Anything not spoken shows on the dashboard as a generic decision row, not the model's words.
+- **The vision sampler leaked (PR #18).** Each ended WebRTC session left its hub-poll task running, so after a few
+  reconnects several samplers hit the vision model at once and got 429s. The sampler and the bridge now release
+  their tasks and HTTP sessions in Pipecat's `cleanup()` as well as on Cancel/End frames (`pipecat/README.md`).
+
 ## Settings (`voice/.env.local`, gitignored)
 
 | Setting | Default |
@@ -210,7 +248,17 @@ mocks call those directly.
 - Facts only: the model sees the state summary and tool results; `speak` rejects any number not present in them.
 - Doses and allergies: fixed tables and the pulled record, spoken verbatim. The model cannot log a medication.
 - Unprompted advisories: 15 words or fewer, at most one per 15 s, "Consider…" wording, never an order.
+- Never speaks its reasoning, and speaks only when addressed (decision 24, amended Sun ~05:00). The exceptions are
+  deterministic: read-backs, warnings, the record summary, the fixed control words and the trend note (numbers from
+  the state only, one per episode).
+- The camera scene is context for the model, never a fact it can log on its own.
+- Unprompted advisories are facts only: one naming a shock, arrest/ROSC, a seizure, a drug, an allergy, a blood
+  thinner, CPR, the record or the ID card that the state doesn't hold is dropped as invented; a status sentence in
+  the advisory field is a keep-monitoring decision; the same note is never repeated within two minutes; the first
+  look at an incident is a baseline, not a change; a new event alone triggers no review.
+- A line meant for Handoff (its name, a question, a direct request, a follow-up) is never dropped: a DROP is
+  overruled and the line is answered.
 - Nothing the medic says is logged as settled without their word: actions are read back with "Log it?" and are
   `confirmed` only when they say yes. Room talk Nemotron drops is never stored.
 - Never claims compression depth. Never speaks over the medic. Same words never queued twice (server-side).
-- Every step is in `agent_step`, workflow `voice`, so the hospital trace shows it.
+- Every step is in `agent_step`, workflow `voice`, so the hospital trace shows it; dropped lines leave no step.

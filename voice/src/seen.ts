@@ -8,7 +8,12 @@ import { recognizeDrug } from './readback.js';
 export type SeenFinding =
   | { type: 'id_card'; name: string; birthDate: string; confidence?: number; detail?: string }
   | { type: 'medication'; drug: string; dose?: string; confidence?: number; detail?: string }
-  | { type: 'aed_pads' | 'airway_device' | 'iv_io'; confidence?: number; detail?: string };
+  | { type: 'aed_pads' | 'airway_device' | 'iv_io'; confidence?: number; detail?: string }
+  /** What is happening in view, one sentence (decision 24): context for Nemotron's turns; one trace row, never an event or transcript. */
+  | { type: 'scene'; text: string; confidence?: number; detail?: string };
+
+/** A scene sentence is context, not a record: short, one line, no markup. */
+const SCENE_MAX_CHARS = 160;
 
 const PROCEDURES: Record<'aed_pads' | 'airway_device' | 'iv_io', { kind: string; label: string }> = {
   aed_pads: { kind: 'procedure', label: 'AED pads on' },
@@ -46,6 +51,11 @@ export function parseSeen(body: Record<string, unknown>): SeenFinding | undefine
     return { type, drug, dose, confidence, detail };
   }
   if (type === 'aed_pads' || type === 'airway_device' || type === 'iv_io') return { type, confidence, detail };
+  if (type === 'scene') {
+    const text = String(body.text ?? '').replace(/\s+/g, ' ').replace(/[{}[\]<>`]/g, '').trim().slice(0, SCENE_MAX_CHARS);
+    if (text.length < 4) return undefined;
+    return { type, text, confidence, detail };
+  }
   return undefined;
 }
 
@@ -53,7 +63,7 @@ export function parseSeen(body: Record<string, unknown>): SeenFinding | undefine
  * The event row for a non-identity finding. The drug name goes through the read-back parser's alias and fuzzy
  * matching ("epi" → epinephrine, "epinephrin" → epinephrine); a name it doesn't know is not logged.
  */
-export function seenEvent(f: Exclude<SeenFinding, { type: 'id_card' }>): { kind: string; label: string } | undefined {
+export function seenEvent(f: Exclude<SeenFinding, { type: 'id_card' | 'scene' }>): { kind: string; label: string } | undefined {
   if (f.type !== 'medication') return PROCEDURES[f.type];
   const drug = recognizeDrug(f.drug) ?? recognizeDrug(`giving ${f.drug}`);
   if (!drug) return undefined;

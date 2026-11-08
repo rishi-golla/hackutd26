@@ -3,6 +3,7 @@ dist
 *.log
 .DS_Store
 .env*.local
+*.tsbuildinfo
 spacetime.local.json
 
 # Pi hub and Chromatic firmware: track only the source. Keys, backups and captures stay out.

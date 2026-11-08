@@ -29,6 +29,20 @@ and its file name goes into the event's source detail; AED pads, airway and IV/I
 (the §18 merge window, so a second epi 45 s later is a new event), procedures for 10 min. What the sampler did
 with each frame that had findings (kept, dropped under 0.7, failed) goes to the trace through `POST /trace`.
 
+- **Scene sentence (SPEC decision 24, amended Sun ~05:00).** The same reply also carries one sentence, `scene`
+  ("medic's gloved hands over the patient's chest, syringe in the right hand"), so the brain knows what the camera
+  sees. When it changes the sampler posts `{"type":"scene","text":"…"}` to the brain's `POST /seen`, at most every
+  5 s. The brain keeps it in memory for 60 s (a `CAMERA` line in its state summary, one "Camera: …" row in
+  `agent_step`); it is context, not a finding: it is posted with `confidence` 1 (the brain ignores it) and creates no
+  event. The prompt limits it to actions and equipment: no names, printed text or bystanders, since it shows on
+  `/hospital`. No extra model call: it rides in the same vision call, with `max_tokens` 260 to fit it. After a 429
+  the sampler pauses unasked sampling for the `Retry-After` time (5 s if none, at most 30 s); "Handoff, look" still
+  goes through.
+- **Cleanup (found in PR #18's live test).** Each ended WebRTC session used to leave the sampler's hub-poll task
+  running, so after reconnects several samplers hit the vision model at once (429). The sampler and `BrainBridge`
+  now release their tasks and HTTP sessions in Pipecat's `cleanup()` as well as on Cancel/End frames, and nothing
+  starts a call after a stop.
+
 - **"Handoff, look"** (B6): the sampler sees the transcript go by, grabs the next frame at once, and says what it
   found through the brain's `POST /say` ("AED pads on.", "Nothing I recognise.", "Camera check failed."). For an
   ID card it says nothing itself: the brain's "Record found…" is the answer.
@@ -43,7 +57,7 @@ with each frame that had findings (kept, dropped under 0.7, failed) goes to the 
 - **Rate limit:** 1 frame/s is up to 60 calls/min on the free tier's ~40/min (§28). Options: `VISION_INTERVAL_S=2`,
   a second key in `VISION_API_KEY`, or `VISION=off` when only the audio matters.
 - `test_vision.py`: offline checks against a stub model and a stub brain (parsing, mapping, dedupe, confidence,
-  one call at a time, look, failures).
+  one call at a time, look, failures, the scene post, cleanup on session end).
 
 ## Install
 
@@ -73,26 +87,35 @@ session ends when it can't reach the brain within 1.5 s (see "No mouth, no link"
 | `.venv/bin/python run.py --list-voices` | Ask the hosted TTS which voices it has (needs the key) |
 | `.venv/bin/python test_client.py --image idcard.jpg a.wav b.wav` | A whole session over real WebRTC without a phone: WAV files as the mic, an image as the camera; prints the time from the end of each utterance to the first reply audio and saves the agent's audio under `test-out/` |
 
-**The bodycam phone page.** `hub/phone.html` (the Pi hub's page) connects to this worker when opened with
-`?voice=https://<laptop>:7860`: it fetches `GET /api/ice`, sends its mic and camera over one WebRTC connection to
-`POST /api/offer`, and plays the agent's voice; a "Voice" dot shows the link. Without the parameter the page is
-unchanged. Two ways to get there:
+**The bodycam phone page.** `hub/phone.html` (the Pi hub's page) keeps an open mic to this worker for as long as
+the bodycam runs (SPEC decision 23): it fetches `GET /api/ice`, sends its mic and camera over one WebRTC connection
+to `POST /api/offer`, plays the agent's voice, and reconnects by itself after a drop (2, 4, 8, then every 15 s); a
+"Voice" dot shows the link. It finds the worker on its own:
 
-- **Phone → hub as today, plus the worker:** open the hub's page with `?voice=https://<laptop-ip>:7860` (the
-  worker on `--ssl`; accept its cert once at `https://<laptop-ip>:7860`).
-- **One URL (`HUB_URL=http://<pi>:8000`):** the worker serves the page itself at `/phone.html` and proxies the
-  page's hub calls (`/common.js`, `/poll`, `/send`, `/frame`, `/audio`), so one https address, or one tunnel
-  (`ngrok http 7860`), carries the whole bodycam. `run.py` prints the exact address. The page then connects its
-  voice link to its own origin, no `?voice=` needed.
+1. **Default: through the Pi hub.** On the laptop that runs the agent, three terminals from the repo root (run.py
+   without `--ssl`: the tunnel provides the https):
+   ```bash
+   (cd voice && npm start)                                         # 1: the brain (NVIDIA_API_KEY in voice/.env.local)
+   (cd voice/pipecat && HUB_URL=http://handoff-pi:8000 .venv/bin/python run.py)   # 2: the worker
+   HUB_URL=http://handoff-pi:8000 voice/pipecat/link.sh            # 3: tunnel + announce (brew install cloudflared)
+   ```
+   `link.sh` opens a free Cloudflare quick tunnel to port 7860 (https, so the phone's page may call it) and
+   announces it to the hub as `{"what":"voice"}` once the tunnel is registered, then every 30 s. Anyone with the
+   link can reach the worker: stop it when you're not demoing. The medic opens the Pi's usual link and
+   taps Start; no `?voice=`. The hub's `/dash` shows "Voice agent link: …".
+2. **`?voice=https://<laptop-ip>:7860`** overrides it (the worker on `--ssl`; accept its cert once), and
+   `?voice=off` turns the link off.
+3. **One URL (`HUB_URL=http://<pi>:8000`):** the worker also serves the page itself at `/phone.html` and proxies the
+   page's hub calls (`/common.js`, `/poll`, `/send`, `/frame`, `/audio`); the page then connects to its own origin.
 
-Network: the phone must reach the laptop directly. If the venue Wi-Fi blocks device-to-device traffic, join the
+Network: the tunnel carries only the handshake; the audio needs the phone to reach the laptop directly. If the venue Wi-Fi blocks device-to-device traffic, join the
 laptop to the phone's hotspot, or set a TURN relay (`TURN_URL`/`TURN_USER`/`TURN_PASS`, or `ICE_SERVERS`), which
 both peers then use. `GET /api/ice` hands the TURN credential to any browser that asks (CORS is open), so use a
 short-lived or throwaway TURN password. One bodycam at a time: a new connection ends the previous session.
 
 **No mouth, no link (spec §23 B11).** The phone stays silent while its audio link to the worker is up, so the
-worker only keeps the link up while it can actually speak. The session ends, and the phone takes over the
-callouts, when any of these happen:
+worker only keeps the link up while it can actually speak. The session ends (and the phone should take over the
+callouts: B11, not built yet in `hub/phone.html`, which only reconnects; SPEC decision 23) when any of these happen:
 
 - the brain is unreachable for 1.5 s, at the start or after a drop;
 - the brain drops this mouth on purpose: another mouth replaced it, or its TTS kept failing (`speaker.ts` closes
@@ -182,7 +205,12 @@ Verified by running (Sat ~23:20, after the merge of the two voice PRs):
   epinephrine. What dose?", a printed dose → "Confirm?", amiodarone seen → the allergy warning with no words
   spoken, an ID card → `identify_patient` (method `ID card`) → record saved and spoken, the same card again → nothing.
 
-Not verified yet: a real phone on `hub/phone.html?voice=` (the camera track into the sampler, Chrome's echo
+Covered by `test_vision.py` since Sun ~05:00 (stub model and brain, no phone): the sampler's tasks and sessions
+are released on session end (`cleanup()` as well as Cancel/End frames, and no call starts after a stop), and the
+scene sentence is posted to `/seen` when it changes, at most every 5 s. Still to do: a live phone run after this
+change, to see that reconnects no longer stack samplers (no 429s) and that the scene sentences are accurate.
+
+Not verified yet: a real phone on `hub/phone.html` (found through the hub, decision 23) (the camera track into the sampler, Chrome's echo
 cancellation with the agent's voice from the chest speaker), real bodycam frames of the printed card and of a
 syringe in a hand, and the hub proxy from a phone.
 

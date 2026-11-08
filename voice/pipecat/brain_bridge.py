@@ -21,6 +21,10 @@ number first, then oldest) and nothing starts while the medic is talking.
 Event `on_mouth_lost(bridge, reason)`: the brain has been unreachable for `mouth_grace_secs`, or closed this mouth on
 purpose (another mouth replaced it, or its TTS kept failing). The WebRTC session ends on it, so the phone's audio
 link drops and the phone speaks callouts itself (spec §23 B11): a link that is up always has a working mouth.
+
+Teardown: the session, the /mouth socket and every task the bridge started are released on EndFrame/CancelFrame
+and again in cleanup() (idempotent). Pipecat's base cleanup() leaves create_task() tasks running, and a session
+cancelled before it finished starting gets only cleanup(), no CancelFrame (see vision.py).
 """
 
 import asyncio
@@ -108,6 +112,7 @@ class BrainBridge(FrameProcessor):
         self._watchdog: asyncio.Task | None = None
         self._user_speaking = False
         self._seq = 0
+        self._stopped = False  # set once by _stop(): no new task or connection after it
 
         self._register_event_handler("on_mouth_lost")
 
@@ -133,7 +138,7 @@ class BrainBridge(FrameProcessor):
                 logger.info(f"heard: {text!r}")
                 if self._user_speaking:
                     self._turn_text.append(text)
-                    if self._turn_hold is None:
+                    if self._turn_hold is None and not self._stopped:
                         self._turn_hold = self.create_task(self._hold_turn(), name="turn_hold")
                 elif self._late_final:
                     # A final for the turn that just ended: it belongs to that turn's line, sent together.
@@ -159,7 +164,7 @@ class BrainBridge(FrameProcessor):
             await self._send({"type": "user_speaking", "active": True})
         elif isinstance(frame, UserStoppedSpeakingFrame):
             self._user_speaking = False
-            if self._late_final is None:
+            if self._late_final is None and not self._stopped:
                 self._late_final = self.create_task(self._await_late_final(), name="late_final")
             await self._send({"type": "user_speaking", "active": False})
             await self._speak_next()
@@ -212,12 +217,14 @@ class BrainBridge(FrameProcessor):
 
     async def _transcript_loop(self):
         """POST transcripts one at a time, in order. Failures are logged and the line is dropped."""
-        assert self._session
         timeout = aiohttp.ClientTimeout(total=self._transcript_timeout)
         while True:
             text = await self._transcripts.get()
+            session = self._session
+            if session is None or self._stopped:
+                return
             try:
-                async with self._session.post(
+                async with session.post(
                     self._transcript_url, json={"text": text, "source": "pipecat"}, timeout=timeout
                 ) as resp:
                     if resp.status >= 300:
@@ -256,7 +263,7 @@ class BrainBridge(FrameProcessor):
 
     async def _speak_next(self):
         """Start the next queued utterance, unless one is playing or the medic is talking."""
-        if self._current or self._user_speaking or not self._pending:
+        if self._stopped or self._current or self._user_speaking or not self._pending:
             return
         utt = min(self._pending, key=lambda u: (u.priority, u.seq))
         self._pending.remove(utt)
@@ -309,24 +316,38 @@ class BrainBridge(FrameProcessor):
     # ---- connections to the brain ---------------------------------------------------------------------------
 
     async def _start(self):
-        if self._session:
+        if self._session or self._stopped:
             return
         self._session = aiohttp.ClientSession()
         self._transcript_task = self.create_task(self._transcript_loop(), name="brain_transcripts")
         self._mouth_task = self.create_task(self._mouth_loop(), name="brain_mouth")
 
     async def _stop(self):
-        tasks = (self._watchdog, self._turn_hold, self._lost_task, self._mouth_task, self._transcript_task)
-        self._watchdog = self._turn_hold = self._lost_task = self._mouth_task = self._transcript_task = None
+        """Release everything the bridge started. Idempotent, and safe to run from process_frame and cleanup() at
+        once: every task's cancellation is requested before the first await."""
+        self._stopped = True
+        current = asyncio.current_task()
+        tasks = [
+            t
+            for t in (self._watchdog, self._turn_hold, self._late_final, self._lost_task, self._mouth_task, self._transcript_task)
+            if t and not t.done() and t is not current
+        ]
+        self._watchdog = self._turn_hold = self._late_final = self._lost_task = self._mouth_task = self._transcript_task = None
         for task in tasks:
-            if task and not task.done():
-                await self.cancel_task(task)
-        if self._ws and not self._ws.closed:
-            await self._ws.close()
-        self._ws = None
-        if self._session:
-            await self._session.close()
-            self._session = None
+            task.cancel()
+        for task in tasks:
+            await self.cancel_task(task)
+        ws, self._ws = self._ws, None
+        if ws and not ws.closed:
+            await ws.close()
+        session, self._session = self._session, None
+        if session and not session.closed:
+            await session.close()
+
+    async def cleanup(self):
+        """Pipecat's base cleanup() releases only the processor's own frame tasks; the bridge's are released here."""
+        await self._stop()
+        await super().cleanup()
 
     async def _send(self, msg: dict):
         ws = self._ws
@@ -339,7 +360,7 @@ class BrainBridge(FrameProcessor):
 
     def _time_outage(self):
         """Start timing an outage, once: on_mouth_lost fires if no connection is made within the grace period."""
-        if self._lost_task is None:
+        if self._lost_task is None and not self._stopped:
             self._lost_task = self.create_task(self._report_lost_after_grace(), name="mouth_lost")
 
     async def _report_lost_after_grace(self):
@@ -355,13 +376,15 @@ class BrainBridge(FrameProcessor):
         1011 "tts failing"; any 4000-4999 code counts too). Then this mouth stays off until the next session:
         retrying would take the mouth back from the one that replaced it, or keep feeding a failing TTS.
         """
-        assert self._session
         backoff, warned = 0.5, False
         self._time_outage()
         while True:
             close_code, reason = None, ""
+            session = self._session
+            if session is None or self._stopped:
+                return
             try:
-                async with self._session.ws_connect(self._mouth_url, heartbeat=10) as ws:
+                async with session.ws_connect(self._mouth_url, heartbeat=10) as ws:
                     self._ws = ws
                     if self._lost_task:
                         if not self._lost_task.done():
