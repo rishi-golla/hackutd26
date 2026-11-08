@@ -1,0 +1,16 @@
+[Unit]
+Description=Handoff bridge: Pi hub vitals and MARK -> SpacetimeDB (push_vitals, mark)
+After=network-online.target handoff-hub.service
+Wants=network-online.target
+
+[Service]
+User=cmx
+WorkingDirectory=/home/cmx/bridge
+# Defaults: hub at http://127.0.0.1:8000, Maincloud database handoff-hackutd26, device relay-1.
+# Override with Environment=SPACETIMEDB_DB=... etc.
+ExecStart=/usr/bin/python3 /home/cmx/bridge/hub_bridge.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

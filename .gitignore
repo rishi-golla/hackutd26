@@ -1,8 +1,9 @@
-# Tracked: the Pi hub and sensor code and the Chromatic firmware source. Keys, backups and captures stay out.
+# Tracked: the Pi hub, its SpacetimeDB bridge, the sensor code and the Chromatic firmware source. Keys, backups and captures stay out.
 /*
 !/.gitignore
 !/README.md
 !/hub/
+!/bridge/
 !/chromatic/
 /chromatic/*
 !/chromatic/pi/
