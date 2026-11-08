@@ -94,6 +94,7 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         p, _, qs = self.path.partition("?")
+        p = p.rstrip("/") or "/"                            # /dash/ is /dash
         q = parse_qs(qs)
         try:
             after = int(q.get("after", ["0"])[0])
