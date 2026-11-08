@@ -22,7 +22,7 @@ ASR_FUNCTION_ID = "1598d209-5e27-4d3c-8079-4751568b1081"  # parakeet-ctc-1.1b-as
 # RIVA_BOOST_WORDS overrides the list, RIVA_BOOST_WORDS="" turns it off.
 DEFAULT_BOOST_WORDS = (
     "epi, epinephrine, adrenaline, amio, amiodarone, naloxone, Narcan, nitro, bicarb, atropine, adenosine, "
-    "IO, IV, IM, intraosseous, intranasal, sublingual, milligram, milligrams, micrograms, joules, "
+    "intraosseous, intravenous, intramuscular, intranasal, sublingual, milligram, milligrams, micrograms, joules, "
     "i-gel, airway, ROSC, pulse, compressions, shock, defib, correction, confirm, Handoff, Jordan Avery"
 )
 # Default ASR: Parakeet CTC 1.1B (streaming-capable). nemotron-asr-streaming (bb0837de-8c7b-481f-9ec8-ef5663e9c1fa,

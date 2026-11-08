@@ -118,7 +118,7 @@ must have accepted the cert once (open `https://<laptop>:7860`).
 | `BRAIN_URL` | `http://127.0.0.1:8787` |
 | `RIVA_ASR_FUNCTION_ID`, `RIVA_ASR_MODEL` | `1598d209-5e27-4d3c-8079-4751568b1081`, `parakeet-ctc-1.1b-asr` (since the Sat ~22:15 live test). nemotron-asr-streaming is `bb0837de-8c7b-481f-9ec8-ef5663e9c1fa`, model name empty |
 | `RIVA_TTS_FUNCTION_ID` | `877104f7-e885-42b9-8de8-f6e4c6303969` (magpie-tts-multilingual, Pipecat's default) |
-| `RIVA_BOOST_WORDS` | the clinical list in `config.py` (epinephrine, amiodarone, IO, IV, ROSC, …) at weight 20. A comma list overrides; `""` turns boosting off |
+| `RIVA_BOOST_WORDS` | the clinical list in `config.py` (epinephrine, amiodarone, intraosseous, ROSC, …) at weight 20; IO, IV and IM are left out because they turned "I'm" into "IM". A comma list overrides; `""` turns boosting off |
 | `ICE_SERVERS` | empty. A JSON list such as `[{"urls":"turn:host:3478","username":"u","credential":"p"}]`, used by both peers (the browser gets it from `/start` or `/api/ice`) |
 | `TURN_URL`, `TURN_USER`, `TURN_PASS` | empty. The short form of one TURN entry, appended to `ICE_SERVERS` |
 | `VISION` | `on`. `off` = audio only (no video track requested) |

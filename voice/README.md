@@ -173,6 +173,8 @@ mocks call those directly.
   SPEC §8 now uses them.
 - **ASR model:** default is Parakeet CTC 1.1B with the clinical vocabulary boosted at weight 20
   (`voice/pipecat/config.py`); `RIVA_ASR_FUNCTION_ID`/`RIVA_ASR_MODEL` switch back to nemotron-asr-streaming.
+  IO, IV and IM are not boosted any more (Sun ~00:30): at weight 20 they turned "I'm" into "IM" and noise into
+  "IO"; the long forms are boosted instead.
 - **Split sentences:** a pause after "Administering" makes two STT lines. A skipped fragment is stitched onto the
   next line, a dose with an explicit unit parses without the verb, and a line ending in "of" waits 2 s for the
   drug before asking.
