@@ -1,0 +1,36 @@
+voice/src/brain.ts
+  h_f876d4e77222e2 12,18,43-44,77-81,104-105,178-183,225-226,230-243,270-285,312-349,628,711-715,767-772
+  s_01faa73c301f81::t_71ed7c490d5aeb 32-36,39-42,48-49,70-71,74-76,106-107,188-198,244,286,292-297,356-361,363,378,381-382,384-386,389-405,408,449,627,694,703-706,709,716-717,730-736,738,753-756,758-763,773,779-787
+  s_01faa73c301f81::t_9a249efd6bcc37 245
+  s_01faa73c301f81::t_7cfe6b1260a4f4 287
+  s_01faa73c301f81::t_0c0e51d3a2ec53 350
+voice/src/tools.ts
+  s_01faa73c301f81::t_2b2547b5efb1ea 76,100-101,171-175
+voice/README.md
+  h_f876d4e77222e2 90,105
+  s_01faa73c301f81::t_97df4e4436412c 114,182-184
+voice/test/conversation.test.ts
+  h_f876d4e77222e2 171-235
+  s_01faa73c301f81::t_1cb277d3afe7ba 1-170,236-256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f124b03e8bb2a9589e67f9b06e4887086902b2f",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}

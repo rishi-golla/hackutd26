@@ -1,0 +1,35 @@
+voice/src/policy.ts
+  s_01faa73c301f81::t_6acd24dc9e0c48 14,17
+voice/.env.example
+  s_01faa73c301f81::t_fdfc195b93ff7d 19
+voice/README.md
+  s_01faa73c301f81::t_97df4e4436412c 204
+  s_01faa73c301f81::t_88a1282ecc1943 96,211-213
+voice/src/config.ts
+  s_01faa73c301f81::t_d9a34b90130041 32-33
+voice/test/policy.test.ts
+  s_01faa73c301f81::t_8c0de78c53a1ba 9
+voice/src/brain.ts
+  s_01faa73c301f81::t_3ef1360634b33f 29,52-58,664-674,676,678-682,689,691
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f8be85e31eb271c098d61e74c729277d74da8eb",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}

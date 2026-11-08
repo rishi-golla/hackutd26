@@ -1,0 +1,30 @@
+voice/test/readback.test.ts
+  h_f876d4e77222e2 3,46-65
+  s_01faa73c301f81::t_54d14ee82133fb 66-69
+  s_01faa73c301f81::t_8d889134f8a624 70
+voice/src/readback.ts
+  h_f876d4e77222e2 57-58,63,66-90,130-135,137-154,162-163,180-182,268-280,283-284,286-287,289-295
+  s_01faa73c301f81::t_e3a57e6bd8d3c6 64,258-267,281
+  s_01faa73c301f81::t_1d26db05fcf273 65,136,282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5fe5847f3bfad95b2531655867a738b21d0f21dd",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}

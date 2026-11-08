@@ -1,0 +1,28 @@
+voice/src/policy.ts
+  s_01faa73c301f81::t_6acd24dc9e0c48 47-55
+  s_01faa73c301f81::t_79e3653c4eee61 56
+voice/test/policy.test.ts
+  s_01faa73c301f81::t_8c0de78c53a1ba 18-24
+  s_01faa73c301f81::t_736943ad7545ab 25-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "45197cc0963eb7bb13961af1af7b65f1ef5eb394",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
