@@ -111,6 +111,19 @@ export const STATUS_WORDS: Record<string, RegExp> = {
   rosc: /\b(rosc|pulse (is |came )?back|got a pulse|we have a pulse|return of (spontaneous )?circulation)\b/i,
   en_route: /\b(transport\w*|en route|loading|leaving (the )?scene|rolling|heading to)\b/i,
 };
+/**
+ * The status shortcut with no model turn (brain.ts) only takes phrases that can't mean anything else. "no pulse ox
+ * reading", "loading the epi", "rolling him", "check for ROSC" are not status changes: those lines go to Nemotron,
+ * which still needs STATUS_WORDS in the line to set a status.
+ */
+export const STATUS_PLAIN: Record<'arrest' | 'rosc' | 'en_route', RegExp> = {
+  arrest: /\b(cardiac arrest|pulseless|no pulse(?!\s*-?\s*ox))\b/i,
+  rosc: /\b(we (?:have|got|'ve got) (?:a pulse|rosc)|got a pulse back|pulse is back|rosc achieved|return of spontaneous circulation)\b/i,
+  en_route: /\b(en route|we're transporting|transporting now|leaving (?:the )?scene)\b/i,
+};
+/** Conditional or hypothetical wording: never a status change without the model ("in case he arrests"). */
+export const NOT_PLAIN = /\b(?:if|in case|might|may|could|possible|suspected|risk|watch(?:ing)? for|worried|about to|going to|before|check(?:ing)? for)\b/i;
+
 /** CPR starting is not a status (spec change log Sun ~02:15): it is `log_event('cpr_started')`, which the module
  *  turns into the CPR start (cycle timer, CPR stats, and the arrest if there isn't one yet). */
 export const CPR_START = /\b(start(?:ing|ed)?|begin(?:ning)?|initiat(?:e|ing|ed))\s+(?:chest\s+)?(cpr|compressions)\b/i;

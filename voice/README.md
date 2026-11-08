@@ -202,6 +202,7 @@ mocks call those directly.
 | `EHR_BASE_URL` | `http://localhost:4100/fhir` |
 | `VOICE_API_PORT` | `8787` |
 | `VOICE_W6` | `on`: this worker pulls the record when `patientRef` is set. Turn `off` if the bodycam lane runs W6 itself |
+| `VOICE_WAKE_WORDS` | The name gate (SPEC decision 21): only a line that starts with one of these (default `handoff,model`), the rest of a statement within 8 s of the name, or an answer to what Handoff just asked is acted on. `off` acts on every line |
 | `VOICE_PROACTIVE` | `on`: unprompted Nemotron advisories on state changes (15 words, one per 15 s at most). `off` to silence them |
 | `DISPLAY_TZ` | `America/Chicago` |
 

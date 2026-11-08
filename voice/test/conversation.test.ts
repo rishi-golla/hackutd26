@@ -13,14 +13,17 @@ type Reply = { content?: string; tool_calls?: { id: string; type: 'function'; fu
 const toolCall = (name: string, args: Record<string, unknown>) => ({ id: `call-${name}`, type: 'function' as const, function: { name, arguments: JSON.stringify(args) } });
 
 /** Nemotron stand-in: answers from a queue and records every request body. */
-async function withModel(replies: Reply[], fn: (requests: any[]) => Promise<void>) {
+async function withModel(replies: Reply[], fn: (requests: any[]) => Promise<void>, wake?: string[]) {
   const realFetch = globalThis.fetch;
   const realKey = CONFIG.nvidiaApiKey;
   const realProactive = CONFIG.proactive;
+  const realWake = CONFIG.wakeWords;
   const log = console.log;
   const requests: any[] = [];
   CONFIG.nvidiaApiKey = 'test-key';
   CONFIG.proactive = false;
+  // These tests cover what happens to a line once it is let through; the name gate has its own tests below.
+  CONFIG.wakeWords = wake ?? [];
   console.log = () => {};
   globalThis.fetch = (async (_url: string, init: { body: string }) => {
     requests.push(JSON.parse(init.body));
@@ -33,6 +36,7 @@ async function withModel(replies: Reply[], fn: (requests: any[]) => Promise<void
     globalThis.fetch = realFetch;
     CONFIG.nvidiaApiKey = realKey;
     CONFIG.proactive = realProactive;
+    CONFIG.wakeWords = realWake;
     console.log = log;
   }
 }
@@ -99,15 +103,17 @@ test('an action note the model writes as text is not spoken', async () => {
   });
 });
 
-test('a spoken medication is read back with "Log it?", written as flagged, and "yes" confirms it', async () => {
+test('a spoken medication is read back with "Log it?", stays logged (not flagged) until answered, and "yes" confirms it', async () => {
   const { conn, calls, rows } = arrest();
   await withModel([], async requests => {
     const brain = new Brain(conn, stubSpeaker, new Policy(conn));
     brain.start();
     await brain.handleUtterance('Administering one milligram of epinephrine IO', 'pipecat');
-    await settle(() => statusOf(rows, 'Epinephrine 1 mg IO') === 'flagged');
+    await settle(() => callsTo(calls, 'addCallout').length > 0 && statusOf(rows, 'Epinephrine 1 mg IO') !== undefined);
     assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'Copy. Epinephrine, one milligram, I-O. Log it?');
-    assert.equal(statusOf(rows, 'Epinephrine 1 mg IO'), 'flagged', 'unconfirmed until the medic answers');
+    await settle(() => false);
+    assert.equal(statusOf(rows, 'Epinephrine 1 mg IO'), 'logged', 'unanswered routine dose is not shown as a problem');
+    assert.equal(callsTo(calls, 'setEventStatus').length, 0);
     await brain.handleUtterance('Yes, log it.', 'pipecat');
     await settle(() => statusOf(rows, 'Epinephrine 1 mg IO') === 'confirmed');
     assert.equal(statusOf(rows, 'Epinephrine 1 mg IO'), 'confirmed');
@@ -141,8 +147,9 @@ test('a procedure Nemotron logs is read back and asked about; questions and dupl
     const brain = new Brain(conn, stubSpeaker, new Policy(conn));
     brain.start();
     await brain.handleUtterance("I've got IO access in the right tibia", 'pipecat');
-    await settle(() => statusOf(rows, 'IO access right tibia') === 'flagged');
+    await settle(() => callsTo(calls, 'addCallout').length > 0);
     assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'Copy. IO access right tibia. Log it?');
+    assert.equal(statusOf(rows, 'IO access right tibia'), 'logged');
     await brain.handleUtterance('Yep', 'pipecat');
     await settle(() => statusOf(rows, 'IO access right tibia') === 'confirmed');
     assert.equal(statusOf(rows, 'IO access right tibia'), 'confirmed');
@@ -161,10 +168,10 @@ test('our own "Log it?" heard back through the mic does not confirm the event', 
     const brain = new Brain(conn, saying, new Policy(conn));
     brain.start();
     await brain.handleUtterance('Giving one milligram of epinephrine IV', 'pipecat');
-    await settle(() => statusOf(rows, 'Epinephrine 1 mg IV') === 'flagged');
+    await settle(() => statusOf(rows, 'Epinephrine 1 mg IV') !== undefined);
     await brain.handleUtterance('Log it?', 'pipecat');
     await settle(() => false);
-    assert.equal(statusOf(rows, 'Epinephrine 1 mg IV'), 'flagged');
+    assert.equal(statusOf(rows, 'Epinephrine 1 mg IV'), 'logged', 'not confirmed by our own words');
   });
 });
 
@@ -179,7 +186,7 @@ test('a medication heard in pieces is completed from later lines, through a mish
     await brain.handleUtterance('Hold on a second there', 'pipecat');
     await settle(() => false);
     await brain.handleUtterance('Epinephrine', 'pipecat');
-    await settle(() => statusOf(rows, 'Epinephrine 1 mg') === 'flagged');
+    await settle(() => callsTo(calls, 'addCallout').some(c => c.args.text === 'Copy. Epinephrine, one milligram. Log it?'));
     assert.equal(callsTo(calls, 'addCallout').at(-1)!.args.text, 'Copy. Epinephrine, one milligram. Log it?');
   });
 });
@@ -191,15 +198,14 @@ test('"One milligram of" then "epinephrine IV", and a lone drug then its dose, e
     brain.start();
     await brain.handleUtterance('One milligram of', 'pipecat');
     await brain.handleUtterance('epinephrine IV', 'pipecat');
-    await settle(() => statusOf(rows, 'Epinephrine 1 mg IV') === 'flagged');
-    assert.equal(callsTo(calls, 'addCallout').at(-1)!.args.text, 'Copy. Epinephrine, one milligram, I-V. Log it?');
+    await settle(() => callsTo(calls, 'addCallout').some(c => c.args.text === 'Copy. Epinephrine, one milligram, I-V. Log it?'));
     await brain.handleUtterance('Yes', 'pipecat');
     await settle(() => statusOf(rows, 'Epinephrine 1 mg IV') === 'confirmed');
     await brain.handleUtterance('Amiodarone', 'pipecat');
     await settle(() => callsTo(calls, 'addCallout').some(c => c.args.text === 'Amiodarone. What dose?'));
     await brain.handleUtterance('Three hundred milligrams', 'pipecat');
-    await settle(() => statusOf(rows, 'Amiodarone 300 mg') === 'flagged');
-    assert.equal(callsTo(calls, 'addCallout').at(-1)!.args.text, 'Copy. Amiodarone, three hundred milligrams. Log it?');
+    await settle(() => callsTo(calls, 'addCallout').some(c => c.args.text === 'Copy. Amiodarone, three hundred milligrams. Log it?'));
+    assert.equal(statusOf(rows, 'Amiodarone 300 mg'), 'logged');
     assert.equal(requests.length, 0, 'no model call anywhere in the medication flow');
   });
 });
@@ -267,4 +273,74 @@ test('one spoken answer per line: text after a speak call is not said again', as
     await settle(() => requests.length >= 2);
     assert.deepEqual(callsTo(calls, 'addCallout').map(c => c.args.text), ['Not documented yet.']);
   });
+});
+
+test('fix 2: words that only look like a status change never set one without the model', async () => {
+  const { conn, calls } = fakeConn({ incident: [{ id: 1n, unit: 'Medic 12', status: 'on_scene', demoMode: true, startedAt: nowTs(), updatedAt: nowTs() }] });
+  await withModel([], async () => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    for (const line of ['No pulse ox reading yet', 'Loading the epi now', 'Rolling him onto the board', 'Get the pads on in case he goes into cardiac arrest', 'Pulse check for ROSC in two minutes']) {
+      await brain.handleUtterance(line, 'pipecat');
+    }
+    await settle(() => false);
+    assert.equal(callsTo(calls, 'setStatus').length, 0);
+    await brain.handleUtterance('We have a pulse', 'pipecat');
+    await settle(() => callsTo(calls, 'setStatus').length > 0);
+    assert.deepEqual(callsTo(calls, 'setStatus').map(c => c.args.status), ['rosc']);
+  });
+});
+
+test('name gate: lines that do not start with "Handoff" or "Model" are never logged or sent to the model', async () => {
+  const { conn, calls } = arrest();
+  await withModel([], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    for (const line of ['Administering one milligram of epinephrine IO', 'Skin is pale and sweaty', 'Cardiac arrest', 'Everyone hands off, shocking', 'This model is really good']) {
+      await brain.handleUtterance(line, 'pipecat');
+    }
+    await settle(() => false);
+    assert.equal(callsTo(calls, 'logEvent').length, 0);
+    assert.equal(callsTo(calls, 'addCallout').length, 0);
+    assert.equal(callsTo(calls, 'setStatus').length, 0);
+    assert.equal(requests.length, 0);
+  }, ['handoff', 'model']);
+});
+
+test('name gate: "Handoff," / "Model," / "hand off" start a line; the rest of the statement may follow the name', async () => {
+  const { conn, calls, rows } = arrest();
+  await withModel([], async () => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Handoff, administering one milligram of epinephrine IO', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 0);
+    assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'Copy. Epinephrine, one milligram, I-O. Log it?');
+    // The answer to "Log it?" needs no name.
+    await brain.handleUtterance('Yes', 'pipecat');
+    await settle(() => statusOf(rows, 'Epinephrine 1 mg IO') === 'confirmed');
+    assert.equal(statusOf(rows, 'Epinephrine 1 mg IO'), 'confirmed');
+    // The name alone, then the statement as its own line.
+    await brain.handleUtterance('Model.', 'pipecat');
+    await brain.handleUtterance('Giving three hundred milligrams of amiodarone', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').some(c => /Amiodarone, three hundred milligrams/.test(c.args.text)));
+    await brain.handleUtterance('Hey hand off, starting compressions', 'pipecat');
+    await settle(() => callsTo(calls, 'logEvent').some(c => c.args.kind === 'cpr_started'));
+    assert.ok(callsTo(calls, 'logEvent').some(c => c.args.kind === 'cpr_started'));
+  }, ['handoff', 'model']);
+});
+
+test('name gate: Nemotron sees the line addressed to Handoff; a follow-up to its question needs no name', async () => {
+  const { conn } = arrest();
+  await withModel([{ content: 'SILENT' }, { content: 'SILENT' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Model, skin is pale and sweaty', 'pipecat');
+    await settle(() => requests.length >= 1);
+    assert.match(requests[0].messages.at(-1).content, /NEW LINE: "Handoff, skin is pale and sweaty"/);
+    // A medication half: Handoff asks "Which drug?", and the answer comes without the name.
+    await brain.handleUtterance('Handoff, giving one milligram of', 'pipecat');
+    await brain.handleUtterance('epinephrine IV', 'pipecat');
+    await settle(() => false);
+    assert.equal(requests.length, 1, 'the medication flow needs no model call');
+  }, ['handoff', 'model']);
 });

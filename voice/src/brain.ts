@@ -15,7 +15,8 @@ import { cachedMatch, fetchRecord, searchPatients, spokenRecordSummary } from '.
 import { readState, summarize, tsMs } from './state';
 import type { Policy } from './policy';
 import type { Speaker } from './speaker';
-import { CPR_START, logCprStarted, runTool, STATUS_WORDS, toolsFor, type ToolContext } from './tools';
+import { CPR_START, logCprStarted, NOT_PLAIN, runTool, STATUS_PLAIN, toolsFor, type ToolContext } from './tools';
+import { splitWake } from './wake';
 import { spoken, spokenUnit } from './spoken';
 import { seenEvent, type SeenFinding } from './seen';
 import type { Event, Incident, Transcript } from './module_bindings/types';
@@ -36,9 +37,9 @@ const HISTORY_TURNS = 8;
 const HISTORY_MS = 5 * 60_000;
 
 const SYSTEM = `You are Handoff, the voice assistant riding along with a paramedic. Prototype; all data is synthetic.
-You hear everything said near the medic's chest: the medic talking to you, to a partner or the patient, and room noise. Each turn you get one new line, the recent conversation, and the live state. Do two separate jobs:
-1. DOCUMENT, whether or not the line was said to you. If it states something clinical about the patient or the scene, call log_event once per distinct fact (two facts in one line are two calls), with a short timeline label: a procedure the medic did or is doing (IV or IO access, suction, splint, pulse check result, monitor or pads applied), an airway device placed, or a finding (breathing, skin, pupils, bleeding, pain, injuries, mental status, what the patient or a bystander reports, medications or pill bottles found, scene hazards, a MARK note). Asking a partner to fetch something is not a procedure. Skip facts already in EVENTS. Questions or requests to you are never findings. Procedures and airway devices are read back to the medic and confirmed automatically, and findings are logged quietly: never acknowledge either out loud ("Noted", "Logged"). Medications given and shocks are read back and logged automatically by the read-back system: never log them and never repeat them back.
-2. REPLY only if the line is meant for you: it says "Handoff", asks you something, asks you to do something, or answers or follows up on something you just said (see the conversation). Then answer with "speak" like a calm, capable partner: one or two short spoken sentences, under 25 words; summarise, never list everything. You may talk about anything, including what you can do and small talk, but facts about the patient and the incident come only from the state and tools; if the state doesn't have it, say "Not documented yet". If the line is not meant for you (the medic talking to the patient or a partner, thinking aloud, background chatter), don't speak.
+The medic talks to you by name ("Handoff"); you only get those lines, plus the medic's answers to what you just asked. Each turn you get one new line, the recent conversation, and the live state. Do two separate jobs:
+1. DOCUMENT. If the line states something clinical about the patient or the scene, call log_event once per distinct fact (two facts in one line are two calls), with a short timeline label: a procedure the medic did or is doing (IV or IO access, suction, splint, pulse check result, monitor or pads applied), an airway device placed, or a finding (breathing, skin, pupils, bleeding, pain, injuries, mental status, what the patient or a bystander reports, medications or pill bottles found, scene hazards, a MARK note). Asking a partner to fetch something is not a procedure. Skip facts already in EVENTS. Questions or requests to you are never findings. Procedures and airway devices are read back to the medic and confirmed automatically, and findings are logged quietly: never acknowledge either out loud ("Noted", "Logged"). Medications given and shocks are read back and logged automatically by the read-back system: never log them and never repeat them back.
+2. REPLY only if the line asks you something, asks you to do something other than documenting, or answers or follows up on something you just said (see the conversation). Your name alone is not a reason to reply: "Handoff, IO access in the right tibia" is documented, not answered. Then answer with "speak" like a calm, capable partner: one or two short spoken sentences, under 25 words; summarise, never list everything. You may talk about anything, including what you can do and small talk, but facts about the patient and the incident come only from the state and tools; if the state doesn't have it, say "Not documented yet". If the line is not meant for you (the medic talking to the patient or a partner, thinking aloud, background chatter), don't speak.
 - What you can do: read back and check doses and allergies, pull the patient's record (name and birth date, or "Handoff, look" at an ID card), document what you hear, mark moments ("Handoff, mark"), track CPR and timers, answer questions about the case, brief the hospital.
 - The live state below is current: act on it directly. Make all the log_event calls for a line in one reply.
 - Never ask the medic about a medication's drug, dose or route, and never comment on a dose: the read-back system collects and checks those on its own.
@@ -73,6 +74,8 @@ type Pending = {
 
 /** How long a bare "yes" / "no" counts as the answer to "Log it?". */
 const ASK_WINDOW_MS = 30_000;
+/** After the name ("Handoff." … "giving one milligram of epi IO"), the rest of the statement may come this soon. */
+const WAKE_WINDOW_MS = 8_000;
 
 /** The pieces of a medication statement heard so far ("one milligram of" … "epinephrine"). */
 type PendingMed = { drug?: string; dose?: number; unit?: Unit; route?: Route; at: number; heard: string[]; asked?: { what: 'drug' | 'dose'; at: number } };
@@ -103,6 +106,10 @@ export class Brain {
   private lastFragment?: { text: string; at: number };
   /** A medication statement heard in pieces, waiting for the rest (PENDING_MED_MS after the last piece). */
   private pendingMed?: PendingMed;
+  /** The name gate: lines without the name count until this time (just after the name was said). */
+  private awakeUntil = 0;
+  /** Handoff asked something (a birth date, a dose for a drug the camera saw): its answer needs no name. */
+  private listenUntil = 0;
   /** Recent Nemotron turns: what the medic said and what Handoff did about it. Cleared with the incident. */
   private history: { heard: string; did: string; at: number }[] = [];
 
@@ -201,6 +208,29 @@ export class Brain {
       return;
     }
 
+    // The name gate (decision 21): only a line that starts with the name ("Handoff, …" / "Model, …"), the rest of a
+    // statement right after the name, or an answer to something Handoff just asked is acted on. Everything else is
+    // room talk (a partner, the patient, a bystander, another team): never logged, never sent to Nemotron.
+    const wake = splitWake(text, CONFIG.wakeWords);
+    let named = false;
+    if (CONFIG.wakeWords.length && wake.woke) {
+      this.awakeUntil = Date.now() + WAKE_WINDOW_MS;
+      if (!wake.rest) {
+        await step(this.conn, 'wake', 'name heard; listening for the rest');
+        return;
+      }
+      text = wake.rest;
+      named = true;
+      // "Handoff, correction" / "Handoff, yes" mean the same as without the name.
+      const control2 = parseControl(text);
+      if (control2) return phoneHandled ? undefined : this.handleControl(control2);
+      const answer2 = asked && Date.now() - asked < ASK_WINDOW_MS ? parseAnswer(text) : undefined;
+      if (answer2 && !phoneHandled) return this.handleControl(answer2 === 'yes' ? 'confirm' : 'correction');
+    } else if (!wake.woke && !this.expectingAnswer()) {
+      console.log(`[voice] not addressed to Handoff, ignored: "${text.slice(0, 60)}"`);
+      return;
+    }
+
     // RB1–RB7: the read-back fast path, no model call.
     let rb = parseReadback(text);
     // STT split the sentence at a pause ("Administering" | "one milligram of epi IO"): try the two halves together.
@@ -249,7 +279,8 @@ export class Brain {
 
     // B6 shortcuts, deterministic (no model call, one answer): "Handoff, look" is the vision sampler's job (it
     // sees the same transcript and speaks the result); "Handoff, mark" is a MARK on the timeline.
-    const shortcut = /^\s*(?:hey\s+)?hand\s?-?\s?off[,.!]?\s+(look|mark)\b/i.exec(text)?.[1]?.toLowerCase();
+    // With the name gate on, the name is already off the line ("Handoff, mark" → "mark").
+    const shortcut = (named ? /^(look|mark)\b/i : /^\s*(?:hey\s+)?hand\s?-?\s?off[,.!]?\s+(look|mark)\b/i).exec(text)?.[1]?.toLowerCase();
     if (shortcut === 'look') {
       await step(this.conn, 'look', 'the camera check is the vision sampler\'s; no model turn');
       return;
@@ -271,7 +302,7 @@ export class Brain {
     // unhandled when Nemotron ran out of tool rounds, Sun ~02:00). Questions and history ("had an arrest") don't count.
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const inc = activeIncident(this.conn);
-    const plain = !!inc && !phoneHandled && !/\?\s*$/.test(text) && !/\b(?:history of|previous|prior|had an?|last)\b/i.test(text);
+    const plain = !!inc && !phoneHandled && !/\?\s*$/.test(text) && !/\b(?:history of|previous|prior|had an?|last)\b/i.test(text) && !NOT_PLAIN.test(text);
     // "Starting compressions" starts CPR (and the arrest if needed) through log_event('cpr_started'); never a status.
     if (plain && CPR_START.test(text)) {
       try {
@@ -281,7 +312,7 @@ export class Brain {
       }
       if (wordCount <= 6) return;
     }
-    const status = plain ? (['arrest', 'rosc', 'en_route'] as const).find(s => STATUS_WORDS[s].test(text)) : undefined;
+    const status = plain ? (['arrest', 'rosc', 'en_route'] as const).find(s => STATUS_PLAIN[s].test(text)) : undefined;
     if (inc && status && inc.status !== status) {
       try {
         await this.conn.reducers.setStatus({ status, sourceKind: 'voice', sourceDetail: text.slice(0, 200) });
@@ -312,7 +343,21 @@ export class Brain {
       return;
     }
     this.llmTurnTimes.push(now);
-    await this.nemotronTurn(normalizeTranscript(text), source, gen);
+    // The name was taken off for the parsers; Nemotron sees it ("Model" read as "Handoff"), so it knows who was spoken to.
+    await this.nemotronTurn(normalizeTranscript(named ? `Handoff, ${text}` : text), source, gen);
+  }
+
+  /** Handoff is waiting for the medic: right after the name, or after asking for a piece or an answer. */
+  private expectingAnswer(): boolean {
+    const now = Date.now();
+    const last = this.lastReadback;
+    return (
+      now < this.awakeUntil ||
+      now < this.listenUntil ||
+      (!!this.pendingMed && now - this.pendingMed.at < PENDING_MED_MS) ||
+      (!!last?.askedAt && now - last.askedAt < ASK_WINDOW_MS) ||
+      (last?.reason === 'missing_dose' && now - last.at < PENDING_DOSE_MS)
+    );
   }
 
   // ---- read-back ------------------------------------------------------------------------------------------
@@ -389,22 +434,23 @@ export class Brain {
       this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: false, drug: rb.drug };
       return;
     }
-    // Written now so nothing is lost if the medic is too busy to answer; flagged until they say yes.
-    if (ev.status !== 'flagged') await this.conn.reducers.setEventStatus({ eventId: ev.id, status: 'flagged' });
-    this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: true, reason: out.reason ?? 'unconfirmed', drug: rb.drug, askedAt: Date.now() };
+    // Written now so nothing is lost if the medic is too busy to answer. Only a warning (allergy, dose) is flagged:
+    // the dashboard and the handoff report show `flagged` as a problem ("not confirmed as given"), so an unanswered
+    // routine dose stays `logged`. "Yes" → confirmed, "no" → cancelled.
+    if (out.flagged && ev.status !== 'flagged') await this.conn.reducers.setEventStatus({ eventId: ev.id, status: 'flagged' });
+    this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: out.flagged, reason: out.reason, drug: rb.drug, askedAt: Date.now() };
   }
 
   /**
    * An action Nemotron logged (procedure or airway): read it back and ask, like a medication. The event is
-   * already written; it stays flagged as unconfirmed until the medic says yes.
+   * already written and stays `logged` until the medic answers (yes → confirmed, no → cancelled).
    */
   async confirmAction(kind: string, label: string, valid: () => boolean): Promise<void> {
     const inc = activeIncident(this.conn);
     if (!inc) return;
     const ev = await this.findEvent(inc.id, kind, label);
     if (!ev || !valid()) return;
-    if (ev.status !== 'flagged') await this.conn.reducers.setEventStatus({ eventId: ev.id, status: 'flagged' });
-    this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: true, reason: 'unconfirmed', askedAt: Date.now() };
+    this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: false, askedAt: Date.now() };
     await step(this.conn, 'read_back', `${label} · asked "Log it?"`);
     await this.policy.say(`Copy. ${label}. Log it?`, 0, 'readback', undefined, valid);
   }
@@ -423,7 +469,8 @@ export class Brain {
 
   private async handleControl(word: 'correction' | 'confirm') {
     const last = this.lastReadback;
-    const open = last && (last.flagged || Date.now() - last.at < CONTROL_WINDOW_MS);
+    // A read-back that asked "Log it?" takes its answer for ASK_WINDOW_MS; "correction" alone, CONTROL_WINDOW_MS.
+    const open = last && (last.flagged || Date.now() - last.at < (last.askedAt ? ASK_WINDOW_MS : CONTROL_WINDOW_MS));
     if (!last || !open) {
       await step(this.conn, 'control', `"${word}" with nothing to apply it to`);
       return;
@@ -486,6 +533,7 @@ export class Brain {
     if (matches.length > 1) {
       // X8: never guess.
       await step(this.conn, 'search_ehr', `${matches.length} matches; asking`);
+      this.listenUntil = Date.now() + ASK_WINDOW_MS; // the birth date needs no name
       await this.policy.say(`${matches.length === 2 ? 'Two' : 'Several'} patients named ${name}. Say the birth date.`, 1, 'ask', undefined, () => !this.stale(gen, inc?.id));
       return;
     }
@@ -634,6 +682,8 @@ export class Brain {
     this.incidentId = undefined;
     this.history = [];
     this.pendingMed = undefined;
+    this.awakeUntil = 0;
+    this.listenUntil = 0;
   }
 
   // ---- RB8–RB10: drugs the camera sees ----------------------------------------------------------------------
@@ -687,12 +737,14 @@ export class Brain {
       // stays flagged (RB9) until the medic confirms or speaks the dose; the read-back of what was seen asks.
       await flag('unconfirmed');
       await step(this.conn, 'seen', `camera saw ${drug} ${printed[1]} ${unit} given${dose?.verdict === 'in_range' ? ' (in range)' : ''}; awaiting confirm`);
+      this.listenUntil = Date.now() + ASK_WINDOW_MS;
       await this.policy.say(`Saw ${drug}${doseWords}. Confirm?`, 2, 'ask', undefined, () => !this.stale(gen, ev.incidentId));
       return;
     }
     // RB9: seen but not said: flagged until a dose is spoken; ask once. A dose within 30 s merges and confirms.
     await flag('missing_dose');
     await step(this.conn, 'seen', `camera saw ${drug} given, no dose spoken yet`);
+    this.listenUntil = Date.now() + ASK_WINDOW_MS;
     await this.policy.say(`Saw ${drug}. What dose?`, 2, 'ask', undefined, () => !this.stale(gen, ev.incidentId));
   }
 
