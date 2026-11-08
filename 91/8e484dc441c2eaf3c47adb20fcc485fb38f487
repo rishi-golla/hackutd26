@@ -1,0 +1,16 @@
+docs/context/SPEC.md
+  h_f876d4e77222e2 19-24
+spacetime/README.md
+  h_f876d4e77222e2 63-65,76-77,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "918e484dc441c2eaf3c47adb20fcc485fb38f487",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
