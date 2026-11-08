@@ -139,7 +139,7 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
     >
       <video ref={videoRef} autoPlay playsInline muted />
       <span className="video__badge">
-        {state === 'live' ? 'Live' : state === 'stale' ? 'Stale · no video for 3 s' : 'Connecting…'}
+        {state === 'live' ? 'Live' : state === 'stale' ? 'Stale' : 'Connecting…'}
       </span>
       <span className="video__toggle" aria-hidden="true">
         {expanded ? <MinimizeIcon /> : <ExpandIcon />}

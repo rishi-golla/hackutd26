@@ -43,11 +43,7 @@ export default function ReportView({ contentJson }: { contentJson: string }) {
         <span>
           {header.unit} → {header.destination ?? 'destination not set'} · {header.time}
         </span>
-        <span className="report__meta">
-          Written by {report.generator === 'nemotron' ? 'Nemotron' : 'a template from the tables'}
-          {report.dropped > 0 ? ` · ${report.dropped} line${report.dropped > 1 ? 's' : ''} dropped by the self-check` : ''}
-          {' · '}Prototype · synthetic data · not for clinical use
-        </span>
+        <span className="report__meta">Prototype · synthetic data · not for clinical use</span>
       </div>
       <table className="report__table">
         <tbody>

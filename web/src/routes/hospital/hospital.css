@@ -1,251 +1,81 @@
-/* Hospital dashboard. Fits one laptop screen (1440×900) without page scroll.
-   Look: teenage engineering's "industrial catalogue" (Refero Styles), adapted for an ER screen:
-   a near-white canvas ruled by hairlines, ink type, one carbon band like a display-case wall, zero radius,
-   no shadows or gradients. Red is the only chromatic colour and only means alarm; the amber triangle is the
-   only honesty mark. One font (Geist): light weight for the big numbers, regular for everything else. */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@200..600&display=swap');
+/* Hospital dashboard: five panels (Alan's sketch), fits 1440×900 without page scroll.
+     live view        | status (coloured)
+                      | vitals
+     event timeline   | patient
+   Dark, quiet panels like the Pipecat Playground. Colour only as a tint on the status panel and for alarms. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap');
 
 .hd {
-  --canvas: #f6f8f7;
-  --ink: #000;
-  --ink-2: #5d615f; /* secondary text; 6:1 on the canvas */
-  --rule: #e5e5e5;
-  --rule-strong: #000;
-  --carbon: #0f0e12;
-  --carbon-2: #1d1c22;
-  --on-carbon: #f6f8f7;
-  --on-carbon-2: #9a98a2;
-  --alarm: #e0201b;
-  --alarm-on-carbon: #ff5a52;
-  --amber: #f2a900;
+  --page: #0b0b0b;
+  --panel: #161616;
+  --border: #2a2a2a;
+  --text: #ededed;
+  --text-2: #a3a3a3;
+  --text-3: #7a7a7a;
+  --alarm: #f2a0a0; /* a soft red: reads as a warning without shouting */
+  --alarm-tint: rgb(242 160 160 / 0.12);
 
   height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 480px;
-  grid-template-rows: 64px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 440px;
+  grid-template-rows: auto minmax(0, 1fr) 300px;
   grid-template-areas:
-    'header header'
-    'main band';
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: 'Geist', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 14px;
+    'live status'
+    'live data'
+    'timeline patient';
+  gap: 20px;
+  padding: 20px;
+  background: var(--page);
+  color: var(--text);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-feature-settings: 'tnum', 'cv11'; /* tabular numbers so live values don't jiggle */
+  font-size: 16px;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
-@media (color-gamut: p3) {
-  .hd { --alarm: color(display-p3 0.86 0.13 0.1); --alarm-on-carbon: color(display-p3 1 0.33 0.29); }
-}
-.hd *, .hd *::before, .hd *::after { box-sizing: border-box; }
-.hd p, .hd h2 { margin: 0; }
-.muted { color: var(--ink-2); }
+.hd, .hd *, .hd *::before, .hd *::after { box-sizing: border-box; }
+:where(.hd) :where(p, h2, dl, dd) { margin: 0; } /* zero specificity, so component spacing wins */
 
-/* Lowercase labels in the secondary grey: the catalogue's quiet voice. */
-.label { font-size: 13px; font-weight: 400; color: var(--ink-2); letter-spacing: 0; }
-.dash { font-weight: 200; color: var(--rule-strong); opacity: 0.25; }
-
-.caution { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-.caution svg { color: var(--amber); flex: none; }
-
-/* ---- Header: who, where, ETA, the one action ---- */
-.hd__header {
-  grid-area: header;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--rule-strong);
-}
-.hd__route { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
-.hd__arrow { margin: 0 10px; font-weight: 300; color: var(--ink-2); }
-.hd__eta { font-size: 16px; }
-.hd__eta strong { font-weight: 500; }
-.hd__spacer { flex: 1; }
-.hd__note { font-size: 13px; color: var(--ink-2); }
-.hd__conn { font-size: 13px; color: var(--alarm); }
-.hd__report { font-size: 13px; color: var(--ink-2); }
-.hd__report.is-failed { color: var(--alarm); }
-
-/* The only button: a black block, square, like a hardware key. */
-.hd__action {
-  height: 44px;
-  padding: 0 22px;
-  font: inherit;
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--canvas);
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  border-radius: 0;
-  cursor: pointer;
-  transition: background-color 120ms ease-out, color 120ms ease-out, translate 80ms ease-out;
-  -webkit-tap-highlight-color: transparent;
-}
-.hd__action:not(:disabled):active { translate: 0 1px; }
-.hd__action:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.hd__action:disabled { background: transparent; color: var(--ink-2); border-color: var(--rule); cursor: default; }
-.hd__action[aria-busy='true'] { cursor: progress; color: var(--ink); border-color: var(--ink); }
-@media (hover: hover) {
-  .hd__action:not(:disabled):hover { background: var(--carbon-2); }
-}
-
-/* ---- Left: status + the focal number, then activity ---- */
-.hd__main {
-  grid-area: main;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+.panel {
+  position: relative;
   min-height: 0;
-}
-.hero { padding: 24px 32px 24px 24px; border-bottom: 1px solid var(--rule-strong); }
-.hero--slim { padding-bottom: 8px; }
-.hero--slim .status { margin-bottom: 8px; }
-
-.status { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
-.status__word { font-size: 32px; font-weight: 500; letter-spacing: -0.02em; }
-.status__clock { font-size: 32px; font-weight: 300; color: var(--ink-2); letter-spacing: -0.02em; }
-.status--arrest .status__word,
-.status--arrest .status__clock { color: var(--alarm); }
-
-.focal { display: grid; grid-template-columns: minmax(0, 1fr); }
-.focal__label { display: flex; gap: 12px; align-items: center; }
-.focal__value {
-  font-size: 160px;
-  font-weight: 200;
-  line-height: 0.95;
-  letter-spacing: -0.05em;
-  margin: 4px 0 12px -6px;
-}
-.focal.is-alarm .focal__value { color: var(--alarm); }
-.focal__note { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
-
-/* CPR ruler: 60–160 /min, the 100–120 target as a filled span, a needle for the current rate */
-.ruler { position: relative; height: 36px; border-top: 1px solid var(--ink); }
-.ruler__target { position: absolute; top: -1px; height: 8px; background: var(--ink); }
-.ruler__tick { position: absolute; top: 14px; translate: -50% 0; font-size: 12px; color: var(--ink-2); }
-.ruler__tick::before { content: ''; position: absolute; left: 50%; top: -14px; width: 1px; height: 6px; background: var(--ink); }
-.ruler__needle {
-  position: absolute;
-  top: -16px;
-  width: 3px;
-  height: 24px;
-  translate: -50% 0;
-  background: var(--ink);
-  transition: left 400ms cubic-bezier(0.2, 0, 0, 1);
-}
-.ruler__needle.is-alarm { background: var(--alarm); }
-
-/* Live pulse / 5-min trends: plain ink lines */
-.line { display: block; width: 100%; height: 40px; overflow: visible; }
-.line polyline { fill: none; stroke: var(--ink); stroke-width: 1.25; stroke-linejoin: round; }
-.focal.is-alarm .line polyline { stroke: var(--alarm); }
-.pulse-slot { height: 40px; }
-.readout .line { height: 24px; margin-top: 6px; }
-.trend { display: block; }
-
-/* The focal number and its two companions share one row: number + ruler on the left, a ruled column on the right. */
-.hero__grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 32px; }
-.readouts { display: grid; grid-auto-rows: 1fr; border-left: 1px solid var(--rule); }
-.readout { display: flex; flex-direction: column; justify-content: center; padding: 8px 0 8px 24px; }
-.readout + .readout { border-top: 1px solid var(--rule); }
-.readout .label { display: flex; gap: 8px; align-items: center; }
-.readout__value { font-size: 64px; font-weight: 200; line-height: 1.05; letter-spacing: -0.04em; }
-.readout.is-alarm .readout__value { color: var(--alarm); }
-.readout__note { display: block; font-size: 12px; color: var(--ink-2); margin-top: 2px; }
-
-.aside-line { margin-top: 16px; font-size: 13px; color: var(--ink-2); }
-
-/* Activity: one ruled list, newest first */
-.feed { display: flex; flex-direction: column; min-height: 0; padding: 16px 32px 0 24px; }
-.feed__empty { margin-top: 8px; }
-.feed__list { list-style: none; margin: 8px 0 0; padding: 0; overflow: auto; overscroll-behavior: contain; min-height: 0; }
-.feed__row {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: baseline;
-  padding: 9px 0;
-  border-top: 1px solid var(--rule);
-  font-size: 15px;
-}
-.feed__time { font-size: 13px; color: var(--ink-2); }
-.feed__who { font-size: 13px; color: var(--ink-2); margin-right: 10px; }
-.feed__flag { color: var(--alarm); margin-right: 10px; }
-.feed__row.is-cancelled .feed__text { text-decoration: line-through; color: var(--ink-2); }
-.feed__row.is-alert .feed__text { font-weight: 500; }
-.feed__row.is-new { animation: arrive 600ms ease-out; }
-@keyframes arrive { from { opacity: 0; translate: 0 -4px; } }
-.feed__chips { display: flex; gap: 10px; }
-
-/* Source chip: hover for the evidence (H4). Text with a dotted rule, the convention for "more on hover". */
-.chip {
-  font-size: 12px;
-  color: var(--ink-2);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  cursor: help;
-  white-space: nowrap;
-}
-@media (hover: hover) {
-  .chip:hover { color: var(--ink); }
-}
-
-/* ---- Right: the carbon band ---- */
-.band {
-  grid-area: band;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  background: var(--carbon);
-  color: var(--on-carbon);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
 }
-.band .label { color: var(--on-carbon-2); }
-.band .muted { color: var(--on-carbon-2); }
-.band .caution { color: var(--on-carbon-2); }
+.panel__head { display: flex; align-items: center; gap: 16px; padding: 16px 24px 8px; }
+.panel__head .panel__title { padding: 0; flex: 1; }
+.panel__problem { font-size: 14px; color: var(--alarm); }
+.panel__title { padding: 20px 24px 8px; font-size: 14px; font-weight: 500; color: var(--text-2); }
+.empty { padding: 4px 24px; color: var(--text-3); }
 
-.video-slot { position: relative; aspect-ratio: 16 / 9; flex: none; }
-.video-slot__note {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: var(--carbon-2);
-  color: var(--on-carbon-2);
-  font-size: 13px;
-}
+/* ---- Live view (or the report) ---- */
+.panel--live { grid-area: live; background: #000; }
+.video-slot { position: relative; flex: 1; min-height: 0; }
+.video-slot__note { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); }
 .video {
   position: absolute;
   inset: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
   background: #000;
   overflow: hidden;
   cursor: zoom-in;
   font: inherit;
   color: inherit;
   view-transition-name: live-video;
-  -webkit-tap-highlight-color: transparent;
 }
-.video:focus-visible { outline: 2px solid var(--on-carbon); outline-offset: -4px; }
+.video:focus-visible { outline: 2px solid var(--text); outline-offset: -3px; }
 .video video { width: 100%; height: 100%; object-fit: contain; display: block; }
-/* Text over video sits on a dark scrim so it passes contrast whatever the frame shows. */
 .video__badge,
-.video__toggle {
-  position: absolute;
-  top: 0;
-  padding: 6px 10px;
-  font-size: 12px;
-  background: rgb(0 0 0 / 0.72);
-  color: var(--on-carbon-2);
-}
-.video__badge { left: 0; }
-.video__toggle { right: 0; display: grid; place-items: center; padding: 6px; color: var(--on-carbon); opacity: 0.85; transition: opacity 120ms ease-out; }
-.video--live .video__badge { color: var(--on-carbon); }
-.video--stale .video__badge { color: var(--amber); }
-@media (hover: hover) {
-  .video:hover .video__toggle { opacity: 1; }
-}
+.video__toggle { position: absolute; top: 12px; padding: 4px 10px; font-size: 13px; border-radius: 6px; background: rgb(0 0 0 / 0.7); color: var(--text-2); }
+.video__badge { left: 12px; }
+.video__toggle { right: 12px; display: grid; place-items: center; padding: 6px; color: var(--text); }
+.video--stale .video__badge { color: #f2a900; }
 .video--expanded {
   position: fixed;
   inset: auto;
@@ -255,77 +85,97 @@
   width: min(1100px, 92vw);
   aspect-ratio: 16 / 9;
   z-index: 40;
+  border-radius: 12px;
   cursor: zoom-out;
 }
-.video--expanded .video__badge,
-.video--expanded .video__toggle { font-size: 14px; }
-.video-backdrop { position: fixed; inset: 0; z-index: 30; background: rgb(15 14 18 / 0.86); }
-::view-transition-group(live-video) { animation-duration: 250ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
-::view-transition-old(root),
-::view-transition-new(root) { animation-duration: 200ms; }
-
-/* What the bodycam just said: big while fresh, then it greys back */
-.said { padding: 20px 24px; border-bottom: 1px solid var(--carbon-2); min-height: 120px; }
-.said__text {
-  margin-top: 6px;
-  font-size: 24px;
-  font-weight: 400;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--on-carbon-2);
-  transition: color 400ms ease-out;
-}
-.said.is-fresh .said__text { color: var(--on-carbon); }
-.said__text--empty { font-size: 16px; }
-
-/* Patient: name, the allergy, one line for the rest */
-.patient { padding: 20px 24px; display: flex; flex-direction: column; gap: 6px; }
-.patient .label { display: flex; gap: 6px; align-items: center; }
-.patient__name { font-size: 24px; font-weight: 500; letter-spacing: -0.01em; }
-.patient__age { font-weight: 300; color: var(--on-carbon-2); }
-.patient__allergy { font-size: 16px; color: var(--on-carbon-2); }
-.patient__allergy.has-allergy { align-self: flex-start; padding: 2px 8px; margin-left: -8px; background: var(--alarm-on-carbon); color: #1a0403; font-weight: 500; }
-.patient__more { font-size: 13px; color: var(--on-carbon-2); }
-
-.skeleton { display: block; height: 14px; width: 60%; background: var(--carbon-2); animation: skeleton 1.4s ease-in-out infinite; }
-.skeleton--name { height: 24px; width: 70%; }
-@keyframes skeleton { 50% { opacity: 0.5; } }
-
-/* ---- Handoff report (H7): takes the left side when ready ---- */
-.report { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px 32px 24px 24px; animation: arrive 400ms ease-out; }
-.report__header { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding-bottom: 16px; border-bottom: 1px solid var(--rule-strong); }
-.report__title { font-size: 32px; font-weight: 500; letter-spacing: -0.02em; }
-.report__meta { flex-basis: 100%; font-size: 13px; color: var(--ink-2); }
-.report__table { width: 100%; border-collapse: collapse; }
-.report__table th { width: 40px; vertical-align: top; text-align: left; font-size: 24px; font-weight: 200; padding: 12px 0; }
-.report__table td { border-bottom: 1px solid var(--rule); padding: 14px 8px; vertical-align: top; }
-.report__text { font-size: 16px; }
-.report__chips { text-align: right; white-space: nowrap; }
-.report__chips .chip { margin-left: 10px; }
-
+.video-backdrop { position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.8); }
+::view-transition-group(live-video) { animation-duration: 200ms; }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(live-video) { animation: none; }
-  .skeleton, .feed__row.is-new, .report { animation: none; }
-  .ruler__needle { transition: none; }
 }
 
-/* ---- Narrow screens: one column, page scrolls; the header (and Generate Handoff) stays on screen ---- */
+.switch { position: absolute; top: 12px; left: 50%; translate: -50% 0; z-index: 2; display: flex; padding: 3px; gap: 2px; border-radius: 8px; background: #1f1f1f; border: 1px solid var(--border); }
+.switch button { padding: 6px 14px; font: inherit; font-size: 14px; color: var(--text-2); background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
+.switch button[aria-selected='true'] { color: var(--text); background: #000; }
+.switch button:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+
+.report { flex: 1; min-height: 0; overflow: auto; padding: 64px 28px 24px; background: var(--panel); }
+.report__header { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding-bottom: 12px; }
+.report__title { font-size: 20px; font-weight: 600; }
+.report__header > span { color: var(--text-2); }
+.report__meta { flex-basis: 100%; font-size: 13px; color: var(--text-3); }
+.report__table { width: 100%; border-collapse: collapse; }
+.report__table th { width: 36px; vertical-align: top; text-align: left; padding: 12px 0; font-size: 18px; font-weight: 600; color: var(--text-2); }
+.report__table td { border-top: 1px solid var(--border); padding: 12px 8px; vertical-align: top; }
+.report__text { font-size: 17px; }
+.report__chips { text-align: right; white-space: nowrap; }
+.chip { margin-left: 10px; font-size: 13px; color: var(--text-3); text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+
+/* ---- Status: the panel takes a tint of the status colour ---- */
+.panel--status { grid-area: status; align-items: center; justify-content: center; padding: 22px 24px; text-align: center; background: #1c1c1c; border-color: #333; }
+.status--on_scene, .status--en_route { background: rgb(96 140 255 / 0.12); border-color: rgb(96 140 255 / 0.35); color: #b9ccff; }
+.status--arrest { background: var(--alarm-tint); border-color: rgb(242 160 160 / 0.35); color: var(--alarm); }
+.status--rosc { background: rgb(110 220 160 / 0.12); border-color: rgb(110 220 160 / 0.35); color: #a6e9c4; }
+.status__word { font-size: 36px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+
+/* The one action, in the event timeline's header */
+.action {
+  height: 36px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+  background: var(--text);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.action:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.action:disabled { background: #262626; color: var(--text-3); cursor: default; }
+.action[aria-busy='true'] { cursor: progress; }
+@media (hover: hover) {
+  .action:not(:disabled):hover { background: #fff; }
+}
+
+/* ---- Vitals: every live metric, an even 2×3 grid of centred cells ---- */
+.panel--data { grid-area: data; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); }
+.metric { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; }
+.metric:nth-child(odd) { border-right: 1px solid var(--border); }
+.metric:nth-child(-n + 4) { border-bottom: 1px solid var(--border); }
+.metric__label { font-size: 14px; color: var(--text-2); }
+.metric__value { font-size: 44px; font-weight: 400; line-height: 1; letter-spacing: -0.02em; }
+.metric__value--none { color: var(--text-3); }
+.metric__unit { margin-left: 6px; font-size: 15px; letter-spacing: 0; color: var(--text-2); }
+.metric.is-alarm .metric__value { color: var(--alarm); }
+
+/* ---- Event timeline ---- */
+.panel--timeline { grid-area: timeline; }
+.timeline { list-style: none; margin: 0; padding: 0 24px 16px; overflow: auto; min-height: 0; }
+.timeline li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 16px; padding: 10px 0; border-top: 1px solid var(--border); }
+.timeline li:first-child { border-top: 0; }
+.timeline__time { color: var(--text-3); }
+.timeline li.is-alarm .timeline__text { color: var(--alarm); }
+
+/* ---- Patient ---- */
+.panel--patient { grid-area: patient; }
+.panel--patient > :not(.panel__title) { margin-left: 24px; margin-right: 24px; }
+.panel--patient > .empty { padding: 0; }
+.patient__name { margin-top: 4px; font-size: 24px; font-weight: 600; }
+.patient__age { font-weight: 400; color: var(--text-2); }
+.patient__allergy { align-self: flex-start; margin-top: 14px; padding: 6px 12px; border-radius: 6px; background: var(--alarm-tint); color: var(--alarm); font-weight: 500; }
+.patient__line { margin-top: 14px; color: var(--text-2); }
+.patient__facts { display: grid; grid-template-columns: auto 1fr; gap: 12px 20px; margin-top: 22px; font-size: 15px; }
+.patient__facts dt { color: var(--text-2); }
+
+/* ---- Narrow screens: one column, page scrolls ---- */
 @media (max-width: 1100px) {
   .hd {
     height: auto;
     min-height: 100vh;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    grid-template-areas: 'header' 'main' 'band';
+    grid-template-rows: auto auto auto auto 320px;
+    grid-template-areas: 'status' 'live' 'data' 'patient' 'timeline';
   }
-  .hd__header { position: sticky; top: 0; z-index: 20; background: var(--canvas); flex-wrap: wrap; height: auto; padding: 12px 16px; gap: 12px; }
-  .feed__list { max-height: 360px; }
-  .focal__value { font-size: 112px; }
-}
-@media (max-width: 640px) {
-  .hero, .feed { padding-left: 16px; padding-right: 16px; }
-  .focal__value { font-size: 88px; }
-  .readout__value { font-size: 40px; }
-  .feed__row { grid-template-columns: 56px minmax(0, 1fr); }
-  .feed__chips { grid-column: 2; }
+  .panel--live { aspect-ratio: 16 / 9; }
 }
