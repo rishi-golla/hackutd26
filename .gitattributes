@@ -1,0 +1,4 @@
+# Code that runs on the Pi keeps LF line endings on every checkout (CRLF from a Windows checkout breaks bash and systemd)
+/hub/** text eol=lf
+/chromatic/pi/** text eol=lf
+/chromatic/tools/pi.sh text eol=lf
