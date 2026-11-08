@@ -1,0 +1,19 @@
+voice/pipecat/client/index.html
+  s_ab4a831b8b6657::t_1aeb89552c2bde 70,75,156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ee183b33d5e29892015feef041f2233562fab0aa",
+  "prompts": {},
+  "sessions": {
+    "s_ab4a831b8b6657": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_ab4a831b8b6657",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
