@@ -722,7 +722,7 @@ section and add a change-log line.
       classic/current clinical displays and report eligibility; real live calls remain the report target.
       Patient directory and Tracing identify import dates as such and do not invent a clinical duration/phase.
       The title identifies the recording, not a verified patient name. Actual playback requires the laptop
-      serving that asset; videos are not committed to Git or uploaded to public storage.
+      serving that asset; videos are not uploaded to public storage. Exception (Sun, Rishi): the Joshua Kim session, `patient-1000039274.mp4`, is committed so every checkout can play it.
       `/controls` → Patient recording accepts these local paths and offers "Add as new patient" as well as
       attachment to an existing encounter. Starting a real call with the reserved unit label is rejected.
       **Recorded-video trace (Rishi):** the user chose to trace what a video-only import shows.

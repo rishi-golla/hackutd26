@@ -1,0 +1,232 @@
+{
+  "duration": 38.9,
+  "analyzer": "parakeet-ctc-1.1b-asr + nvidia/nemotron-3-nano-omni-30b-a3b-reasoning + nvidia/nemotron-3-ultra-550b-a55b",
+  "transcript": [
+    {
+      "t": 2.1,
+      "text": "Oh no, Alright."
+    },
+    {
+      "t": 4.2,
+      "text": "So I'm going to."
+    },
+    {
+      "t": 6.1,
+      "text": "Show the Id"
+    },
+    {
+      "t": 8.9,
+      "text": "Right. And then."
+    },
+    {
+      "t": 10.4,
+      "text": "Lots of stuff happening."
+    },
+    {
+      "t": 12.0,
+      "text": "Hook you up to"
+    },
+    {
+      "t": 14.0,
+      "text": "Whatever device"
+    },
+    {
+      "t": 15.6,
+      "text": "Alright, time to begin chest compressions."
+    },
+    {
+      "t": 28.4,
+      "text": "Alright, and now you're alive. Alive."
+    },
+    {
+      "t": 32.3,
+      "text": "Yeah, resuscitated. Alright. O, two levels up."
+    }
+  ],
+  "events": [
+    {
+      "t": 0.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic is looking at the patient lying on the floor.",
+      "detail": "video 0:00 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 6.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic holds up a Northwestern University student ID card while the patient lies on the ground.",
+      "detail": "video 0:06 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 6.0,
+      "kind": "seen_id_card",
+      "label": "ID card shown to the camera",
+      "detail": "video 0:06 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning (confidence 1.00)"
+    },
+    {
+      "t": 12.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic is checking the patient's responsiveness by tapping near the patient's hand.",
+      "detail": "video 0:12 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 15.6,
+      "kind": "said_action",
+      "label": "Said: begin chest compressions",
+      "detail": "video 0:15 \u00b7 from the transcript (\"Alright, time to begin chest compressions.\") \u00b7 nvidia/nemotron-3-ultra-550b-a55b"
+    },
+    {
+      "t": 18.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic is checking the patient's responsiveness by touching their chest.",
+      "detail": "video 0:18 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 24.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic is checking responsiveness by waving their hand near the patient's face.",
+      "detail": "video 0:24 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 24.0,
+      "kind": "seen_responsiveness_check",
+      "label": "Responsiveness check",
+      "detail": "video 0:24 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning (confidence 0.90)"
+    },
+    {
+      "t": 28.4,
+      "kind": "said_action",
+      "label": "Said: patient alive resuscitated",
+      "detail": "video 0:28 \u00b7 from the transcript (\"Alright, and now you're alive. Alive.\") \u00b7 nvidia/nemotron-3-ultra-550b-a55b"
+    },
+    {
+      "t": 30.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic waves his hand in front of the patient's face to check responsiveness.",
+      "detail": "video 0:30 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 32.3,
+      "kind": "said_action",
+      "label": "Said: oxygen levels up",
+      "detail": "video 0:32 \u00b7 from the transcript (\"Yeah, resuscitated. Alright. O, two levels up.\") \u00b7 nvidia/nemotron-3-ultra-550b-a55b"
+    },
+    {
+      "t": 36.0,
+      "kind": "seen_scene",
+      "label": "Seen: The medic is lying on the floor next to the patient, with their hands near the patient's chest.",
+      "detail": "video 0:36 \u00b7 nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    }
+  ],
+  "steps": [
+    {
+      "t": 0,
+      "tool": "asr",
+      "summary": "Transcribed 0:38 of audio with parakeet-ctc-1.1b-asr: 10 lines"
+    },
+    {
+      "t": 0.0,
+      "tool": "vision",
+      "summary": "video 0:00: The medic is looking at the patient lying on the floor."
+    },
+    {
+      "t": 2.0,
+      "tool": "vision",
+      "summary": "video 0:02: The medic is lying on the floor next to the patient, with one hand near the patient's arm."
+    },
+    {
+      "t": 4.0,
+      "tool": "vision",
+      "summary": "video 0:04: The medic is lying on the floor next to the patient."
+    },
+    {
+      "t": 6.0,
+      "tool": "vision",
+      "summary": "video 0:06: The medic holds up a Northwestern University student ID card while the patient lies on the ground."
+    },
+    {
+      "t": 8.0,
+      "tool": "vision",
+      "summary": "video 0:08: The medic is lying next to the patient on the floor."
+    },
+    {
+      "t": 10.0,
+      "tool": "vision",
+      "summary": "video 0:10: The medic is lying on the floor next to the patient."
+    },
+    {
+      "t": 12.0,
+      "tool": "vision",
+      "summary": "video 0:12: The medic is checking the patient's responsiveness by tapping near the patient's hand."
+    },
+    {
+      "t": 14.0,
+      "tool": "vision",
+      "summary": "video 0:14: medic's arm and hand visible near patient on carpeted floor"
+    },
+    {
+      "t": 16.0,
+      "tool": "vision",
+      "summary": "video 0:16: The medic is lying next to the patient on the floor."
+    },
+    {
+      "t": 18.0,
+      "tool": "vision",
+      "summary": "video 0:18: The medic is checking the patient's responsiveness by touching their chest."
+    },
+    {
+      "t": 20.0,
+      "tool": "vision",
+      "summary": "video 0:20: The medic's hand is placed on the patient's chest."
+    },
+    {
+      "t": 22.0,
+      "tool": "vision",
+      "summary": "video 0:22: The medic is checking responsiveness by placing a hand on the patient's chest."
+    },
+    {
+      "t": 24.0,
+      "tool": "vision",
+      "summary": "video 0:24: The medic is checking responsiveness by waving their hand near the patient's face."
+    },
+    {
+      "t": 26.0,
+      "tool": "vision",
+      "summary": "video 0:26: The medic is checking the patient's responsiveness by tapping on the patient's chest."
+    },
+    {
+      "t": 28.0,
+      "tool": "vision",
+      "summary": "video 0:28: The medic is lying on the floor next to the patient."
+    },
+    {
+      "t": 30.0,
+      "tool": "vision",
+      "summary": "video 0:30: The medic waves his hand in front of the patient's face to check responsiveness."
+    },
+    {
+      "t": 32.0,
+      "tool": "vision",
+      "summary": "video 0:32: The medic is lying next to the patient on the floor."
+    },
+    {
+      "t": 34.0,
+      "tool": "vision",
+      "summary": "video 0:34: The medic is lying on the floor next to the patient."
+    },
+    {
+      "t": 36.0,
+      "tool": "vision",
+      "summary": "video 0:36: The medic is lying on the floor next to the patient, with their hands near the patient's chest."
+    },
+    {
+      "t": 38.8,
+      "tool": "vision",
+      "summary": "Looked at 19 frames, one every 2 s, with nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+    },
+    {
+      "t": 38.8,
+      "tool": "transcript_events",
+      "summary": "Read the transcript with nvidia/nemotron-3-ultra-550b-a55b: 3 stated actions"
+    }
+  ]
+}

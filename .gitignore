@@ -29,4 +29,6 @@ __pycache__/
 data/
 
 # User-supplied demo videos are served locally, never committed.
-/web/public/recordings/
+/web/public/recordings/*
+!/web/public/recordings/patient-1000039274.mp4
+!/web/public/recordings/patient-1000039274.trace.json
