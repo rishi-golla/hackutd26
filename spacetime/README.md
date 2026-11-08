@@ -108,6 +108,7 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Bodycam / hospital | `sendRtcSignal({sessionId, sender, kind, payload})` | WebRTC handshake, below |
 | Monitor | `monitorTap({button})` | `EPI` `AMIO` `SHOCK` `AIRWAY` `ROSC` `MARK`. A tap carries no dose: it logs "Epinephrine (tap)" and the read-back adds the dose when they merge |
 | Monitor | `demoControl({action, arg})` | `start` `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_slow` `cpr_good` `cpr_clear` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`) |
+| Any (caller not decided) | `synthesizeSeizure({active})` / HTTP `synthesize_seizure` `[true]` or `[false]` | Overrides the relay's sensor data with a hardcoded seizure. See "Synthetic seizure" below |
 | Hospital | `requestReport()` | the Generate Handoff button; works on the newest incident even after close |
 | Agent | `setDestination({hospitalId, etaMin})`, `erMessageOut({text})`, `saveReport({incidentId, contentJson})`, `logAgentStep(...)` | |
 
@@ -130,11 +131,11 @@ Differences from spec §22 (deliberate):
 - There are no `frame` or `snapshot` tables (no snapshot video, AGENTS.md section 0).
 - Reducers: `agent_step` is `log_agent_step`. `timer_fire` is part of `tick_rules`. `push_frame`,
   `save_snapshot` and `er_message_in` don't exist. Added: `toggle_incident`, `heartbeat`, `set_event_status`,
-  `request_report`.
+  `request_report`, `synthesize_seizure` (and its `vitals_override` table).
 
 `incident`, `device`, `vitals` (kept 30 min), `waveform` (kept 30 s), `cpr_state` (one row per incident),
 `transcript`, `rtc_signal` (kept 10 min), `event`, `timer`, `callout`, `er_message`, `agent_step`, `hospital`
-(3 fictional, seeded), `patient_record`, `report`. Private: `rule_state`, `tick_schedule`. Note that the SQL
+(3 fictional, seeded), `patient_record`, `report`, `vitals_override` (a row means a synthetic scenario is on). Private: `rule_state`, `tick_schedule`. Note that the SQL
 column for SpO₂ is `spo_2`; in TS it's `spo2`.
 
 ## Event kinds and merging
@@ -145,8 +146,35 @@ same event as another source. That's how voice plus label becomes one epi event 
 - medications: `med_<generic name>`, e.g. `med_epinephrine`, `med_amiodarone`, `med_naloxone`. A new
   `med_epinephrine` event starts the epi timer.
 - `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`, `status_<status>`
+- written by the rules: `cpr_coached`, `cpr_paused`, `vitals_alarm_hr`, `vitals_alarm_spo2` (a merged alarm shows
+  the newest number); by `synthesize_seizure`: `simulation`, `simulation_end`
 - `sourceKind` is the chip: `voice`, `read-back`, `label`, `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
+
+## Synthetic seizure (`synthesize_seizure`)
+
+Makes the patient look like they're deteriorating, even though the teammate on the mat is healthy.
+
+- `synthesize_seizure(true)` starts it. `tick_rules` writes one vitals row and one waveform batch per second from
+  the hardcoded scenario in `src/scenarios.ts`: HR climbs from 96 to about 170 and SpO₂ falls from 97 to 80
+  over 30 s, then the last row holds. Temperature is replaced too (36.9 → 37.5 °C). Rows use device
+  `sim-seizure` and `simulated = true`.
+- While it's on, the real relay's vitals and waveform calls still succeed (and keep the relay's `device` row
+  fresh), but they aren't stored, so nothing flickers between real and synthetic numbers.
+- `synthesize_seizure(false)` stops it, and the relay's real data flows again. Closing the incident (any way)
+  and `demo_control reset` also stop it.
+- **Relay lane:** `push_vitals` still returns success while it's on, so the relay LCD keeps showing the real
+  pulse while the other screens show the seizure. To show it on the LCD, poll `SELECT * FROM vitals_override`
+  (a row means on).
+- **Not in an arrest:** vitals alarms are off during an arrest (spec §9), and the held rows still say `pulse`.
+  Turn it off before the arrest if the story needs no pulse. It does not solve the mock-arrest pulse question.
+- **Known gap:** the synthetic waveform is one fixed trace (too fast for the HR, one batch per second). Nothing
+  draws a waveform yet; fix it when H3's waveform is built.
+  Calling `true` while it's already on does nothing (the scenario doesn't restart).
+- Start and stop add timeline events (`simulation` / `simulation_end`, source `demo`). The normal vitals alarms
+  apply (not during an arrest): about 20 s in, "Heart rate one sixty-…", then "Oxygen saturation eighty-…".
+- Change the numbers in `src/scenarios.ts` and republish. Where it's called from (`/controls`, the agent, a
+  hotkey) is not decided yet.
 
 ## Callouts
 

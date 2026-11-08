@@ -28,6 +28,7 @@ import SetDestinationReducer from "../set_destination_reducer";
 import SetEventStatusReducer from "../set_event_status_reducer";
 import SetStatusReducer from "../set_status_reducer";
 import StartIncidentReducer from "../start_incident_reducer";
+import SynthesizeSeizureReducer from "../synthesize_seizure_reducer";
 import ToggleIncidentReducer from "../toggle_incident_reducer";
 
 export type AddCalloutParams = __Infer<typeof AddCalloutReducer>;
@@ -52,5 +53,6 @@ export type SetDestinationParams = __Infer<typeof SetDestinationReducer>;
 export type SetEventStatusParams = __Infer<typeof SetEventStatusReducer>;
 export type SetStatusParams = __Infer<typeof SetStatusReducer>;
 export type StartIncidentParams = __Infer<typeof StartIncidentReducer>;
+export type SynthesizeSeizureParams = __Infer<typeof SynthesizeSeizureReducer>;
 export type ToggleIncidentParams = __Infer<typeof ToggleIncidentReducer>;
 

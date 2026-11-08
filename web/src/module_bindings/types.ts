@@ -183,6 +183,13 @@ export const Vitals = __t.object("Vitals", {
 });
 export type Vitals = __Infer<typeof Vitals>;
 
+export const VitalsOverride = __t.object("VitalsOverride", {
+  key: __t.string(),
+  scenario: __t.string(),
+  startedAt: __t.timestamp(),
+});
+export type VitalsOverride = __Infer<typeof VitalsOverride>;
+
 export const Waveform = __t.object("Waveform", {
   id: __t.u64(),
   incidentId: __t.u64(),

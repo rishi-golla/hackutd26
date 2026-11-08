@@ -239,6 +239,21 @@ const report = table(
   }
 );
 
+/**
+ * A synthetic scenario overriding the relay's sensor data (synthesize_seizure). A row means it's on.
+ * While on, real relay vitals and waveform are not stored; tick_rules writes the scenario's rows instead.
+ */
+const vitalsOverride = table(
+  { name: 'vitals_override', public: true },
+  {
+    /** always 'vitals' (one override at a time) */
+    key: t.string().primaryKey(),
+    /** e.g. 'seizure' */
+    scenario: t.string(),
+    startedAt: t.timestamp(),
+  }
+);
+
 /** Private bookkeeping for the callout rules (hold timers, last fired). */
 const ruleState = table(
   { name: 'rule_state' },
@@ -274,6 +289,7 @@ const spacetimedb = schema({
   hospital,
   patientRecord,
   report,
+  vitalsOverride,
   ruleState,
   tickSchedule,
 });

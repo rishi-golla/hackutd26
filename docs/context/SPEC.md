@@ -16,6 +16,10 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~18:15 (Josh): synthetic seizure.** New reducer `synthesize_seizure(active)` replaces the relay's sensor
+  data (HR, SpO₂, temperature, waveform) with a hardcoded seizure (`spacetime/src/scenarios.ts`) so the healthy
+  teammate can look like they're deteriorating. New table `vitals_override`. Rule alarms now use separate event
+  kinds `vitals_alarm_hr` / `vitals_alarm_spo2`. Where it's called from is [OPEN] (§28). See §0.1 decision 15, §22.
 - **Sat evening:** moved from the claude.ai page to this file (Version 2) and merged `AGENTS.md` into it.
   `AGENTS.md` becomes a short pointer here. This replaces the quick SPEC.md (b5ddd6b) and Josh's synced spec
   copy and brief (365b14f), whose resolutions it keeps. Conflicts were resolved as listed in §0.1.
@@ -105,6 +109,14 @@ section and add a change-log line.
     agent runs in the cloud or on a laptop ("ambulances have laptops"); the med kit is a stretch goal; smart
     glasses are not being built; encryption is an extra, not core.
 
+15. **Synthetic seizure** (Josh, Sat ~18:15). `synthesize_seizure(true)` overrides the relay's sensor data
+    (HR, SpO₂, temperature, waveform) with a hardcoded seizure from `spacetime/src/scenarios.ts`: HR climbs to
+    about 170 and SpO₂ falls to 80 over 30 s, then holds. Rows are stored with device `sim-seizure` and
+    `simulated = true`. While it's on, the relay's calls succeed but aren't stored. `synthesize_seizure(false)`,
+    closing the incident or reset ends it. It covers the deterioration beat; it does **not** settle the
+    mock-arrest pulse question (§28). Where it's called from is [OPEN] (§28). The data is hardcoded on purpose,
+    to be tuned later.
+
 Conflicts resolved when this file was created (for the record):
 
 - From `AGENTS.md`: "OLED replaces the LCD" → superseded by decision 6. `/monitor` and the monitor tablet →
@@ -144,6 +156,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Hospital + agent (TS SDK) | `send_rtc_signal`, `set_destination`, `er_message_out`, `log_agent_step`, `request_report`, `save_report` | everything |
 | Voice agent worker (TS SDK, new) | **[OPEN]**, follows the tool list (§19). Existing reducers only, for example `add_transcript`, `log_event`, `set_event_status`, `callout_spoken`, `log_agent_step` | the state it summarizes: `incident`, latest `vitals`, `cpr_state`, `timer`, `event`, `patient_record`, `callout`, `transcript` |
 | Any | `start_incident`, `set_status`, `heartbeat` | — |
+| Not decided yet (§28) | `synthesize_seizure` | `vitals_override` (a row means it's on) |
 
 `monitor_tap` is still in the module from the dropped monitor page; nothing should call it (§28).
 
@@ -1511,6 +1524,7 @@ active get `incidentId = 0`.
 | `hospital` | `id` PK, `name`, `capabilities` (comma-separated), `driveMin`, `bedsFree` | Seeded, fictional: 1 Avon General (ed, 6 min, 4 beds), 2 Avon Heart Institute (ed, cath_lab, 9 min, 2 beds), 3 Northside Community (ed, 12 min, 6 beds) |
 | `patient_record` | `incidentId` PK, `patientRef`, `name`, `birthDate`, `allergies` string[], `medications` string[], `conditions` string[], `codeStatus`, `source` (EHR or cached), `updatedAt` | The record pulled from the mock EHR |
 | `report` | `incidentId` PK, `status` (requested, ready, failed), `requestedAt`, `readyAt?`, `contentJson` | Generate Handoff sets `requested`; W4 saves `ready` |
+| `vitals_override` | `key` PK (always `vitals`), `scenario` (e.g. `seizure`), `startedAt` | A row means a synthetic scenario replaces the relay's data (§0.1 decision 15). While on, `tick_rules` writes one `vitals` row and one `waveform` batch per second with device `sim-seizure` and `simulated = true` |
 | `rule_state`, `tick_schedule` | private | Rule bookkeeping (hold timers, last fired) and the 1 s schedule |
 
 **Not built** (in the earlier spec sketch, deliberately left out or not yet needed):
@@ -1520,7 +1534,8 @@ active get `incidentId = 0`.
 - `er_message_in`: only needed for the optional ER chat.
 - `kit_slot` / `kit_update`: only if the med kit is built.
 - `timer_fire` is part of `tick_rules`; `agent_step` the reducer is `log_agent_step`.
-- Added beyond the sketch: `toggle_incident`, `heartbeat`, `set_event_status`, `request_report`.
+- Added beyond the sketch: `toggle_incident`, `heartbeat`, `set_event_status`, `request_report`,
+  `synthesize_seizure` and its `vitals_override` table.
 
 ### 22.2 Reducers (as built)
 
@@ -1553,6 +1568,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Agent (W1) | `set_destination({hospitalId, etaMin})` | Sets `destinationId` and `etaAt`; logs a `destination` event |
 | Agent (W1, W4) | `er_message_out({text})` | Display-only alert |
 | Agent (W4) | `save_report({incidentId, contentJson})` | Status `ready`; closes the incident |
+| Not decided (§28) | `synthesize_seizure({active})`; over HTTP the body is `[true]` or `[false]` | Hardcoded seizure overrides the relay's data (§0.1 decision 15). `true` while on is a no-op; closing the incident or reset ends it |
 | (dropped page) | `monitor_tap({button})` | Left from the monitor page; nothing should call it (§28) |
 | Scheduled | `tick_rules` every 1 s | Prunes old rows, runs §15 rules and timers, moves `en_route` → `arrived` at ETA 0 |
 
@@ -1660,7 +1676,8 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
 - Medications: `med_<generic name>`, e.g. `med_epinephrine`, `med_amiodarone`, `med_naloxone`. A new
   `med_epinephrine` event starts the epi timer.
 - Others: `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`,
-  `status_<status>`. Rules also write `cpr_coached`, `cpr_paused` and `vitals_alarm`.
+  `status_<status>`. Rules also write `cpr_coached`, `cpr_paused`, `vitals_alarm_hr` and `vitals_alarm_spo2`
+  (a merged alarm shows the newest number). `synthesize_seizure` writes `simulation` and `simulation_end`.
 - `sourceKind` is the chip: `voice`, `read-back`, `label`, `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
 
@@ -1902,6 +1919,7 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | Built code still has a `/monitor` placeholder route and a `monitor_tap` reducer from the dropped monitor page — hospital lane to rename/remove. | Josh |
 | **D1 list gap:** ROSC, Transport and Arrived (in H8 and the lifecycle, and needed for the storyboard's "Transport" beat and "Status ARRIVED") are missing from the D1 button list. The `demo_control` reducer already supports `rosc`, `en_route` and `arrived` | Team |
 | **Vision frame path:** no `frame`/`snapshot` table exists yet. Josh's proposal: the hospital lane adds a `frame` table + `push_frame` for the vision ID-card read (§17, B2, B6). Also decide where the vision step runs and where evidence frames live for H4 chips and report "frame" sources | Josh, camera lane |
+| **Who calls `synthesize_seizure`** (a `/controls` button, the agent, a hotkey) and whether its hardcoded numbers change. The relay LCD keeps showing the real pulse while it's on unless the relay reads `vitals_override` | Team |
 | Owner of `/controls` (`web/src/routes/controls/`), W2 and the optional W3/ER chat (needs an inbound ER message reducer) | Team |
 | Do MLH prizes count toward the 3-track limit? (General tracks don't.) | Team, help desk |
 | Photon after the MVP (account is done): add only once the core demo works | Team |

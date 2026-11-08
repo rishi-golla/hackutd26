@@ -56,6 +56,7 @@ import SetDestinationReducer from "./set_destination_reducer";
 import SetEventStatusReducer from "./set_event_status_reducer";
 import SetStatusReducer from "./set_status_reducer";
 import StartIncidentReducer from "./start_incident_reducer";
+import SynthesizeSeizureReducer from "./synthesize_seizure_reducer";
 import ToggleIncidentReducer from "./toggle_incident_reducer";
 
 // Import all procedure arg schemas
@@ -75,6 +76,7 @@ import RtcSignalRow from "./rtc_signal_table";
 import TimerRow from "./timer_table";
 import TranscriptRow from "./transcript_table";
 import VitalsRow from "./vitals_table";
+import VitalsOverrideRow from "./vitals_override_table";
 import WaveformRow from "./waveform_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -247,6 +249,17 @@ const tablesSchema = __schema({
       { name: 'vitals_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, VitalsRow),
+  vitalsOverride: __table({
+    name: 'vitals_override',
+    indexes: [
+      { accessor: 'key', name: 'vitals_override_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
+      ] },
+    ],
+    constraints: [
+      { name: 'vitals_override_key_key', constraint: 'unique', columns: ['key'] },
+    ],
+  }, VitalsOverrideRow),
   waveform: __table({
     name: 'waveform',
     indexes: [
@@ -284,6 +297,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_event_status", SetEventStatusReducer),
   __reducerSchema("set_status", SetStatusReducer),
   __reducerSchema("start_incident", StartIncidentReducer),
+  __reducerSchema("synthesize_seizure", SynthesizeSeizureReducer),
   __reducerSchema("toggle_incident", ToggleIncidentReducer),
 );
 

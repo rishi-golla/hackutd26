@@ -27,6 +27,9 @@ import {
   setTimer,
   str,
   touchDevice,
+  endVitalsOverride,
+  vitalsOverrideRow,
+  writeSyntheticFrame,
 } from './helpers';
 import { runRules } from './rules';
 
@@ -73,6 +76,10 @@ export const tickRules = spacetimedb.reducer(
       if (r.spokenAt === undefined && secondsBetween(r.createdAt, now) > 20) ctx.db.callout.id.delete(r.id);
     }
 
+    // A synthetic scenario (synthesize_seizure) replaces the relay's data, one row per second.
+    const override = vitalsOverrideRow(ctx);
+    if (override) writeSyntheticFrame(ctx, override.startedAt);
+
     const inc = activeIncident(ctx);
     if (inc) runRules(ctx, inc);
   }
@@ -88,6 +95,8 @@ export const pushVitals = spacetimedb.reducer(
   (ctx, { device, json }) => {
     const d = parseJson(json);
     const simulated = requireSimulatedFlag(d);
+    touchDevice(ctx, device, 'relay');
+    if (vitalsOverrideRow(ctx)) return; // synthesize_seizure is on: its rows replace the relay's
     const status = str(d.status, 'unknown');
     // Only 'pulse' means hr/spo2 are valid. Never store a stale or made-up number (spec R4).
     const valid = status === 'pulse';
@@ -102,7 +111,6 @@ export const pushVitals = spacetimedb.reducer(
       status,
       simulated,
     });
-    touchDevice(ctx, device, 'relay');
   }
 );
 
@@ -112,6 +120,8 @@ export const pushWaveform = spacetimedb.reducer(
   (ctx, { device, json }) => {
     const d = parseJson(json);
     const simulated = requireSimulatedFlag(d);
+    touchDevice(ctx, device, 'relay');
+    if (vitalsOverrideRow(ctx)) return; // synthesize_seizure is on: its rows replace the relay's
     const samples = Array.isArray(d.samples) ? d.samples.filter(v => typeof v === 'number').slice(0, 200) : [];
     if (samples.length === 0) return;
     ctx.db.waveform.insert({
@@ -123,7 +133,6 @@ export const pushWaveform = spacetimedb.reducer(
       rateHz: num(d.rate_hz) ?? 25,
       simulated,
     });
-    touchDevice(ctx, device, 'relay');
   }
 );
 
@@ -145,6 +154,27 @@ export const toggleIncident = spacetimedb.reducer({ device: t.string() }, (ctx, 
   if (activeIncident(ctx)) applyStatus(ctx, 'closed', 'MARK', 'relay hold');
   else beginIncident(ctx, 'Medic 12', 'MARK');
   touchDevice(ctx, device, 'relay');
+});
+
+// ---------------------------------------------------------------------------
+// Synthetic scenarios (where it's called from is not decided yet)
+// ---------------------------------------------------------------------------
+
+/**
+ * active = true: override the relay's sensor data with the hardcoded seizure scenario
+ * (spacetime/src/scenarios.ts), one row per second, stored with simulated = true.
+ * active = false: stop; the relay's real data flows again. Calling true while on is a no-op.
+ */
+export const synthesizeSeizure = spacetimedb.reducer({ active: t.bool() }, (ctx, { active }) => {
+  const existing = vitalsOverrideRow(ctx);
+  const inc = activeIncident(ctx);
+  if (active) {
+    if (existing) return;
+    ctx.db.vitalsOverride.insert({ key: 'vitals', scenario: 'seizure', startedAt: ctx.timestamp });
+    if (inc) recordEvent(ctx, inc.id, 'simulation', 'Simulated seizure started', 'demo', 'synthesize_seizure');
+  } else {
+    endVitalsOverride(ctx, inc?.id, 'synthesize_seizure');
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -447,6 +477,7 @@ export const saveReport = spacetimedb.reducer(
       cancelTimers(ctx, incidentId);
       ctx.db.incident.id.update({ ...inc, status: 'closed', updatedAt: ctx.timestamp });
       recordEvent(ctx, incidentId, 'status_closed', 'Handoff report generated; incident closed', 'agent', 'save_report');
+      endVitalsOverride(ctx, incidentId, 'incident closed');
     }
   }
 );

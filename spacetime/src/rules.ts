@@ -128,7 +128,7 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
       text: `Oxygen saturation ${spoken(n)}`,
       priority: 2,
       repeatS: 30,
-      onFire: () => vitalsEvent(ctx, inc, `SpO₂ ${n}% (experimental), called out`, `SpO₂ ${n}`, pulse!.simulated),
+      onFire: () => vitalsEvent(ctx, inc, 'vitals_alarm_spo2', `SpO₂ ${n}% (experimental), called out`, `SpO₂ ${n}`, pulse!.simulated),
     });
   }
   const hr = pulse?.hr;
@@ -139,7 +139,7 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
       text: `Heart rate ${spoken(n)}`,
       priority: 2,
       repeatS: 30,
-      onFire: () => vitalsEvent(ctx, inc, `Heart rate ${n}, called out`, `HR ${n}`, pulse!.simulated),
+      onFire: () => vitalsEvent(ctx, inc, 'vitals_alarm_hr', `Heart rate ${n}, called out`, `HR ${n}`, pulse!.simulated),
     });
   }
   const fingerOff = vitalsActive && !!v && v.status === 'no finger' && hadPulse(ctx, inc);
@@ -232,9 +232,10 @@ function cprEvent(ctx: Ctx, inc: IncidentRow, label: string, rate: number, words
   recordEvent(ctx, inc.id, 'cpr_coached', lbl, 'callout', words);
 }
 
-function vitalsEvent(ctx: Ctx, inc: IncidentRow, label: string, detail: string, simulated: boolean) {
+/** Each alarm has its own kind so an HR alarm and an SpO₂ alarm never merge into one event. */
+function vitalsEvent(ctx: Ctx, inc: IncidentRow, kind: string, label: string, detail: string, simulated: boolean) {
   const lbl = simulated ? `${label} (SIMULATED)` : label;
-  recordEvent(ctx, inc.id, 'vitals_alarm', lbl, 'relay', detail);
+  recordEvent(ctx, inc.id, kind, lbl, simulated ? 'demo' : 'relay', detail);
 }
 
 // ---- numbers in words, so "eighty-eight" is never misheard (spec §15, §16)

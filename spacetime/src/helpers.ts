@@ -2,6 +2,7 @@
 import { SenderError } from 'spacetimedb/server';
 import { ScheduleAt, Timestamp } from 'spacetimedb';
 import type { Ctx } from './schema';
+import { SEIZURE_WAVEFORM_RATE_HZ, SYNTHETIC_DEVICE, seizureFrame } from './scenarios';
 
 
 const STATUSES = ['standby', 'on_scene', 'arrest', 'rosc', 'en_route', 'arrived', 'closed'];
@@ -109,7 +110,8 @@ export function recordEvent(
     // and a MARK with a spoken note beats a bare "MARK".
     const merged = {
       ...recent,
-      label: label.length > recent.label.length ? label : recent.label,
+      // Vitals alarms: always the newest number. Otherwise keep the more specific label.
+      label: kind.startsWith('vitals_alarm') || label.length > recent.label.length ? label : recent.label,
       sources: [...recent.sources, source],
       mergedCount: recent.mergedCount + 1,
     };
@@ -191,6 +193,7 @@ export function applyStatus(ctx: Ctx, status: string, sourceKind: string, source
 
   ctx.db.incident.id.update({ ...inc, status, arrestStartedAt, updatedAt: ctx.timestamp });
   recordEvent(ctx, inc.id, `status_${status}`, STATUS_LABELS[status] ?? status, sourceKind, sourceDetail || status);
+  if (status === 'closed') endVitalsOverride(ctx, inc.id, 'incident closed');
 }
 
 export function beginIncident(ctx: Ctx, unit: string, sourceKind: string) {
@@ -238,6 +241,45 @@ export function setCprOverride(ctx: Ctx, rate: number | undefined) {
   else ctx.db.cprState.insert(row);
 }
 
+/** Stop a synthetic override (if on) and note it on the timeline. */
+export function endVitalsOverride(ctx: Ctx, incidentId: bigint | undefined, why: string) {
+  if (!ctx.db.vitalsOverride.key.find('vitals')) return;
+  ctx.db.vitalsOverride.key.delete('vitals');
+  if (incidentId !== undefined) recordEvent(ctx, incidentId, 'simulation_end', 'Simulated seizure stopped', 'demo', why);
+}
+
+/** The active synthetic override, if any. */
+export function vitalsOverrideRow(ctx: Ctx) {
+  return ctx.db.vitalsOverride.key.find('vitals') ?? undefined;
+}
+
+/** Write this second's synthetic vitals + waveform (called by tick_rules while an override is on). */
+export function writeSyntheticFrame(ctx: Ctx, startedAt: Timestamp) {
+  const second = Math.floor(secondsBetween(startedAt, ctx.timestamp));
+  const { vitals, waveform } = seizureFrame(second);
+  const incidentId = activeIncidentId(ctx);
+  ctx.db.vitals.insert({
+    id: 0n,
+    incidentId,
+    ts: ctx.timestamp,
+    device: SYNTHETIC_DEVICE,
+    hr: vitals.status === 'pulse' ? vitals.hr : undefined,
+    spo2: vitals.status === 'pulse' ? vitals.spo2 : undefined,
+    tempC: vitals.tempC,
+    status: vitals.status,
+    simulated: true,
+  });
+  ctx.db.waveform.insert({
+    id: 0n,
+    incidentId,
+    ts: ctx.timestamp,
+    device: SYNTHETIC_DEVICE,
+    samples: waveform,
+    rateHz: SEIZURE_WAVEFORM_RATE_HZ,
+    simulated: true,
+  });
+}
+
 export function deleteAll(ctx: Ctx) {
   for (const r of [...ctx.db.vitals.iter()]) ctx.db.vitals.id.delete(r.id);
   for (const r of [...ctx.db.waveform.iter()]) ctx.db.waveform.id.delete(r.id);
@@ -252,6 +294,7 @@ export function deleteAll(ctx: Ctx) {
   for (const r of [...ctx.db.patientRecord.iter()]) ctx.db.patientRecord.incidentId.delete(r.incidentId);
   for (const r of [...ctx.db.report.iter()]) ctx.db.report.incidentId.delete(r.incidentId);
   for (const r of [...ctx.db.ruleState.iter()]) ctx.db.ruleState.key.delete(r.key);
+  for (const r of [...ctx.db.vitalsOverride.iter()]) ctx.db.vitalsOverride.key.delete(r.key);
   for (const r of [...ctx.db.incident.iter()]) ctx.db.incident.id.delete(r.id);
 }
 
