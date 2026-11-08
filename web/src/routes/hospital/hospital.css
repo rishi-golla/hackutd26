@@ -58,11 +58,9 @@
   padding: calc(16 * var(--u)) calc(14 * var(--u)); gap: calc(25 * var(--u));
   border-right: 1px solid var(--line); background: linear-gradient(115deg, #ffffff55, transparent);
 }
-.ha .brand { display: flex; align-items: center; gap: calc(8 * var(--u)); padding: 0 calc(10 * var(--u)); }
-.ha .brand__mark { color: #8062db; display: flex; }
-.ha .brand__mark svg { width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
-.ha .brand__name { font-size: calc(12 * var(--u)); font-weight: 700; letter-spacing: -.04em; line-height: 1.16; }
-.ha .brand__name small { display: block; font: inherit; }
+.ha .brand { display: flex; align-items: center; gap: calc(9 * var(--u)); padding: 0 calc(6 * var(--u)); }
+.ha .brand__mark { display: block; flex: none; width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
+.ha .brand__name { font-size: calc(17 * var(--u)); font-weight: 700; letter-spacing: -.045em; line-height: 1; }
 .ha .nav { display: flex; flex-direction: column; gap: calc(5 * var(--u)); }
 .ha .nav__label { padding: 0 calc(10 * var(--u)) calc(3 * var(--u)); color: var(--text-3); font-size: calc(9 * var(--u)); }
 .ha .nav__item { display: flex; align-items: center; gap: calc(12 * var(--u)); padding: calc(7 * var(--u)) calc(13 * var(--u)); border-radius: 24px; color: var(--text); text-decoration: none; font-size: calc(11 * var(--u)); }

@@ -13,6 +13,7 @@ import LogsPage from './LogsPage';
 import TracingPage from './TracingPage';
 import { Icon } from './ui';
 import { selectedIncidentId, useHospital } from './useHospital';
+import handoffMark from './handoff-mark.svg';
 import './hospital.css';
 
 type Page = 'ops' | 'patients' | 'patient' | 'tracing' | 'logs';
@@ -51,8 +52,8 @@ export default function HospitalApp() {
     <div className={`ha ha--${page}${dark ? ' ha--dark' : ''}`}>
       <aside className="side">
         <div className="brand">
-          <span className="brand__mark"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M11 3h6v8h8v6h-8v8h-6v-8H3v-6h8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /><path d="M14 7v14M7 14h14" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity=".25" /></svg></span>
-          <span className="brand__name">Handoff<small>Hospital</small></span>
+          <img className="brand__mark" src={handoffMark} alt="" width="32" height="32" />
+          <span className="brand__name">Handoff</span>
         </div>
         <nav className="nav">
           <p className="nav__label">Main Menu</p>
