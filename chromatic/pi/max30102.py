@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""MAX30102 finger sensor on the Pi's I2C bus 1 (address 0x57): raw red/IR samples at 100 Hz, and heart rate from the
-IR pulse wave using HeartPy (github.com/paulvangentcom/heartrate_analysis_python). Finger presence = IR DC level.
-SpO2 is not reported: the sensor is uncalibrated and its ratio-of-ratios swung 85-100 % on one still recording.
-
-  python3 max30102.py [seconds]     prints one JSON line per second
+"""MAX30102 finger sensor on the Pi's I2C bus 1 (address 0x57): raw red/IR samples at 100 Hz, heart rate from the IR
+pulse wave with HeartPy (github.com/paulvangentcom/heartrate_analysis_python), and an experimental SpO2.
 """
 import json, sys, time, warnings
 import heartpy as hp
 import numpy as np
 import smbus
+from scipy.signal import find_peaks
 
 ADDR = 0x57
 FS = 100.0                      # 400 Hz sampling, 4-sample averaging
@@ -92,6 +90,50 @@ def estimate(ir):
     if 30 <= bpm <= 220 and abs(bpm - peak) <= 0.15 * peak:      # also false for NaN
         out.update(hr=int(round(bpm)), why=None)
     return out
+
+
+def spo2(red, ir):
+    """SpO2 % from the last 3-4 s of red and IR, or None when the signal can't support a number.
+    Maxim's per-beat method (MAXREFDES117, SparkFun spo2_algorithm): per beat between two IR troughs, AC is the pulse
+    height above the line joining the troughs, R = (AC_red/DC_red) / (AC_ir/DC_ir), and the median R goes through
+    Maxim's curve. Every gate must pass: no saturation or step, red and IR pulses correlate >= 0.9, >= 3 beats at
+    40-180 bpm with IR heights within 20 %, per-beat R within 15 %, perfusion 0.05-5 %, R 0.2-1.0.
+    On 2026-11-07 recordings: 0 readings below 95 for a healthy subject and 0 on noise, where the old ratio method
+    gave 87 and always a number. Uncalibrated: not fitted against a reference oximeter."""
+    red, ir = np.asarray(red, float), np.asarray(ir, float)
+    if len(ir) < FS * 3 or len(red) != len(ir):
+        return None
+    if min(red.min(), ir.min()) < 40000 or max(red.max(), ir.max()) > 0.95 * 0x3FFFF:
+        return None
+    if any(np.abs(x[10:] - x[:-10]).max() > 0.01 * x.mean() for x in (red, ir)):
+        return None
+    yr, yi = bandpass(red), bandpass(ir)
+    if np.corrcoef(yr, yi)[0, 1] < 0.9:
+        return None
+    tr = find_peaks(-yi, distance=FS / 3, prominence=yi.std())[0]       # IR troughs bound each beat
+    if len(tr) < 4 or not (FS / 3 <= np.diff(tr).min() and np.diff(tr).max() <= 1.5 * FS):
+        return None
+    ac_r, ac_i = [], []
+    for a, b in zip(tr[:-1], tr[1:]):
+        p = a + np.argmax(yi[a:b])
+        f = (p - a) / (b - a)
+        ac_i.append(yi[p] - (yi[a] + f * (yi[b] - yi[a])))
+        ac_r.append(yr[p] - (yr[a] + f * (yr[b] - yr[a])))      # red measured at the IR beat, so noise can't pick it
+    ac_r, ac_i = np.array(ac_r), np.array(ac_i)
+    rs = (ac_r / red.mean()) / (ac_i / ir.mean())
+    r, perfusion = np.median(rs), np.median(ac_i) / ir.mean()
+    if ac_i.std() > 0.2 * ac_i.mean() or not 0 < rs.std() < 0.15 * r or not 0.0005 <= perfusion <= 0.05 or not 0.2 <= r <= 1.0:
+        return None
+    return int(round(min(100.0, -45.060 * r * r + 30.354 * r + 94.845)))
+
+
+def steady_spo2(values, new):
+    """The SpO2 to display, or None. values is the caller's list of recent readings. A value shows once the last 3
+    readings agree within 2 points; the display is the median of the last 8."""
+    if new:
+        values[:] = (values + [new])[-8:]
+    last = values[-3:]
+    return sorted(values)[len(values) // 2] if len(last) == 3 and max(last) - min(last) <= 2 else None
 
 
 def shown(recent, hist, hr):

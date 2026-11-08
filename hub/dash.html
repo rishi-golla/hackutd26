@@ -39,6 +39,7 @@
   .big { display:flex; align-items:baseline; gap:8px; margin-top:4px; }
   .big b { font-size:96px; font-weight:800; line-height:.9; letter-spacing:-.05em; font-variant-numeric:tabular-nums; }
   .big span { color:var(--dim); font-size:16px; }
+  .o2 { color:var(--accent); font-weight:600; margin-top:10px; min-height:1.4em; }
   .hr b { color:var(--hr); }
   .status b { color:var(--accent); font-size:40px; letter-spacing:-.02em; }
   .hr { background:radial-gradient(circle at 85% 50%, rgba(255,77,109,.12), transparent 55%), var(--panel); }
@@ -68,7 +69,7 @@
   </section>
   <aside>
     <div class="card vital hr off" id="vHr">
-      <div><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div></div>
+      <div><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div><div class="o2" id="o2"></div></div>
       <svg class="heart" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 4.3 2.4.8-1.3 2.3-2.4 4.4-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg>
     </div>
     <div class="card vital status">
@@ -82,7 +83,7 @@
 <script src="/common.js"></script>
 <script>
 const seen = {};
-let frameAt = 0, hrAt = 0, stAt = 0;
+let frameAt = 0, hrAt = 0, stAt = 0, o2At = 0;
 
 // The activity feed: one readable line per kind of message below (others are not shown). Repeats are skipped.
 const words = {
@@ -116,6 +117,7 @@ const answeredAt = poll((m, age) => {
   if (age > 4) return;                                          // catch-up or backlog: never a live value
   if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); if (m.value) $('vHr').style.setProperty('--beat', 60 / m.value + 's'); }
   if (m.what === 'state') { $('status').textContent = labels[m.value] || m.value; stAt = Date.now(); }
+  if (m.what === 'spo2') { $('o2').textContent = m.value ? `SpO₂ ${m.value}% · experimental` : ''; o2At = Date.now(); }
   if (m.what === 'finger') $('dFinger').className = 'dot ' + (m.value === 'on' ? 'on' : 'warn');
   if (m.what === 'camera') frameAt = Date.now();
 });
@@ -142,6 +144,7 @@ setInterval(() => {
   $('dHub').className = 'dot ' + (Date.now() - answeredAt() < 12000 ? 'on' : '');
   if (Date.now() - hrAt > STALE_MS) $('hr').textContent = '—';
   if (Date.now() - stAt > STALE_MS) $('status').textContent = '—';
+  if (Date.now() - o2At > STALE_MS) $('o2').textContent = '';
   $('vHr').classList.toggle('off', $('hr').textContent === '—');
   const live = Date.now() - frameAt < 3000;
   $('dCam').className = 'dot ' + (live ? 'on' : '');
