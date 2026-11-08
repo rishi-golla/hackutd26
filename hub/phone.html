@@ -48,7 +48,7 @@
 <body>
 <header>
   <div class="logo">Hand<i>off</i></div>
-  <span id="dHub" class="dot">Hub</span><span id="dCam" class="dot">Cam</span><span id="dMic" class="dot">Mic</span>
+  <span id="dHub" class="dot">Hub</span><span id="dCam" class="dot">Cam</span><span id="dMic" class="dot">Mic</span><span id="dVoice" class="dot" hidden>Voice</span>
 </header>
 
 <div class="cam"><video id="video" autoplay playsinline muted></video><div id="hint" class="hint">Tap Start to turn on the camera and mic</div></div>
@@ -100,11 +100,14 @@ setInterval(() => {
 async function openCamera() {
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (stream) stream.getTracks().forEach((t) => t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true });
+  // Echo cancellation on: the speaker sits on the chest next to the mic, and the voice agent must not hear itself.
+  stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   video.srcObject = stream;
   stream.getTracks().forEach((t) => { t.onended = () => { dot('dCam', 'off'); dot('dMic', 'off'); hint('Camera stopped. Tap Start.', true); stopped(); }; });
   hint('');
   startMic();
+  connectVoice().catch(() => { dot('dVoice', 'off'); hint('Voice agent unreachable. Camera and mic still go to the hub.', true); });
 }
 
 // Mic: 1 s chunks into one webm file on the hub, a fresh file each time the mic starts.
@@ -131,6 +134,41 @@ setInterval(() => {
   inFlight++;
   canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
+
+// Voice agent (spec §19, §22.6): with ?voice=https://<worker>, the mic and camera also go to the Pipecat worker
+// (voice/pipecat) over WebRTC and its spoken replies play here. Without the parameter the page works as before.
+// The worker serves this page itself at /phone.html when it fronts the hub, so ?voice= may also be omitted there.
+const voiceUrl = new URLSearchParams(location.search).get('voice') || (location.pathname === '/phone.html' ? location.origin : null);
+const voiceOut = document.createElement('audio');
+voiceOut.autoplay = true;
+document.body.appendChild(voiceOut);
+let voicePc = null;
+if (voiceUrl) $('dVoice').hidden = false;
+async function connectVoice() {
+  if (!voiceUrl || !stream) return;
+  if (voicePc) voicePc.close();
+  const base = voiceUrl.replace(/\/$/, '');
+  const iceServers = await (await fetch(base + '/api/ice', { signal: AbortSignal.timeout(5000) })).json();
+  const pc = voicePc = new RTCPeerConnection({ iceServers });
+  stream.getTracks().forEach((t) => pc.addTrack(t, stream));                   // mic for the ears, camera for the eyes
+  pc.ontrack = (e) => { if (e.track.kind === 'audio') voiceOut.srcObject = new MediaStream([e.track]); };
+  pc.onconnectionstatechange = () => {
+    if (pc !== voicePc) return;
+    dot('dVoice', pc.connectionState === 'connected' ? 'on' : pc.connectionState === 'connecting' || pc.connectionState === 'new' ? '' : 'off');
+    if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') hint('Voice link dropped. Tap Flip twice to retry.', true);
+  };
+  await pc.setLocalDescription(await pc.createOffer());
+  await new Promise((done) => {
+    if (pc.iceGatheringState === 'complete') return done();
+    pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && done();
+    setTimeout(done, 2000);
+  });
+  const r = await fetch(base + '/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }), signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error('offer ' + r.status);
+  const answer = await r.json();
+  await pc.setRemoteDescription({ sdp: answer.sdp, type: answer.type });
+}
 
 function stopped() { running = false; $('start').disabled = false; $('start').textContent = 'Start'; }
 

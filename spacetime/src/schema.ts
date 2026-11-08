@@ -46,7 +46,7 @@ const vitals = table(
     /** Experimental. Always label it in the UI. */
     spo2: t.option(t.f32()),
     tempC: t.option(t.f32()),
-    /** Relay status: calibrating | no finger | saturated | acquiring | pulse */
+    /** Relay status: calibrating | no finger | saturated | acquiring | pulse | sensor error (only 'pulse' makes hr/spo2 valid) */
     status: t.string(),
     simulated: t.bool(),
   }
