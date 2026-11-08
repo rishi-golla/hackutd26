@@ -1,0 +1,6 @@
+# fw/xp partition table. nvs + phy_init offsets/sizes IDENTICAL to stock so NVS (settings, serial) survives.
+# Only the factory app grows: 1 MB -> 3 MB (0x10000..0x310000). Rest of the 4 MB flash stays unused.
+# Name,   Type, SubType, Offset,   Size
+nvs,      data, nvs,     0x9000,   0x6000
+phy_init, data, phy,     0xf000,   0x1000
+factory,  app,  factory, 0x10000,  0x300000

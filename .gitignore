@@ -1,4 +1,4 @@
-# Only the code that runs on the Pi is tracked. Keys, backups, captures and firmware stay out.
+# Tracked: the Pi hub and sensor code and the Chromatic firmware source. Keys, backups and captures stay out.
 /*
 !/.gitignore
 !/hub/
@@ -8,6 +8,15 @@
 !/chromatic/tools/
 /chromatic/tools/*
 !/chromatic/tools/pi.sh
+!/chromatic/fw/
+/chromatic/fw/*
+!/chromatic/fw/xp2/
+/chromatic/fw/xp2/build/
+/chromatic/fw/xp2/managed_components/
+/chromatic/fw/xp2/sdkconfig
+/chromatic/fw/xp2/XP_README.md
+/chromatic/fw/xp2/XP2_README.md
+/chromatic/fw/xp2/CHANGELOG.md
 *.db
 *.rvf*
 .claude-flow/
