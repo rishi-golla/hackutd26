@@ -16,6 +16,12 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Alan): ElevenLabs Flash speech output** (§0.1 decision 20 amended, §19). The Pipecat mouth
+  selects ElevenLabs when `ELEVENLABS_API_KEY` is present, using `eleven_flash_v2_5`, stock George,
+  WebSocket streaming and auto mode for complete phrases. `TTS_PROVIDER=nvidia` selects Magpie again;
+  this is a manual fallback, not automatic retry. ASR, Nemotron, vision, the speech queue and barge-in stay
+  unchanged. `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL` override the defaults. Keys stay in `voice/.env.local`.
+
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
 - **Sun ~06:15 (Alan): "Normal vitals" on `/controls`** (decision 15, D1; module + `web/`). A looping synthetic
@@ -394,7 +400,11 @@ section and add a change-log line.
 20. **One voice worker, from both voice PRs** (Alan, Sat ~23:30). Two teams built the §19 worker in parallel
     (PR #5, Alan; PR #6, Devin for Rishi). `main` carries PR #5's brain and Riva audio worker plus PR #6's
     vision sampler, phone-page link, ICE endpoint, hub proxy and test client, all in `voice/`.
-    - **Hosted, not self-hosted.** ASR, TTS, the voice LLM and vision all run on NVIDIA's API with one key. PR #6's
+    - **Hosted, not self-hosted.** ASR, the voice LLM and vision run on NVIDIA's API. **Amended Sun (Alan):**
+      speech output uses ElevenLabs Flash v2.5 with stock George when `ELEVENLABS_API_KEY` is set;
+      otherwise NVIDIA Magpie. `TTS_PROVIDER=nvidia|elevenlabs` explicitly selects the provider.
+      ElevenLabs uses WebSocket streaming with auto mode; `ELEVENLABS_VOICE_ID` / `ELEVENLABS_MODEL`
+      override defaults. NVIDIA remains a manual fallback; no automatic provider retry. PR #6's
       vLLM Omni and Kokoro on a rented H100 were dropped: a second machine and a tunnel are two more things that
       can die at the demo table, for about the same latency.
     - **Vision lives in `voice/pipecat/`** (`vision.py`), not in the camera lane: it taps the phone's video on the
@@ -1846,7 +1856,7 @@ There are two parts:
 - **Worker (as built, `voice/`):** two processes on the laptop. The **brain** (`voice/src`, Node) subscribes to
   SpacetimeDB, runs the deterministic paths and the Nemotron turns, and speaks through `add_callout`. The
   **Pipecat worker** (`voice/pipecat`, Python) is the ear and mouth: WebRTC (or the laptop mic for solo testing)
-  → Silero VAD → NVIDIA Riva STT → `POST /transcript` to the brain; brain `WS /mouth` → Riva TTS → the phone.
+  → Silero VAD → NVIDIA Riva STT → `POST /transcript` to the brain; brain `WS /mouth` → ElevenLabs Flash TTS (or NVIDIA Magpie, decision 20) → the phone.
   Pipecat handles barge-in and turn-taking. Expected voice-to-voice: read-backs well under 1 s plus the database
   round trip (no model call); Nemotron answers 1–3 s more.
 - **What it sees:** a plain-text state summary of about 250 tokens, rebuilt every turn: incident and status,
@@ -1883,9 +1893,9 @@ There are two parts:
   - Voice turns: `nvidia/nemotron-3.5-lightning-30b-a3b` (fast 30B MoE; tool calling per third-party listings,
     untested), thinking off; falls back to `nvidia/nemotron-3-ultra-550b-a55b` if the slug is rejected.
     Alternative with NVIDIA-documented tool calling: `nvidia/nemotron-nano-3-30b-a3b` (that is the API id;
-    the build.nvidia.com page slug has the words in another order). `GET /v1/models` lists the ids without a key. Speech: NVIDIA Riva on the same key
-    (Pipecat `pipecat-ai[nvidia]`: `NvidiaSTTService` with nemotron-asr-streaming or Parakeet, `NvidiaTTSService`
-    with Magpie voices). Verified to exist; audio quality and latency untested until a key is on the laptop.
+    the build.nvidia.com page slug has the words in another order). `GET /v1/models` lists the ids without a key. Speech recognition: NVIDIA Riva on the same key (`NvidiaSTTService`, Parakeet by default).
+    Speech output: `ElevenLabsTTSService`, Flash v2.5 and stock George when an ElevenLabs key is present;
+    `NvidiaTTSService` with Magpie remains selectable (decision 20). Phone quality and latency need a live check.
   - Fallback: Deepgram STT + Cartesia or ElevenLabs TTS (swap the two Pipecat services).
   - **Rejected:** speech-to-speech models (OpenAI Realtime, Gemini Live). They are faster (~300–500 ms) but are
     not Nemotron, which weakens the NVIDIA track.
