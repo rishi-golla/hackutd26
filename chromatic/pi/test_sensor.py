@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
 """Replays real recordings (testdata/) through the same logic as pi_oximeter.py and fails if the sensor got worse.
-Run on the Pi (numpy/scipy/heartpy):  python3 test_sensor.py     deploy.sh runs it before restarting anything.
+Run it on the Pi with `python3 test_sensor.py`. deploy.sh runs it before restarting anything.
 
-Reference heart rate = the dominant frequency over 8 s, only where it is unambiguous (an independent method).
-Measured 2026-11-07 with HeartPy: strapped first reading 4.0 s, mean error 1.3 bpm; live 1.9 bpm; noise 1/1200 ticks.
+The reference rate is the dominant frequency over 8 s, used only where it is unambiguous, so it is independent of
+the method under test. Results on 2026-11-07: strapped first reading 4.0 s, mean error 1.1 bpm (strapped) and
+1.4 bpm (live), noise shown on 1 of 1200 ticks.
 """
 import json, os, sys
 import numpy as np
 from scipy.signal import butter, filtfilt
-from max30102 import estimate, FS
+from max30102 import estimate, shown, FS
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def service(I):
-    """pi_oximeter's tick logic: 0.25 s ticks, 4 s window, first value needs 3 agreeing estimates, then 2, median of 8."""
+    """pi_oximeter's loop: an estimate every 0.25 s on the last 4 s, turned into a shown value by the same rule."""
     recent, hist, out = [], [], []
     for end in range(25, len(I) + 1, 25):
         if np.mean(I[end - 10:end]) < 40000:
             recent, hist = [], []
             out.append((end / FS, None))
             continue
-        e = estimate(I[max(0, end - 400):end])
-        recent = (recent + [e["hr"]])[-3:]
-        need = recent if not hist else recent[-2:]
-        ok = all(need) and len(need) >= (2 if hist else 3) and max(need) - min(need) <= 0.1 * min(need)
-        hist = (hist + [e["hr"]])[-8:] if ok else hist
-        out.append((end / FS, sorted(hist)[len(hist) // 2] if ok else None))
+        out.append((end / FS, shown(recent, hist, estimate(I[max(0, end - 400):end])["hr"])))
     return out
 
 

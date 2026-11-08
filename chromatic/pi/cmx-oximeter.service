@@ -1,5 +1,5 @@
 [Unit]
-Description=CMX MVP: finger sensor -> BLE oximeter for the Chromatic; RED pre-alert -> LED flash
+Description=Handoff finger sensor: heart rate to the Chromatic (Bluetooth) and the hub
 After=bluetooth.service
 Requires=bluetooth.service
 
