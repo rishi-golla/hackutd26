@@ -155,7 +155,7 @@ export class Brain {
   /**
    * A final utterance from the ear (Pipecat or the terminal bodycam). Decided first, stored after (decision 21):
    * a line that is acted on (a read-back, an answer, a status, a record lookup, or Nemotron keeping it) is written
-   * to `transcript`; a dropped line's words are not stored. Model reviews publish only generic status (decision 23).
+   * to `transcript`; a dropped line's words are not stored. Model reviews publish only generic status (decision 24).
    */
   async handleUtterance(text: string, source: string) {
     const clean = text.replace(/\s+/g, ' ').trim().slice(0, 500);

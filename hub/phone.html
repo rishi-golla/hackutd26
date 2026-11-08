@@ -83,6 +83,9 @@ function speak(text) {
 
 const answeredAt = poll((m, age) => {
   if (m.what === 'say' && running && age < 10) { speak(m.value); send('said', m.value); }
+  // The voice worker's link: the newest one wins. A replayed one counts only if it is recent (link.sh re-announces
+  // every 30 s), so a dead link from an earlier run doesn't come back on every page load.
+  if (m.what === 'voice' && Date.now() / 1000 - (m.t || 0) < 90) setVoiceUrl(m.value);
   if (age > 4) return;                                          // catch-up or backlog: never a live value
   if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); }
   if (m.what === 'state') { $('status').textContent = labels[m.value] || m.value; stAt = Date.now(); }
@@ -107,7 +110,9 @@ async function openCamera() {
   stream.getTracks().forEach((t) => { t.onended = () => { dot('dCam', 'off'); dot('dMic', 'off'); hint('Camera stopped. Tap Start.', true); stopped(); }; });
   hint('');
   startMic();
-  connectVoice().catch(() => { dot('dVoice', 'off'); hint('Voice agent unreachable. Camera and mic still go to the hub.', true); });
+  voiceOn = true;
+  voiceBackoff = 2000;
+  connectVoice().catch(voiceRetry);
 }
 
 // Mic: 1 s chunks into one webm file on the hub, a fresh file each time the mic starts.
@@ -135,42 +140,107 @@ setInterval(() => {
   canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
 
-// Voice agent (spec §19, §22.6): with ?voice=https://<worker>, the mic and camera also go to the Pipecat worker
-// (voice/pipecat) over WebRTC and its spoken replies play here. Without the parameter the page works as before.
-// The worker serves this page itself at /phone.html when it fronts the hub, so ?voice= may also be omitted there.
-const voiceUrl = new URLSearchParams(location.search).get('voice') || (location.pathname === '/phone.html' ? location.origin : null);
+// Voice agent (spec §19, §22.6, decision 23): while the bodycam runs, the mic and camera go to the Pipecat worker
+// (voice/pipecat) over WebRTC and its spoken replies play here: an open mic, all the time. Which worker:
+//   ?voice=<url> (?voice=off: none) > this page's own origin when the worker serves it (/phone.html) >
+//   the link the worker announced to the hub ({"what":"voice"}, voice/pipecat/link.sh), the newest one.
+// A dropped or failed link reconnects by itself (2, 4, 8, then every 15 s). Without a worker the page works as before.
+const voiceParam = new URLSearchParams(location.search).get('voice');
+const voiceFixed = voiceParam !== null || location.pathname === '/phone.html';
+let voiceUrl = voiceParam === 'off' ? null : voiceParam || (location.pathname === '/phone.html' ? location.origin : null);
 const voiceOut = document.createElement('audio');
 voiceOut.autoplay = true;
 document.body.appendChild(voiceOut);
-let voicePc = null;
+// voiceOn: from Start until the camera stops. Nothing below connects, retries or switches while it is off, so a phone
+// that was put aside never competes with the live one for the worker (it takes one bodycam at a time).
+let voiceOn = false, voicePc = null, voiceBusy = false, voiceAgain = false, voiceTimer = null, voiceUpTimer = null;
+let voiceBackoff = 2000;
+const VOICE_HINT = 'Voice agent reconnecting…';
 if (voiceUrl) $('dVoice').hidden = false;
-async function connectVoice() {
-  if (!voiceUrl || !stream) return;
-  if (voicePc) voicePc.close();
-  const base = voiceUrl.replace(/\/$/, '');
-  const iceServers = await (await fetch(base + '/api/ice', { signal: AbortSignal.timeout(5000) })).json();
-  const pc = voicePc = new RTCPeerConnection({ iceServers });
-  stream.getTracks().forEach((t) => pc.addTrack(t, stream));                   // mic for the ears, camera for the eyes
-  pc.ontrack = (e) => { if (e.track.kind === 'audio') voiceOut.srcObject = new MediaStream([e.track]); };
-  pc.onconnectionstatechange = () => {
-    if (pc !== voicePc) return;
-    dot('dVoice', pc.connectionState === 'connected' ? 'on' : pc.connectionState === 'connecting' || pc.connectionState === 'new' ? '' : 'off');
-    if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') hint('Voice link dropped. Tap Flip twice to retry.', true);
-  };
-  await pc.setLocalDescription(await pc.createOffer());
-  await new Promise((done) => {
-    if (pc.iceGatheringState === 'complete') return done();
-    pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && done();
-    setTimeout(done, 2000);
-  });
-  const r = await fetch(base + '/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }), signal: AbortSignal.timeout(10000) });
-  if (!r.ok) throw new Error('offer ' + r.status);
-  const answer = await r.json();
-  await pc.setRemoteDescription({ sdp: answer.sdp, type: answer.type });
+
+function setVoiceUrl(url) {
+  if (voiceFixed || typeof url !== 'string' || !/^https?:\/\//.test(url) || url === voiceUrl) return;
+  voiceUrl = url;
+  $('dVoice').hidden = false;
+  if (voiceOn) { voiceBackoff = 2000; connectVoice().catch(voiceRetry); }   // a new worker link: switch now
 }
 
-function stopped() { running = false; $('start').disabled = false; $('start').textContent = 'Start'; }
+// The voice hint never hides a camera or mic message: it is shown only over nothing (or itself), and cleared only
+// while it is still the one showing.
+function voiceHint(show) {
+  const h = $('hint');
+  if (show && (h.hidden || h.textContent === VOICE_HINT)) hint(VOICE_HINT, true);
+  if (!show && !h.hidden && h.textContent === VOICE_HINT) hint('');
+}
+
+// Try again later. One retry is pending at a time; the timer re-checks first, so a link that recovered stays.
+function voiceRetry() {
+  if (!voiceOn || !voiceUrl || voiceTimer) return;
+  dot('dVoice', 'off');
+  voiceHint(true);
+  voiceTimer = setTimeout(() => {
+    voiceTimer = null;
+    if (!voiceOn || (voicePc && voicePc.connectionState === 'connected')) return;
+    connectVoice().catch(voiceRetry);
+  }, voiceBackoff);
+  voiceBackoff = Math.min(voiceBackoff * 2, 15000);
+}
+
+function closeVoice() {
+  clearTimeout(voiceTimer); voiceTimer = null;
+  clearTimeout(voiceUpTimer);
+  if (voicePc) { const old = voicePc; voicePc = null; old.close(); }
+}
+
+async function connectVoice() {
+  if (!voiceOn || !voiceUrl || !stream) return;
+  if (voiceBusy) { voiceAgain = true; return; }   // a Flip or a new link mid-handshake: redo it once this one ends
+  voiceBusy = true;
+  try {
+    closeVoice();
+    dot('dVoice', '');
+    const base = voiceUrl.replace(/\/$/, '');
+    const iceServers = await (await fetch(base + '/api/ice', { signal: AbortSignal.timeout(5000) })).json();
+    if (!voiceOn) return;
+    const pc = voicePc = new RTCPeerConnection({ iceServers });
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));                   // mic for the ears, camera for the eyes
+    pc.ontrack = (e) => { if (e.track.kind === 'audio') voiceOut.srcObject = new MediaStream([e.track]); };
+    pc.onconnectionstatechange = () => {
+      if (pc !== voicePc) return;
+      const st = pc.connectionState;
+      dot('dVoice', st === 'connected' ? 'on' : st === 'connecting' || st === 'new' ? '' : 'off');
+      if (st === 'connected') {
+        voiceHint(false);
+        // The backoff resets only after the link has held for 20 s, so a worker that keeps ending the session
+        // (brain down, another phone) is retried more and more slowly, not every 2 s.
+        clearTimeout(voiceUpTimer);
+        voiceUpTimer = setTimeout(() => { voiceBackoff = 2000; }, 20000);
+      } else clearTimeout(voiceUpTimer);
+      // A short "disconnected" often recovers by itself (a Wi-Fi blip): give it 6 s. Failed or closed: now.
+      if (st === 'disconnected') setTimeout(() => { if (pc === voicePc && pc.connectionState !== 'connected') voiceRetry(); }, 6000);
+      if (st === 'failed' || st === 'closed') voiceRetry();
+    };
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise((done) => {
+      if (pc.iceGatheringState === 'complete') return done();
+      pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && done();
+      setTimeout(done, 2000);
+    });
+    const r = await fetch(base + '/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }), signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error('offer ' + r.status);
+    const answer = await r.json();
+    if (pc !== voicePc || !voiceOn) return;
+    await pc.setRemoteDescription({ sdp: answer.sdp, type: answer.type });
+    // Never stuck on "connecting": no link in 15 s counts as a failure.
+    setTimeout(() => { if (pc === voicePc && pc.connectionState !== 'connected') voiceRetry(); }, 15000);
+  } finally {
+    voiceBusy = false;
+    if (voiceAgain) { voiceAgain = false; connectVoice().catch(voiceRetry); }
+  }
+}
+
+function stopped() { running = false; voiceOn = false; closeVoice(); dot('dVoice', 'off'); $('start').disabled = false; $('start').textContent = 'Start'; }
 
 $('start').onclick = async () => {
   speak('Bodycam on');                                        // this tap also unlocks the speaker
