@@ -11,12 +11,27 @@ transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → 
                         └── POST /seen, POST /say ─────────────────────────┴──────────► brain (voice/src, :8787)
 ```
 
-Pipecat 1.15.0 supplies both NVIDIA speech and ElevenLabs streaming TTS. NVIDIA still handles
-ASR, vision and the brain. Speech output selects ElevenLabs when its key is present, otherwise NVIDIA.
+Pipecat 1.15.0 supplies NVIDIA speech, ElevenLabs and Fish Audio streaming TTS. NVIDIA still handles
+ASR, vision and the brain. Speech output selects Fish Audio when its key is present, then ElevenLabs, otherwise
+NVIDIA; `TTS_PROVIDER` overrides that.
 
 ## Speech provider
 
-In the gitignored `voice/.env.local`:
+In the gitignored `voice/.env.local`, either Fish Audio (the team's choice, free model only):
+
+```dotenv
+FISH_API_KEY=your-key
+TTS_PROVIDER=fish
+# Optional: a voice from Fish's library (its reference id); empty = Fish's default voice
+FISH_VOICE_ID=
+```
+
+Fish uses its **free model `s2.1-pro-free` only** ($0); the model is fixed in `run.py` (`FISH_MODEL`), so no setting
+can switch to a paid one ($15 per million UTF-8 bytes) by accident. It streams over Fish's WebSocket in "balanced"
+latency mode. Fish doesn't document the free model's rate limits or latency: measure a read-back with
+`test_client.py` before relying on it, and keep `TTS_PROVIDER=nvidia` as the fallback.
+
+Or ElevenLabs:
 
 ```dotenv
 ELEVENLABS_API_KEY=your-key
@@ -30,7 +45,7 @@ Restart the worker and reconnect the phone after changes. Flash uses WebSocket s
 so complete brain phrases start without waiting for a text-length threshold. Barge-in and the shared
 callout queue are unchanged. Keep `NVIDIA_API_KEY` for recognition, vision and reasoning.
 Set `TTS_PROVIDER=nvidia` to return to Magpie (`RIVA_VOICE`); this is manual, not automatic failover.
-An explicit ElevenLabs selection without a key fails at startup. `--list-voices` still lists NVIDIA voices.
+An explicit ElevenLabs or Fish selection without its key fails at startup. `--list-voices` still lists NVIDIA voices.
 
 ## Vision (spec §19 Vision, RB8–RB10, X1)
 

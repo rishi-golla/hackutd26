@@ -52,6 +52,8 @@ class Config:
     elevenlabs_api_key: str = field(default="", repr=False)
     elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George, stock voice
     elevenlabs_model: str = "eleven_flash_v2_5"
+    fish_api_key: str = field(default="", repr=False)
+    fish_voice_id: str = ""  # a Fish Audio voice (reference_id); empty = Fish's default voice
     boost_words: list[str] = field(default_factory=list)
     # WebRTC ICE servers for both peers, e.g. a TURN relay when the venue Wi-Fi blocks device-to-device traffic
     ice_servers: list[dict] = field(default_factory=list)
@@ -101,16 +103,22 @@ def load_config() -> Config:
     except ValueError:
         raise SystemExit(f"VISION_INTERVAL_S must be a number of seconds, got {get('VISION_INTERVAL_S')!r}")
     elevenlabs_key = get("ELEVENLABS_API_KEY")
-    tts_provider = get("TTS_PROVIDER", "elevenlabs" if elevenlabs_key else "nvidia").lower()
-    if tts_provider not in ("nvidia", "elevenlabs"):
-        raise SystemExit("TTS_PROVIDER must be nvidia or elevenlabs")
+    fish_key = get("FISH_API_KEY")
+    # Speech output: an explicit TTS_PROVIDER wins; otherwise Fish if its key is set, then ElevenLabs, then NVIDIA.
+    tts_provider = get("TTS_PROVIDER", "fish" if fish_key else "elevenlabs" if elevenlabs_key else "nvidia").lower()
+    if tts_provider not in ("nvidia", "elevenlabs", "fish"):
+        raise SystemExit("TTS_PROVIDER must be nvidia, elevenlabs or fish")
     if tts_provider == "elevenlabs" and not elevenlabs_key:
         raise SystemExit("ELEVENLABS_API_KEY is required when TTS_PROVIDER=elevenlabs")
+    if tts_provider == "fish" and not fish_key:
+        raise SystemExit("FISH_API_KEY is required when TTS_PROVIDER=fish")
     return Config(
         tts_provider=tts_provider,
         elevenlabs_api_key=elevenlabs_key,
         elevenlabs_voice_id=get("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb"),
         elevenlabs_model=get("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
+        fish_api_key=fish_key,
+        fish_voice_id=get("FISH_VOICE_ID"),
         api_key=get("NVIDIA_API_KEY"),
         voice=get("RIVA_VOICE", DEFAULT_VOICE),
         brain_url=get("BRAIN_URL", "http://127.0.0.1:8787").rstrip("/"),

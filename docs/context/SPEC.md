@@ -68,6 +68,11 @@ necessarily when the decision was made.
   table or reducer changes; hospital lane, pending Josh's OK). Live Operations, Patient and Tracing behind one
   sidebar, light with dark mode, built from the tables only; the mockups' invented capacity, fleet, map, BP and
   checklist are left out.
+- **Sun ~06:50 (Josh): Fish Audio speech output, free model only** (`voice/pipecat`, Alan's lane; no module
+  changes). `TTS_PROVIDER=fish` with `FISH_API_KEY` (and optional `FISH_VOICE_ID`) speaks through Fish Audio's
+  free model `s2.1-pro-free`, fixed in `run.py` so nothing spends credits; Fish is picked by default when its key is
+  set, then ElevenLabs, then NVIDIA Magpie. Fish doesn't document the free model's limits or latency: measure a
+  read-back before the demo and keep NVIDIA as the fallback.
 - **Sun (Alan): ElevenLabs Flash speech output** (§0.1 decision 20 amended, §19). The Pipecat mouth
   selects ElevenLabs when `ELEVENLABS_API_KEY` is present, using `eleven_flash_v2_5`, stock George,
   WebSocket streaming and auto mode for complete phrases. `TTS_PROVIDER=nvidia` selects Magpie again;
