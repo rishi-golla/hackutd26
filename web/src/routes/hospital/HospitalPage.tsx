@@ -258,7 +258,7 @@ export default function HospitalPage() {
 
       <section className="panel panel--patient" aria-label="Patient">
         {/* X7: a cached record must not pass for a live one. */}
-        <h2 className="panel__title">Patient{record && (record.source === 'cached' ? ' · cached copy' : ' · from EHR')}</h2>
+        <h2 className="panel__title">Patient{record && (record.source === 'cached' ? ' · cached copy' : record.source === 'ID card' ? ' · from the ID card, no EHR record' : ' · from EHR')}</h2>
         <PatientData record={record} patientRef={incident?.patientRef} />
       </section>
 
@@ -341,7 +341,10 @@ function PatientData({ record, patientRef }: { record?: PatientRecord; patientRe
         {record.name}
         {age !== undefined && <span className="patient__age">, {age}</span>}
       </p>
-      {record.allergies.length > 0 ? (
+      {record.source === 'ID card' ? (
+        // Identified from the card alone (no EHR match): nothing clinical is known, and it must not read as "none".
+        <p className="patient__line">Allergies unknown: no EHR record</p>
+      ) : record.allergies.length > 0 ? (
         <p className="patient__allergy">Allergy: {record.allergies.join(', ')}</p>
       ) : (
         <p className="patient__line">No known allergies</p>

@@ -67,3 +67,13 @@ test('an advisory fragment under four words is dropped; a whole short sentence p
   assert.ok(callsTo(calls, 'logAgentStep').some(c => /a fragment/.test(c.args.summary)));
   assert.equal(await policy.say('Consider rechecking the airway now.', 2, 'advisory', ''), true);
 });
+
+test('a spoken name the facts do not contain is dropped; names, months and sentence starts in the facts pass', async () => {
+  const { conn, calls } = fakeConn({ incident: [{ id: 1n, status: 'arrest', startedAt: nowTs(), updatedAt: nowTs(), demoMode: true }] });
+  const policy = new Policy(conn);
+  const facts = 'PATIENT Joshua Donocha Kim (ID card only, NO EHR record)';
+  assert.equal(await policy.say('The patient is Joshua Borischa Kim, from the ID card.', 1, 'answer', facts), false);
+  assert.ok(callsTo(calls, 'logAgentStep').some(c => /"Borischa" is not in the facts/.test(c.args.summary)));
+  assert.equal(await policy.say('The patient is Joshua Donocha Kim. Nothing else is documented yet.', 1, 'answer', facts), true);
+  assert.equal(await policy.say('Jordan Avery was born in March.', 1, 'answer', 'PATIENT Jordan Avery, 58 (EHR)'), true);
+});

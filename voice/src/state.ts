@@ -161,10 +161,15 @@ export function summarize(s: State, camera?: CameraScene): string {
   if (s.record) {
     const r = s.record;
     const age = ageOn(r.birthDate);
-    lines.push(
-      `PATIENT ${r.name}${age !== undefined ? `, ${age}` : ''} (${r.source}) · allergies: ${r.allergies.join(', ') || 'none recorded'}` +
-        ` · meds: ${r.medications.join(', ') || 'none recorded'} · history: ${r.conditions.join(', ') || 'none recorded'} · ${r.codeStatus || 'code status not recorded'}`
-    );
+    if (r.source === 'ID card') {
+      // Identified from the card (or the spoken name) with no EHR match: who, but nothing clinical.
+      lines.push(`PATIENT ${r.name}${age !== undefined ? `, ${age}` : ''} (ID card only, NO EHR record) · allergies unknown · meds unknown · history unknown · code status unknown`);
+    } else {
+      lines.push(
+        `PATIENT ${r.name}${age !== undefined ? `, ${age}` : ''} (${r.source}) · allergies: ${r.allergies.join(', ') || 'none recorded'}` +
+          ` · meds: ${r.medications.join(', ') || 'none recorded'} · history: ${r.conditions.join(', ') || 'none recorded'} · ${r.codeStatus || 'code status not recorded'}`
+      );
+    }
   } else {
     lines.push('PATIENT not identified yet (no record)');
   }
