@@ -1,0 +1,333 @@
+.gitignore
+  s_4c7e2207dbe1ad::t_a8da9fe2dc5bbe 7-28
+chromatic/fw/xp2/.gitignore
+  s_4c7e2207dbe1ad::t_126c129bff8a5f 1-3
+chromatic/fw/xp2/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_084a1bbdbf6d1b 1-5
+chromatic/fw/xp2/LICENSE
+  s_4c7e2207dbe1ad::t_aead28b712f31d 1-674
+chromatic/fw/xp2/NOTICE
+  s_4c7e2207dbe1ad::t_c0a887de90692b 1-7
+chromatic/fw/xp2/README.md
+  s_4c7e2207dbe1ad::t_2e7d018d231bec 1-57
+chromatic/fw/xp2/components/battery/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_e819f6f7d45b79 1-5
+chromatic/fw/xp2/components/battery/battery.c
+  s_4c7e2207dbe1ad::t_3ee1d967cdceab 1-490
+chromatic/fw/xp2/components/battery/battery.h
+  s_4c7e2207dbe1ad::t_27ccb11eefb512 1-20
+chromatic/fw/xp2/components/button/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_6ae175cb218061 1-5
+chromatic/fw/xp2/components/button/button.c
+  s_4c7e2207dbe1ad::t_afc28beb8647e4 1-226
+chromatic/fw/xp2/components/button/button.h
+  s_4c7e2207dbe1ad::t_7bec641e1761f9 1-49
+chromatic/fw/xp2/components/common/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_d8b18ac6a61945 1-7
+chromatic/fw/xp2/components/common/color.h
+  s_4c7e2207dbe1ad::t_bec938bf273afc 1-9
+chromatic/fw/xp2/components/common/line.h
+  s_4c7e2207dbe1ad::t_1f28f6624ffb99 1-17
+chromatic/fw/xp2/components/common/osd_shared.c
+  s_4c7e2207dbe1ad::t_f7f01025614e85 1-54
+chromatic/fw/xp2/components/common/osd_shared.h
+  s_4c7e2207dbe1ad::t_ca379fa4ee7a71 1-80
+chromatic/fw/xp2/components/crc/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_53be42117c1a27 1-5
+chromatic/fw/xp2/components/crc/crc8_sae_j1850.c
+  s_4c7e2207dbe1ad::t_e269956e96aceb 1-102
+chromatic/fw/xp2/components/crc/crc8_sae_j1850.h
+  s_4c7e2207dbe1ad::t_76a2ad70b09315 1-8
+chromatic/fw/xp2/components/dlist/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_61ea304f12e254 1-4
+chromatic/fw/xp2/components/dlist/dlist.h
+  s_4c7e2207dbe1ad::t_597d792943260b 1-235
+chromatic/fw/xp2/components/fonts/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_d7448dcf73897a 1-6
+chromatic/fw/xp2/components/fonts/chibit_mr.c
+  s_4c7e2207dbe1ad::t_9eef51ba07561d 1-490
+chromatic/fw/xp2/components/fonts/fingfai.c
+  s_4c7e2207dbe1ad::t_044e1604d7f079 1-493
+chromatic/fw/xp2/components/fonts/jf_dot_k14.c
+  s_4c7e2207dbe1ad::t_d1f9a4979e99b6 1-588
+chromatic/fw/xp2/components/images/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_b8ca5e5eff44e3 1-29
+chromatic/fw/xp2/components/images/icon_bat_large_g.c
+  s_4c7e2207dbe1ad::t_c99e20a7ec1f4b 1-123
+chromatic/fw/xp2/components/images/icon_bat_large_r.c
+  s_4c7e2207dbe1ad::t_20ae0396da30dd 1-123
+chromatic/fw/xp2/components/images/icon_bat_large_y.c
+  s_4c7e2207dbe1ad::t_fc04002220ca97 1-123
+chromatic/fw/xp2/components/images/icon_charging.c
+  s_4c7e2207dbe1ad::t_872f4a8473403c 1-82
+chromatic/fw/xp2/components/images/img_a_right.c
+  s_4c7e2207dbe1ad::t_0a206e0fb97a62 1-99
+chromatic/fw/xp2/components/images/img_arrow_down.c
+  s_4c7e2207dbe1ad::t_6e72766b9c1e7a 1-59
+chromatic/fw/xp2/components/images/img_arrow_up.c
+  s_4c7e2207dbe1ad::t_8749457838e7b8 1-59
+chromatic/fw/xp2/components/images/img_b_left.c
+  s_4c7e2207dbe1ad::t_18d83c7ce6a933 1-99
+chromatic/fw/xp2/components/images/img_brightness.c
+  s_4c7e2207dbe1ad::t_99b1fe87025bbf 1-151
+chromatic/fw/xp2/components/images/img_chromatic.c
+  s_4c7e2207dbe1ad::t_645feb94a408f2 1-171
+chromatic/fw/xp2/components/images/img_chromatic_eyebrow.c
+  s_4c7e2207dbe1ad::t_136eff96b6213c 1-295
+chromatic/fw/xp2/components/images/img_dot_grey.c
+  s_4c7e2207dbe1ad::t_12771650e98082 1-55
+chromatic/fw/xp2/components/images/img_dot_white.c
+  s_4c7e2207dbe1ad::t_9fa1d40dd53f39 1-55
+chromatic/fw/xp2/components/images/img_option_dis.c
+  s_4c7e2207dbe1ad::t_45e8f912037c79 1-127
+chromatic/fw/xp2/components/images/img_option_en.c
+  s_4c7e2207dbe1ad::t_ffcbc722669a20 1-127
+chromatic/fw/xp2/components/images/img_toggle_off.c
+  s_4c7e2207dbe1ad::t_ec2552ff28bfcb 1-171
+chromatic/fw/xp2/components/images/img_toggle_on.c
+  s_4c7e2207dbe1ad::t_594ae322db9270 1-171
+chromatic/fw/xp2/components/images/menu_controls.c
+  s_4c7e2207dbe1ad::t_cf40b1308cf95b 1-471
+chromatic/fw/xp2/components/images/menu_display.c
+  s_4c7e2207dbe1ad::t_d7f6f96b699ce8 1-471
+chromatic/fw/xp2/components/images/menu_palette.c
+  s_4c7e2207dbe1ad::t_569176d3ecfa31 1-471
+chromatic/fw/xp2/components/images/menu_palette_gbc.c
+  s_4c7e2207dbe1ad::t_e2719eaa0bed34 1-470
+chromatic/fw/xp2/components/images/menu_status.c
+  s_4c7e2207dbe1ad::t_3a1cc4aa5229b1 1-471
+chromatic/fw/xp2/components/images/menu_system.c
+  s_4c7e2207dbe1ad::t_b6ae6ee4b66da3 1-471
+chromatic/fw/xp2/components/medic/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_63e8628a934eaf 1-6
+chromatic/fw/xp2/components/medic/medic.c
+  s_4c7e2207dbe1ad::t_a5145b56eae361 1-1179
+chromatic/fw/xp2/components/medic/medic.h
+  s_4c7e2207dbe1ad::t_bddf50cd23bf06 1-26
+chromatic/fw/xp2/components/medic/medic_hw.c
+  s_4c7e2207dbe1ad::t_c1536a01f041cc 1-288
+chromatic/fw/xp2/components/medic/medic_priv.h
+  s_4c7e2207dbe1ad::t_dd92c7c1f9ca4d 1-55
+chromatic/fw/xp2/components/medic/vitals.c
+  s_4c7e2207dbe1ad::t_e6f8e773590fa3 1-381
+chromatic/fw/xp2/components/menu_mgr/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_da65984247c5e1 1-5
+chromatic/fw/xp2/components/menu_mgr/menu_mgr.c
+  s_4c7e2207dbe1ad::t_65fb851d63bb43 1-265
+chromatic/fw/xp2/components/menu_mgr/menu_mgr.h
+  s_4c7e2207dbe1ad::t_5b3f36b1d44c7f 1-46
+chromatic/fw/xp2/components/mutex/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_209ec3deda276c 1-5
+chromatic/fw/xp2/components/mutex/mutex.c
+  s_4c7e2207dbe1ad::t_329d144696134c 1-76
+chromatic/fw/xp2/components/mutex/mutex.h
+  s_4c7e2207dbe1ad::t_036b100c7830f9 1-36
+chromatic/fw/xp2/components/osd/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_36876d9b901da9 1-29
+chromatic/fw/xp2/components/osd/controls/dpad_ctl.c
+  s_4c7e2207dbe1ad::t_90d80b31d59c4e 1-274
+chromatic/fw/xp2/components/osd/controls/dpad_ctl.h
+  s_4c7e2207dbe1ad::t_cef694eb2298ca 1-19
+chromatic/fw/xp2/components/osd/controls/hotkeys.c
+  s_4c7e2207dbe1ad::t_1342b443160288 1-583
+chromatic/fw/xp2/components/osd/controls/hotkeys.h
+  s_4c7e2207dbe1ad::t_46a3602a0bda7f 1-9
+chromatic/fw/xp2/components/osd/display/color_correct_lcd.c
+  s_4c7e2207dbe1ad::t_7ea0d0207c9d62 1-190
+chromatic/fw/xp2/components/osd/display/color_correct_lcd.h
+  s_4c7e2207dbe1ad::t_8a81f6dcca6146 1-19
+chromatic/fw/xp2/components/osd/display/color_correct_usb.c
+  s_4c7e2207dbe1ad::t_91aa489f8f050b 1-217
+chromatic/fw/xp2/components/osd/display/color_correct_usb.h
+  s_4c7e2207dbe1ad::t_ac8c0ac55f51e3 1-19
+chromatic/fw/xp2/components/osd/display/frameblend.c
+  s_4c7e2207dbe1ad::t_ed43cb2a16c678 1-222
+chromatic/fw/xp2/components/osd/display/frameblend.h
+  s_4c7e2207dbe1ad::t_281732a96f806f 1-19
+chromatic/fw/xp2/components/osd/display/low_batt_icon_ctl.c
+  s_4c7e2207dbe1ad::t_d8f37e933af2c4 1-222
+chromatic/fw/xp2/components/osd/display/low_batt_icon_ctl.h
+  s_4c7e2207dbe1ad::t_1c52d49b9d5633 1-20
+chromatic/fw/xp2/components/osd/display/screen_transit_ctl.c
+  s_4c7e2207dbe1ad::t_6ce03348f37ad7 1-214
+chromatic/fw/xp2/components/osd/display/screen_transit_ctl.h
+  s_4c7e2207dbe1ad::t_0c1b11df3e0f10 1-19
+chromatic/fw/xp2/components/osd/osd.c
+  s_4c7e2207dbe1ad::t_d924a068820246 1-129
+chromatic/fw/xp2/components/osd/osd.h
+  s_4c7e2207dbe1ad::t_1aec9c504276ae 1-27
+chromatic/fw/xp2/components/osd/osd_default.c
+  s_4c7e2207dbe1ad::t_386f991d97d264 1-522
+chromatic/fw/xp2/components/osd/osd_default.h
+  s_4c7e2207dbe1ad::t_77ff33170bf356 1-5
+chromatic/fw/xp2/components/osd/palette/gbc_color_temp.c
+  s_4c7e2207dbe1ad::t_1c88cbe5880287 1-296
+chromatic/fw/xp2/components/osd/palette/gbc_color_temp.h
+  s_4c7e2207dbe1ad::t_0d763d61c74eba 1-19
+chromatic/fw/xp2/components/osd/palette/palette.c
+  s_4c7e2207dbe1ad::t_c9fac01ca7de57 1-113
+chromatic/fw/xp2/components/osd/palette/palette.h
+  s_4c7e2207dbe1ad::t_e80d33a4df3a81 1-13
+chromatic/fw/xp2/components/osd/palette/style.c
+  s_4c7e2207dbe1ad::t_163de6a1c5059b 1-392
+chromatic/fw/xp2/components/osd/palette/style.h
+  s_4c7e2207dbe1ad::t_6c7cec84b29f7c 1-43
+chromatic/fw/xp2/components/osd/status/brightness.c
+  s_4c7e2207dbe1ad::t_a76628f2878f79 1-377
+chromatic/fw/xp2/components/osd/status/brightness.h
+  s_4c7e2207dbe1ad::t_329563609c4b94 1-13
+chromatic/fw/xp2/components/osd/status/fw.c
+  s_4c7e2207dbe1ad::t_44b2d01a7169d2 1-298
+chromatic/fw/xp2/components/osd/status/fw.h
+  s_4c7e2207dbe1ad::t_f6db2d1f6b9afe 1-9
+chromatic/fw/xp2/components/osd/system/player_num.c
+  s_4c7e2207dbe1ad::t_ec751948d6117d 1-189
+chromatic/fw/xp2/components/osd/system/player_num.h
+  s_4c7e2207dbe1ad::t_1dde0079f51533 1-12
+chromatic/fw/xp2/components/osd/system/serial_num.c
+  s_4c7e2207dbe1ad::t_034e4e3ed90566 1-156
+chromatic/fw/xp2/components/osd/system/serial_num.h
+  s_4c7e2207dbe1ad::t_e028549d2d8dc5 1-10
+chromatic/fw/xp2/components/osd/system/silent.c
+  s_4c7e2207dbe1ad::t_883ba1df515a28 1-208
+chromatic/fw/xp2/components/osd/system/silent.h
+  s_4c7e2207dbe1ad::t_c9c06c240bdc52 1-19
+chromatic/fw/xp2/components/settings/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_7198dfa341dbd8 1-5
+chromatic/fw/xp2/components/settings/settings.c
+  s_4c7e2207dbe1ad::t_a943c07bb497ad 1-230
+chromatic/fw/xp2/components/settings/settings.h
+  s_4c7e2207dbe1ad::t_b52c278931af0b 1-50
+chromatic/fw/xp2/components/tab/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_675f9176fb4d21 1-13
+chromatic/fw/xp2/components/tab/tab_dots/tab_dots.c
+  s_4c7e2207dbe1ad::t_b52bed6e4b175e 1-185
+chromatic/fw/xp2/components/tab/tab_dots/tab_dots.h
+  s_4c7e2207dbe1ad::t_e01e77d6069146 1-6
+chromatic/fw/xp2/components/tab/tab_list/tab_list.c
+  s_4c7e2207dbe1ad::t_14e8fd9e5effbe 1-208
+chromatic/fw/xp2/components/tab/tab_list/tab_list.h
+  s_4c7e2207dbe1ad::t_f3e8a365cb4498 1-6
+chromatic/fw/xp2/components/tab/tab_shared.c
+  s_4c7e2207dbe1ad::t_ad4bd34d19b726 1-173
+chromatic/fw/xp2/components/tab/tab_shared.h
+  s_4c7e2207dbe1ad::t_7d9a490d2dffad 1-33
+chromatic/fw/xp2/components/tab/tab_table/tab_table.c
+  s_4c7e2207dbe1ad::t_ecfc919d787b7e 1-76
+chromatic/fw/xp2/components/tab/tab_table/tab_table.h
+  s_4c7e2207dbe1ad::t_547a1425a956de 1-6
+chromatic/fw/xp2/components/xp/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_6a032f537b237d 1-7
+chromatic/fw/xp2/components/xp/xp.c
+  s_4c7e2207dbe1ad::t_72802edaf0cf61 1-616
+chromatic/fw/xp2/components/xp/xp.h
+  s_4c7e2207dbe1ad::t_789803683278d1 1-49
+chromatic/fw/xp2/components/xp/xp_blehid.c
+  s_4c7e2207dbe1ad::t_24b42f3ccb04f2 1-489
+chromatic/fw/xp2/components/xp/xp_blehr.c
+  s_4c7e2207dbe1ad::t_f18cd115481b09 1-507
+chromatic/fw/xp2/components/xp/xp_blelog.c
+  s_4c7e2207dbe1ad::t_f8860f43999c48 1-510
+chromatic/fw/xp2/components/xp/xp_boot.c
+  s_4c7e2207dbe1ad::t_de8768041c531f 1-94
+chromatic/fw/xp2/components/xp/xp_csi.c
+  s_4c7e2207dbe1ad::t_eafa5756decea3 1-533
+chromatic/fw/xp2/components/xp/xp_fpga.c
+  s_4c7e2207dbe1ad::t_beeafb7cba2861 1-619
+chromatic/fw/xp2/components/xp/xp_mwifi.c
+  s_4c7e2207dbe1ad::t_3461655d84bd84 1-418
+chromatic/fw/xp2/components/xp/xp_priv.h
+  s_4c7e2207dbe1ad::t_97f096e18caac7 1-34
+chromatic/fw/xp2/components/xp/xp_radio.c
+  s_4c7e2207dbe1ad::t_74a60671dbc8d1 1-1136
+chromatic/fw/xp2/components/xp/xp_sign.c
+  s_4c7e2207dbe1ad::t_1b58f44d44e87b 1-254
+chromatic/fw/xp2/dependencies.lock
+  s_4c7e2207dbe1ad::t_a3a9e0693e10d3 1-18
+chromatic/fw/xp2/main/CMakeLists.txt
+  s_4c7e2207dbe1ad::t_ef664786a498c2 1-11
+chromatic/fw/xp2/main/Kconfig.projbuild
+  s_4c7e2207dbe1ad::t_b18bfb2140e2d9 1-8
+chromatic/fw/xp2/main/board.h
+  s_4c7e2207dbe1ad::t_be1ed6d68e5369 1-19
+chromatic/fw/xp2/main/fpga_common.c
+  s_4c7e2207dbe1ad::t_88cffbc94f0423 1-28
+chromatic/fw/xp2/main/fpga_common.h
+  s_4c7e2207dbe1ad::t_d689dda12049ef 1-24
+chromatic/fw/xp2/main/fpga_rx.c
+  s_4c7e2207dbe1ad::t_80d1a0e3916b40 1-467
+chromatic/fw/xp2/main/fpga_rx.h
+  s_4c7e2207dbe1ad::t_ef0328d9bbebff 1-28
+chromatic/fw/xp2/main/fpga_tx.c
+  s_4c7e2207dbe1ad::t_b432328f4f80ba 1-323
+chromatic/fw/xp2/main/fpga_tx.h
+  s_4c7e2207dbe1ad::t_bee9b884a5a64f 1-19
+chromatic/fw/xp2/main/gfx.c
+  s_4c7e2207dbe1ad::t_e423d588f5c825 1-51
+chromatic/fw/xp2/main/gfx.h
+  s_4c7e2207dbe1ad::t_aaa086eda594b2 1-5
+chromatic/fw/xp2/main/idf_component.yml
+  s_4c7e2207dbe1ad::t_ca1e29d22e3ab1 1-3
+chromatic/fw/xp2/main/main.c
+  s_4c7e2207dbe1ad::t_67f072be14ed31 1-931
+chromatic/fw/xp2/main/pwrmgr.c
+  s_4c7e2207dbe1ad::t_c5ea88fd7a2320 1-177
+chromatic/fw/xp2/main/pwrmgr.h
+  s_4c7e2207dbe1ad::t_858489218333ca 1-12
+chromatic/fw/xp2/partitions.csv
+  s_4c7e2207dbe1ad::t_69e904dec090c7 1-6
+chromatic/fw/xp2/sdkconfig.defaults
+  s_4c7e2207dbe1ad::t_4fe0d8876e2e42 1-55
+chromatic/pi/cmx-oximeter.service
+  s_4c7e2207dbe1ad::t_f7175c0b763648 1-13
+chromatic/pi/max30102.py
+  s_4c7e2207dbe1ad::t_bc2360e643d9e3 1-211
+chromatic/pi/pi_hr_sensor.py
+  s_4c7e2207dbe1ad::t_75d2627dfb37fc 1-91
+chromatic/pi/pi_oximeter.py
+  s_4c7e2207dbe1ad::t_8bb58932ad0f2f 1-286
+chromatic/pi/test_sensor.py
+  s_4c7e2207dbe1ad::t_3598c1889aac48 1-79
+chromatic/pi/testdata/placements_live.json
+  s_4c7e2207dbe1ad::t_f9b39916542f76 1
+chromatic/pi/testdata/strapped.json
+  s_4c7e2207dbe1ad::t_94c158cc186b38 1
+chromatic/pi/wifi-login.sh
+  s_4c7e2207dbe1ad::t_7bb3112b840b3f 1-47
+chromatic/tools/pi.sh
+  s_4c7e2207dbe1ad::t_40cd9e250e2418 1-13
+hub/common.js
+  s_4c7e2207dbe1ad::t_93b72f7a6fe2b8 1-33
+hub/dash.html
+  s_4c7e2207dbe1ad::t_138a9b2ac52e52 1-165
+hub/deploy.sh
+  s_4c7e2207dbe1ad::t_2078cb9ed4a962 1-33
+hub/handoff-hub.service
+  s_4c7e2207dbe1ad::t_c2824586b76c6a 1-14
+hub/handoff-link.service
+  s_4c7e2207dbe1ad::t_0d5d6941a1e2f6 1-13
+hub/hub.py
+  s_4c7e2207dbe1ad::t_87c5490795f0db 1-177
+hub/link.sh
+  s_4c7e2207dbe1ad::t_6361f7c947b187 1-11
+hub/phone.html
+  s_4c7e2207dbe1ad::t_6a2f4b4f5c86b2 1-159
+hub/setup-pi.sh
+  s_4c7e2207dbe1ad::t_66b4ff6a3ee264 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c04814876f561b9fb019d95477019fe9fdb76472",
+  "prompts": {},
+  "sessions": {
+    "s_4c7e2207dbe1ad": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_4c7e2207dbe1ad",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
