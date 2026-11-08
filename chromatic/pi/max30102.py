@@ -12,6 +12,7 @@ import smbus
 
 ADDR = 0x57
 FS = 100.0                      # 400 Hz sampling, 4-sample averaging
+WIN = int(FS * 4)               # samples analysed per estimate
 
 
 class Max30102:
@@ -71,7 +72,7 @@ def estimate(ir):
     if len(ir) and ir[-25:].max() > 0.95 * 0x3FFFF:             # 18-bit ADC full scale
         return {"hr": None, "why": "saturated", "ac": 0.0}
     jump = np.nonzero(np.abs(ir[10:] - ir[:-10]) > 0.01 * ir[-25:].mean())[0]   # > 1 % within 0.1 s
-    x = (ir[jump[-1] + 11:] if len(jump) else ir)[-int(FS * 4):]
+    x = (ir[jump[-1] + 11:] if len(jump) else ir)[-WIN:]
     if len(x) < FS * 3:
         return {"hr": None, "why": "settling", "ac": 0.0}
     y = bandpass(x)

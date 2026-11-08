@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("HUB_DATA", HERE / "data"))
 PORT = int(os.environ.get("HUB_PORT", "8000"))
 DATA.mkdir(exist_ok=True)
-MAX_BODY = 4 * 1024 * 1024                               # one camera frame or mic chunk is far below this
+MAX_BODY = 4 * 1024 * 1024
 
 latest = {}                                              # what -> last message
 recent = []                                              # (seq, json line) of the last 500 messages
@@ -34,13 +34,19 @@ news = threading.Condition()                             # guards latest/recent/
 frame = {"jpg": b"", "n": 0, "seq": 0, "said": 0.0, "at": 0.0}
 new_frame = threading.Condition()
 
-LOG = open(DATA / "messages.jsonl", "a+")
-LOG.seek(0)
-for _line in LOG:                                        # restart keeps the last value of everything (e.g. the link)
+FILES = {"/": "phone.html", "/phone": "phone.html", "/dash": "dash.html", "/common.js": "common.js"}
+TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
+
+# A restart keeps the last value of everything (e.g. the phone link). The log is compacted to just those values,
+# so it never grows past one line per kind of message.
+_log = DATA / "messages.jsonl"
+for _line in (_log.read_text().splitlines() if _log.exists() else []):
     try:
         _m = json.loads(_line); latest[_m["what"]] = _m
     except (ValueError, KeyError, TypeError):
         pass
+_log.write_text("".join(json.dumps(m) + "\n" for m in latest.values()))
+LOG = open(_log, "a")
 
 
 def publish(msg):
@@ -93,10 +99,9 @@ class H(BaseHTTPRequestHandler):
             after = int(q.get("after", ["0"])[0])
         except ValueError:
             return self.reply(400, b'{"ok":false,"error":"after must be a number"}')
-        if p in ("/", "/phone"):
-            return self.reply(body=(HERE / "phone.html").read_bytes(), ctype="text/html; charset=utf-8")
-        if p == "/dash":
-            return self.reply(body=(HERE / "dash.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if p in FILES:
+            f = HERE / FILES[p]
+            return self.reply(body=f.read_bytes(), ctype=TYPES[f.suffix])
         if p == "/state":
             with news:
                 return self.reply(body=json.dumps(latest).encode())
@@ -118,7 +123,7 @@ class H(BaseHTTPRequestHandler):
                     after = 0
                 new_frame.wait_for(lambda: frame["seq"] > after and frame["jpg"], timeout=5)
                 s, jpg, at = frame["seq"], frame["jpg"], frame["at"]
-            if s <= after or not jpg or time.time() - at > 3:  # nothing new, or the camera stopped: never an old image
+            if s <= after or not jpg or time.time() - at > 3:  # never serve an old image
                 return self.reply(204)
             return self.reply(body=jpg, ctype="image/jpeg", headers=[("X-Seq", str(s))])
         self.reply(404, b"not found", "text/plain")
@@ -153,7 +158,7 @@ class H(BaseHTTPRequestHandler):
                 if fresh:
                     frame.update(jpg=data, n=n, seq=frame["seq"] + 1, at=time.time())
                     new_frame.notify_all()
-            if fresh and time.time() - frame["said"] > 1:          # "camera live" at most once a second
+            if fresh and time.time() - frame["said"] > 1:       # each message wakes every viewer: once a second is enough
                 frame["said"] = time.time()
                 publish({"from": "phone", "what": "camera", "value": "live"})
             return self.reply(body=b'{"ok":true}')

@@ -17,19 +17,17 @@ import RPi.GPIO as GPIO
 from gi.repository import GLib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from max30102 import Max30102, estimate, shown, FS   # noqa: E402
+from max30102 import Max30102, estimate, shown, FS, WIN   # noqa: E402
 from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # noqa: E402
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 LED = 0x24
-WIN = int(FS * 4)                          # analysis window
-HOLD_S = 3.0                               # keep showing the last good HR through short glitches
 
+HOLD_S = 3.0                               # keep showing the last good HR through short glitches
 
 # Hub (hub.py on this Pi): every reading also goes there, so the phone and dashboard see it. Never blocks the sensor.
 HUB = os.environ.get("HUB_URL", "http://127.0.0.1:8000/send")
 _hubq = queue.Queue(maxsize=50)
-
 
 def _hub_worker():
     up = None
@@ -47,12 +45,19 @@ def _hub_worker():
             up = ok
             say(True, ev="hub_up" if ok else "hub_down", e=err)
 
-
 threading.Thread(target=_hub_worker, daemon=True).start()
 
+_sent = {}                                          # what -> (value, when it was last queued)
 
 def hub(what, value):
-    item = (time.monotonic(), json.dumps({"from": "pi", "what": what, "value": value}).encode())
+    """Queue a message for the hub when the value changes, else at most once a second: each message wakes every
+    viewer, and the repeat is enough for viewers to notice a source that went quiet."""
+    now = time.monotonic()
+    last = _sent.get(what)
+    if last and last[0] == value and now - last[1] < 1:
+        return
+    _sent[what] = (value, now)
+    item = (now, json.dumps({"from": "pi", "what": what, "value": value}).encode())
     while True:
         try:
             return _hubq.put_nowait(item)
@@ -61,7 +66,6 @@ def hub(what, value):
                 _hubq.get_nowait()
             except queue.Empty:
                 pass
-
 
 def say(log, **k):
     k.setdefault("t", round(time.time(), 3))
@@ -73,7 +77,6 @@ def say(log, **k):
         except OSError:
             pass                                    # a full disk must not stop the sensor
 
-
 def main():
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
@@ -83,10 +86,7 @@ def main():
     hr = Svc(bus, "/cmx/s0", "180D")
     meas = Chr(bus, "/cmx/s0/c0", "2A37", hr.path, ["notify"])
     hr.chrs = [meas, Chr(bus, "/cmx/s0/c1", "2A38", hr.path, ["read"], b"\x03")]      # body location: finger
-    plx = Svc(bus, "/cmx/s1", "1822")
-    cont = Chr(bus, "/cmx/s1/c0", "2A5F", plx.path, ["notify"])
-    plx.chrs = [cont, Chr(bus, "/cmx/s1/c1", "2A60", plx.path, ["read"], b"\x00\x00")]
-    app.svcs = [hr, plx]
+    app.svcs = [hr]
     Adv(bus)
     loop = GLib.MainLoop()
     gm = dbus.Interface(bus.get_object(BUS, ad), GATT_MGR)
@@ -159,7 +159,7 @@ def main():
         if s != st["state"]:
             st["state"] = s
             say(True, ev="state", state=s, **k)
-        hub("state", s)                                    # every tick, so a lost update heals itself
+        hub("state", s)                                    # repeated each second, so a lost update heals itself
 
     def read_finger(now):
         """None = sensor not readable, False = no finger, True = finger. Thresholds follow the learned no-finger
@@ -248,7 +248,6 @@ def main():
     finally:
         if st["m"]:
             st["m"].close()
-
 
 if __name__ == "__main__":
     main()

@@ -9,7 +9,7 @@ the method under test. Results on 2026-11-07: strapped first reading 4.0 s, mean
 import json, os, sys
 import numpy as np
 from scipy.signal import butter, filtfilt
-from max30102 import estimate, shown, FS
+from max30102 import estimate, shown, FS, WIN
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,7 +22,7 @@ def service(I):
             recent, hist = [], []
             out.append((end / FS, None))
             continue
-        out.append((end / FS, shown(recent, hist, estimate(I[max(0, end - 400):end])["hr"])))
+        out.append((end / FS, shown(recent, hist, estimate(I[max(0, end - WIN):end])["hr"])))
     return out
 
 

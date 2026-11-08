@@ -6,7 +6,7 @@
 <title>Handoff</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cpath fill=%27%23ff4d6d%27 d=%27M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 4.3 2.4.8-1.3 2.3-2.4 4.4-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z%27/%3E%3C/svg%3E">
 <style>
-  :root { --bg:#07090d; --panel:#0e1219; --line:#1a212c; --text:#eef2f6; --dim:#7f8c9a; --ok:#3fd68f; --warn:#ffb547; --hr:#ff4d6d; --o2:#4cc2ff; }
+  :root { --bg:#07090d; --panel:#0e1219; --line:#1a212c; --text:#eef2f6; --dim:#7f8c9a; --ok:#3fd68f; --warn:#ffb547; --hr:#ff4d6d; --accent:#4cc2ff; }
   * { box-sizing:border-box; margin:0; }
   html { background:var(--bg); color-scheme:dark; }
   body { color:var(--text); font:15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding:28px; max-width:1480px; margin:0 auto; }
@@ -39,7 +39,8 @@
   .big { display:flex; align-items:baseline; gap:8px; margin-top:4px; }
   .big b { font-size:96px; font-weight:800; line-height:.9; letter-spacing:-.05em; font-variant-numeric:tabular-nums; }
   .big span { color:var(--dim); font-size:16px; }
-  .hr b { color:var(--hr); } .o2 b { color:var(--o2); }
+  .hr b { color:var(--hr); }
+  .status b { color:var(--accent); font-size:40px; letter-spacing:-.02em; }
   .hr { background:radial-gradient(circle at 85% 50%, rgba(255,77,109,.12), transparent 55%), var(--panel); }
   .heart { width:64px; height:64px; color:var(--hr); }
   .vital:not(.off) .heart { animation:beat var(--beat, 1s) infinite; }
@@ -70,30 +71,23 @@
       <div><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div></div>
       <svg class="heart" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 4.3 2.4.8-1.3 2.3-2.4 4.4-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg>
     </div>
-    <div class="card vital o2" id="vO2">
-      <div><div class="label">Sensor</div><div class="big"><b id="o2" style="font-size:40px;letter-spacing:-.02em">—</b></div></div>
+    <div class="card vital status">
+      <div><div class="label">Sensor</div><div class="big"><b id="status">—</b></div></div>
     </div>
     <div class="card"><div class="label">Activity</div><ul id="feed"></ul></div>
   </aside>
 </main>
 <p class="foot">Prototype · not a medical device<span id="link"></span></p>
 
+<script src="/common.js"></script>
 <script>
-const $ = (id) => document.getElementById(id);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const seen = {};
-let frameAt = 0, lastMsg = 0, hrAt = 0, stAt = 0;
+let frameAt = 0, hrAt = 0, stAt = 0;
 
-// What the sensor's state means for the person holding it.
-const status = {
-  live: 'Reading', no_finger: 'Place finger', settling: 'Hold still…', moving: 'Hold still', weak: 'Press firmer',
-  noisy: 'Hold still, press firmly', measuring: 'Measuring…', saturated: 'Press lighter', sensor_error: 'Check sensor',
-};
-
-// One readable line per message. Repeated values are skipped.
+// The activity feed: one readable line per kind of message below (others are not shown). Repeats are skipped.
 const words = {
   finger: (v) => ({ on: 'Finger on the sensor', off: 'Finger off the sensor', error: 'Sensor not responding' })[v],
-  state: (v) => `Sensor: ${status[v] || v}`,
+  state: (v) => `Sensor: ${labels[v] || v}`,
   say: (v) => `Sent to bodycam: “${v}”`,
   said: (v) => `Bodycam said “${v}”`,
   bodycam: () => 'Bodycam started',
@@ -101,12 +95,12 @@ const words = {
   mark: () => 'MARK pressed',
   link: (v) => `Phone link: ${v}`,
 };
-const quiet = new Set(['hr', 'camera', 'spo2']);
 function feed(m) {
+  if (!Object.hasOwn(words, m.what)) return;
   const key = JSON.stringify(m.value);
-  if (quiet.has(m.what) || (seen[m.what] === key && m.what !== 'say' && m.what !== 'said')) return;
+  if (seen[m.what] === key && m.what !== 'say' && m.what !== 'said') return;
   seen[m.what] = key;
-  const text = (Object.hasOwn(words, m.what) ? words[m.what] : (v) => `${m.from}: ${m.what} ${v}`)(m.value);
+  const text = words[m.what](m.value);
   if (!text) return;
   const li = document.createElement('li');
   li.innerHTML = '<time></time><span></span>';
@@ -116,32 +110,15 @@ function feed(m) {
   if ($('feed').children.length > 60) $('feed').lastChild.remove();
 }
 
-function handle(m, now) {
+const answeredAt = poll((m, age) => {
   feed(m);
   if (m.what === 'link') $('link').textContent = ` · phone: ${m.value}`;
-  if (m.replay || now - m.t > 4) return;                        // history or backlog, never a live value
+  if (age > 4) return;                                          // catch-up or backlog: never a live value
   if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); if (m.value) $('vHr').style.setProperty('--beat', 60 / m.value + 's'); }
-  if (m.what === 'state') { $('o2').textContent = status[m.value] || m.value; stAt = Date.now(); }
+  if (m.what === 'state') { $('status').textContent = labels[m.value] || m.value; stAt = Date.now(); }
   if (m.what === 'finger') $('dFinger').className = 'dot ' + (m.value === 'on' ? 'on' : 'warn');
   if (m.what === 'camera') frameAt = Date.now();
-}
-
-// Live messages: long-poll, so each answer is a normal response that any https tunnel passes straight through.
-// e = the hub's start id, so a restarted hub sends a fresh catch-up instead of half a history.
-(async () => {
-  let after = 0, e = '';
-  for (;;) {
-    try {
-      const r = await fetch(`/poll?after=${after}&e=${e}`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
-      if (!r.ok) throw new Error(r.status);
-      const d = await r.json();
-      after = d.seq; e = d.e; lastMsg = Date.now();
-      for (const m of d.msgs) {
-        try { handle(m, d.now); } catch (err) { console.error(err); }   // one bad message must not stall the rest
-      }
-    } catch (_) { await sleep(1000); }
-  }
-})();
+});
 
 // Camera: ask for the next frame as soon as the last one arrives.
 (async () => {
@@ -162,9 +139,9 @@ function handle(m, now) {
 })();
 
 setInterval(() => {
-  $('dHub').className = 'dot ' + (Date.now() - lastMsg < 12000 ? 'on' : '');   // a poll answers at least every 10 s
-  if (Date.now() - hrAt > 5000) $('hr').textContent = '—';     // never an old number
-  if (Date.now() - stAt > 5000) $('o2').textContent = '—';     // the sensor program stopped reporting
+  $('dHub').className = 'dot ' + (Date.now() - answeredAt() < 12000 ? 'on' : '');
+  if (Date.now() - hrAt > STALE_MS) $('hr').textContent = '—';
+  if (Date.now() - stAt > STALE_MS) $('status').textContent = '—';
   $('vHr').classList.toggle('off', $('hr').textContent === '—');
   const live = Date.now() - frameAt < 3000;
   $('dCam').className = 'dot ' + (live ? 'on' : '');
