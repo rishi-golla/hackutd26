@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "$0")"
 PI=../chromatic/tools/pi.sh
 DST="cmx@[$($PI --ip)]"
-SSHO="-6 -q -i ../chromatic/captures/private/pi_key -o UserKnownHostsFile=../chromatic/captures/private/pi_known_hosts -o StrictHostKeyChecking=no"
+SSHO="-6 -q $($PI --ssh-opts)"
 
 if [ "$1" = wifi ]; then
   $PI "sudo raspi-config nonint do_wifi_country US && sudo raspi-config nonint do_wifi_ssid_passphrase $(printf %q "$2") $(printf %q "$3") && sleep 8 && hostname -I"
