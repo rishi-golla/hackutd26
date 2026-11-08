@@ -45,8 +45,8 @@ export function composeReadback(match: ReadbackMatch, dose: DoseVerdict, allergy
   const restatement = match.spoken.replace(/^Copy\.\s*/, '');
   if (allergy.allergic && match.drug) {
     const article = /^[aeiou]/i.test(match.drug) ? 'an' : 'a';
-    return { spoken: `${restatement} Warning: the record lists ${article} ${match.drug} allergy. Say confirm or correction.`, flagged: true, reason: 'allergy' };
+    return { spoken: `${restatement} Warning: the record lists ${article} ${match.drug} allergy. Log it anyway?`, flagged: true, reason: 'allergy' };
   }
-  if (dose.verdict === 'out_of_range') return { spoken: `${restatement} Outside the protocol range. Say confirm or correction.`, flagged: true, reason: 'dose' };
-  return { spoken: match.spoken, flagged: false };
+  if (dose.verdict === 'out_of_range') return { spoken: `${restatement} Outside the protocol range. Log it anyway?`, flagged: true, reason: 'dose' };
+  return { spoken: `${match.spoken} Log it?`, flagged: false };
 }
