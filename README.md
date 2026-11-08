@@ -47,11 +47,12 @@ a red flash when the button marks a moment. On the board we used, green does not
 5. Run `hub/deploy.sh setup`. It installs the packages, turns on I2C, and installs cloudflared. Then reboot the Pi
    with `chromatic/tools/pi.sh sudo reboot`.
 
-For WPA2-Enterprise Wi-Fi such as a campus network, copy the login script to the Pi. Then open a shell with
-`chromatic/tools/pi.sh` and run `sudo bash wifi-login.sh SSID`, which asks for the username and password.
+For WPA2-Enterprise Wi-Fi such as a campus network, copy the login script to the Pi and run it. It asks for the
+username and password.
 
 ```
 chromatic/tools/pi.sh 'cat > wifi-login.sh' < chromatic/pi/wifi-login.sh
+chromatic/tools/pi.sh -t 'sudo bash wifi-login.sh SSID'
 ```
 
 ## 3. Deploy
