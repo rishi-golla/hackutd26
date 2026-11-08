@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~21:40 (Alan): the Chromatic handheld is built, QR page included; open** (§28). The 19:31 meeting parked
+  the ModRetro handheld and kept "no QR codes". After the meeting, kgand's 20:59 commit on `main` (`chromatic/`)
+  turned the Chromatic into a Bluetooth vitals screen with a QR page that encodes a short readable summary. Whether
+  it joins the demo, and whether its QR page is an exception to decision 8, is open. H4 fixed: with camera-seen drugs
+  a stretch goal, the epi event has one chip (read-back).
 - **Sat ~20:15 (Josh): hospital dashboard redesign.**
   - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
   - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
@@ -35,10 +40,11 @@ necessarily when the decision was made.
   logging; everything else comes after.
   - **Allergy:** the demo allergy stays amiodarone (Jordan Avery), not epinephrine.
   - **QR codes:** they came up again and stay out (decision 8). The need behind them, a way for the hospital to
-    reach the paramedic, is now a §28 question under W3.
+    reach the paramedic, is now a §28 question under W3. (Since then the Chromatic gained a QR page; see ~21:40.)
   - **Camera-seen drugs** are a stretch goal (decision 16, RB8–RB10). The voice read-back is the MVP's
     medication source.
-  - **Parked:** stroke detection from the face, and the ModRetro handheld (§3).
+  - **Parked:** stroke detection from the face, and the ModRetro handheld (§3). (The handheld has since been
+    built as a vitals screen; see ~21:40.)
 - **Sat ~19:05 (Josh): only Josh runs the workflow agent against Maincloud** (§0.1 decision 17). A second copy, even
   without an NVIDIA key, duplicates alerts and reports. No lock in code; the team stays mindful of it.
 - **Sat ~19:00 (Josh): agent verified with real Nemotron.** `nvidia/nemotron-3-ultra-550b-a55b`, thinking off.
@@ -139,6 +145,7 @@ section and add a change-log line.
    model reading the ID card (name + birth date) or by speech; the agent decides to call the EHR search tool.
    Fallback: "Identify patient" on `/controls`. (Alan, ~16:58) Reaffirmed at the 19:31 meeting: a QR code linking
    to a live page stays out. The need behind it, a way for the hospital to reach the paramedic, is in §28 under W3.
+   Open since ~21:40: the Chromatic vitals screen on `main` has a QR page (§28).
 9. **Demo format:** one judge, hands-on, 3–5 minutes with explanation. The judge wears the harness and mimes CPR
    with hands above a teammate lying on a mat: no contact, no manikin. The finger clip and the temperature probe
    go on that teammate. No paramedic partner. Team roles: narrator, fitter/spotter, demo operator, ER host; the
@@ -214,7 +221,9 @@ section and add a change-log line.
     - **No QR codes** (decision 8 stands). The hospital-to-paramedic channel the QR idea was meant to provide is
       a §28 question under W3.
     - **Camera-seen drugs are a stretch goal** (decision 16).
-    - **Parked:** stroke detection from the face, and the ModRetro handheld (§3 "Parked ideas").
+    - **Parked:** stroke detection from the face (§3 "Parked ideas"). The meeting also parked the ModRetro
+      handheld, but kgand built it into a vitals screen with a QR page afterwards (20:59). Its place in the demo,
+      and the QR page against decision 8, are open (§28).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -377,9 +386,12 @@ never diagnoses.
 - **Stroke detection from the face** (the camera spotting a drooping face). It conflicts with "never diagnoses".
   If it ever comes back, it has to be an observation plus a protocol reminder, for example "Facial droop seen.
   Consider a stroke assessment.", never "probably a stroke".
-- **The ModRetro handheld.** No use case yet, and it gets in the way. Related ideas parked with it: buttons on
-  the harness, remote control of the relay box, and a volume control. The relay's MARK button already has a job
-  (§9): a press marks the timeline, and a 2 s hold starts or stops the incident.
+- **Buttons on the harness, remote control of the relay box, and a volume control.** Raised alongside the ModRetro
+  handheld, with no clear use case yet. The relay's MARK button already has a job (§9): a press marks the
+  timeline, and a 2 s hold starts or stops the incident.
+- **The ModRetro handheld itself is no longer parked.** The meeting parked it ("no use case yet, it gets in the
+  way"), but kgand built it after the meeting (20:59, `chromatic/` on `main`): a Bluetooth heart-rate and SpO₂
+  receiver with a vitals screen and a QR page. Its role in the demo is open (§28).
 
 ---
 
@@ -1147,7 +1159,7 @@ is **Generate Handoff**. No demo controls here.
 | H1 | Header: unit, status, destination, ETA (hidden once arrived or closed) | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
 | H3 | Vitals tiles with 5-minute trend lines, a pulse waveform, a CPR panel and dose timers | A missing reading shows "no data", never a stale number; "Epi due" matches the bodycam to the second |
-| H4 | Timeline with source chips; clicking a chip shows the evidence (transcript line, frame, vitals at that moment) | Every demo event has a chip; the epi event has two |
+| H4 | Timeline with source chips; clicking a chip shows the evidence (transcript line, frame, vitals at that moment) | Every demo event has a chip; the epi event has its read-back chip (a second, `seen`, only if the camera-drugs stretch is built) |
 | H5 | Agent trace: trigger → plan → tool → result in plain language | Judges can follow one workflow live |
 | H6 | Pre-arrival alert panel, display-only (a typed ER chat is optional) | Alert appears within 20 s of the arrest |
 | H7 | Generate Handoff opens the report (§20) | Full report within 30 s |
@@ -2088,6 +2100,7 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | **Who calls `synthesize_seizure`** (a `/controls` button, the agent, a hotkey) and whether its hardcoded numbers change. The relay LCD keeps showing the real pulse while it's on unless the relay reads `vitals_override` | Team |
 | Owner of `/controls` (`web/src/routes/controls/`) and the optional W3/ER chat (needs an inbound ER message reducer). W2 now runs inside the voice worker's Nemotron turn (`voice/`) | Team |
 | **Hospital → paramedic channel (W3).** Raised at the 19:31 meeting: the hospital can see everything but has no way to reach the paramedic. A QR code was suggested and ruled out (decision 8). The spec's answer is W3 (§19): the ER host types a question, the agent answers from the record and the timeline, and asks the crew through a spoken callout when it doesn't know. Open: is it in the demo or a pitch-only "next step"? If it's in, it needs an inbound ER message reducer (§22.8, Josh's lane), a text box on `/hospital` (which decision 3 would need to allow, since Generate Handoff is the only button today), and an owner | Team, Josh |
+| **The Chromatic handheld and its QR page.** The 19:31 meeting parked the ModRetro handheld and kept "no QR codes" (decision 8). After the meeting, kgand built it (20:59, `chromatic/` on `main`): Chromatic firmware that receives heart rate and SpO₂ over Bluetooth, shows a vitals screen, and has a QR page (button A) encoding a short readable summary. Open: (1) is it in the demo, and as what (a second vitals screen beside the relay LCD, decision 6, or the paramedic's display)? (2) Is its QR page an allowed exception to decision 8, or removed? (3) Does it take its data from SpacetimeDB or straight from the Pi over Bluetooth, and who owns `chromatic/` and `hub/` in §0.2? | Team, kgand |
 | **Vision cost vs the NVIDIA rate limit:** about 40 requests/min per key on the free tier (unofficial). 1 frame/s vision is 60/min on its own. Options: sample every 2 s, a second key for vision, or a local vision model | Camera lane |
 | Do MLH prizes count toward the 3-track limit? (General tracks don't.) | Team, help desk |
 | Photon after the MVP (account is done): add only once the core demo works | Team |
