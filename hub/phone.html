@@ -130,6 +130,19 @@ async function openCamera() {
     }
   }
   if (rear) console.log('rear camera:', rear.label);
+  // Camera diagnostics to the hub ({"what":"camdiag"}), readable from the laptop: which lenses exist, which one is
+  // open, and whether its track delivers frames (a muted track means the camera gives nothing).
+  try {
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput').map((d) => d.label || '(no label)');
+    const t = stream.getVideoTracks()[0];
+    const st = t ? t.getSettings() : {};
+    const diag = () => send('camdiag', `facing=${facing} chosen=${rear ? rear.label : 'default'} track=${t ? `${t.label} ready=${t.readyState} muted=${t.muted}` : 'none'} ${st.width}x${st.height} ua=${navigator.userAgent.slice(0, 60)} cams=[${cams.join(' | ')}]`);
+    diag();
+    if (t) { t.onmute = () => send('camdiag', `track muted: ${t.label}`); t.onunmute = () => send('camdiag', `track unmuted: ${t.label}`); }
+    // 3 s later: does the <video> element actually have frames? No dimensions = the camera is held by another tab or app.
+    setTimeout(() => send('camdiag', `after 3 s: video ${video.videoWidth}x${video.videoHeight} paused=${video.paused} readyState=${video.readyState} track=${t ? `${t.readyState} muted=${t.muted}` : 'none'}`), 3000);
+  } catch (_) {}
+  video.play().catch(() => {});
   video.srcObject = stream;
   stream.getTracks().forEach((t) => { t.onended = () => { dot('dCam', 'off'); dot('dMic', 'off'); hint('Camera stopped. Tap Start.', true); stopped(); }; });
   hint('');
@@ -161,6 +174,15 @@ setInterval(() => {
   canvas.width = 960; canvas.height = Math.round(video.videoHeight * 960 / video.videoWidth);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   inFlight++;
+  // Every ~5 s: the frame's mean brightness (0–255) and the video element's state, so a black feed is visible from the laptop.
+  if (n % 50 === 0) {
+    try {
+      const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let sum = 0; for (let i = 0; i < px.length; i += 4 * 97) sum += px[i] + px[i + 1] + px[i + 2];
+      const mean = Math.round(sum / (px.length / (4 * 97)) / 3);
+      send('camdiag', `frame ${n}: ${canvas.width}x${canvas.height} brightness=${mean} video paused=${video.paused} readyState=${video.readyState} track=${track.label} muted=${track.muted}`);
+    } catch (_) {}
+  }
   canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
 
