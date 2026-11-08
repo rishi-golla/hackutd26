@@ -1,5 +1,8 @@
-// Live video from the bodycam over WebRTC. Live stream only, never snapshots (AGENTS.md section 0).
-// Signaling goes through the rtc_signal table; protocol in spacetime/README.md.
+// Live video from the bodycam. Two sources, whichever is live:
+// - the Pi hub's frame feed (SPEC decision 22): the phone uploads ~10 JPEG frames a second to the hub; this tile
+//   long-polls /hub/frame.jpg (passed through to the hub by the dev server, vite.config.ts) and shows each one as
+//   it arrives, the same feed as the hub's own /dash. The hub never serves a frame older than 3 s.
+// - WebRTC, if a bodycam ever sends an offer through the rtc_signal table (protocol in spacetime/README.md).
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables, type DbConnection } from '../../module_bindings';
@@ -27,6 +30,12 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
   const handled = useRef(new Set<bigint>());
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const lastFrameAt = useRef(0);
+  const imgRef = useRef<HTMLImageElement>(null);
+  /** When the hub's feed was last live: a frame that followed another within 3 s (see the loop below). */
+  const lastJpegAt = useRef(0);
+  /** When the <img> last changed, live or not (decides which source is on screen). */
+  const jpegShownAt = useRef(0);
+  const [showJpeg, setShowJpeg] = useState(false);
   const lastRequestAt = useRef(0);
   const [state, setState] = useState<VideoState>('connecting');
   // Whether any frame has ever arrived. The placeholder heart is only for before that, never over a frozen frame.
@@ -112,15 +121,73 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
     pc.addIceCandidate(candidate).catch(err => console.warn('ICE candidate rejected', err));
   }
 
-  // Frame watchdog: live while frames arrive, stale after 3 s without one, re-request every 10 s.
+  // The hub's frame feed: ask for the next frame as soon as the last one arrives (204 = none newer in 5 s).
+  // Honesty (H2, §24.1): the hub answers a request that is behind with its newest frame, which can already be up to
+  // 3 s old. So the first frame after a gap (page load, remount, an error) is shown but doesn't count as live; the
+  // feed is live only once a second frame follows it within 3 s.
+  useEffect(() => {
+    const abort = new AbortController();
+    let seq = 0;
+    let url = '';
+    let prevArrival = 0;
+    let failures = 0;
+    const wait = (ms: number) => new Promise(res => setTimeout(res, ms));
+    void (async () => {
+      while (!abort.signal.aborted) {
+        try {
+          const r = await fetch(`/hub/frame.jpg?after=${seq}`, {
+            cache: 'no-store',
+            signal: AbortSignal.any([abort.signal, AbortSignal.timeout(9000)]),
+          });
+          if (r.status === 204) {
+            prevArrival = 0; // nothing for 5 s: the next frame starts a new run
+            continue;
+          }
+          const nextSeq = Number(r.headers.get('X-Seq'));
+          if (r.status !== 200 || !r.headers.get('Content-Type')?.startsWith('image/jpeg') || !nextSeq) {
+            throw new Error(`hub frame: ${r.status}`); // not the hub (e.g. an HTML fallback page): never "Live"
+          }
+          const blob = await r.blob();
+          if (abort.signal.aborted) return;
+          seq = nextSeq;
+          const next = URL.createObjectURL(blob);
+          if (imgRef.current) imgRef.current.src = next;
+          if (url) URL.revokeObjectURL(url);
+          url = next;
+          const now = Date.now();
+          jpegShownAt.current = now;
+          if (prevArrival && now - prevArrival < STALE_MS) lastJpegAt.current = now;
+          prevArrival = now;
+          failures = 0;
+        } catch {
+          if (abort.signal.aborted) return;
+          prevArrival = 0;
+          failures++;
+          await wait(Math.min(5000, 1000 * failures)); // hub unreachable: back off to 5 s
+        }
+      }
+    })();
+    return () => {
+      abort.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, []);
+
+  // Frame watchdog: live while frames arrive (either source), stale after 3 s without one, re-request every 10 s.
   useEffect(() => {
     const video = videoRef.current;
     let lastTime = -1;
+    let lastVideoAt = 0;
     const id = setInterval(() => {
       if (video && video.currentTime !== lastTime && !video.paused) {
         lastTime = video.currentTime;
-        lastFrameAt.current = Date.now();
+        lastVideoAt = Date.now();
       }
+      // WebRTC wins while it plays; otherwise the hub's frames.
+      const videoLive = Date.now() - lastVideoAt < STALE_MS;
+      // Whichever source changed most recently is on screen; a frozen WebRTC frame never hides a newer hub frame.
+      setShowJpeg(!videoLive && jpegShownAt.current > lastVideoAt);
+      lastFrameAt.current = Math.max(lastVideoAt, lastJpegAt.current);
       const sinceFrame = Date.now() - lastFrameAt.current;
       if (lastFrameAt.current !== 0) setHadFrame(true);
       if (lastFrameAt.current === 0) setState('connecting');
@@ -143,7 +210,8 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
       aria-expanded={expanded}
       aria-label={expanded ? 'Minimize live video' : 'Expand live video'}
     >
-      <video ref={videoRef} autoPlay playsInline muted />
+      <video ref={videoRef} autoPlay playsInline muted hidden={showJpeg} />
+      <img ref={imgRef} className="video__frame" alt="Bodycam" hidden={!showJpeg} />
       {/* Before the first frame ever arrives. On stale the last frame stays up, under the Stale badge (H2). */}
       {!hadFrame && (
         <Suspense fallback={null}>
