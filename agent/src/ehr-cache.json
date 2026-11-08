@@ -1,0 +1,773 @@
+{
+ "_note": "Cached copy of the mock EHR's synthetic records (spec X7). Used only when the EHR doesn't answer; records saved from it are labelled 'cached'. Regenerate: see agent/README.md.",
+ "patients": {
+  "pt-0001": [
+   {
+    "resourceType": "Patient",
+    "id": "pt-0001",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "urn:handoff:synthetic-mrn",
+      "value": "pt-0001"
+     }
+    ],
+    "name": [
+     {
+      "use": "official",
+      "family": "Avery",
+      "given": [
+       "Jordan"
+      ],
+      "text": "Jordan Avery"
+     }
+    ],
+    "gender": "male",
+    "birthDate": "1968-03-14",
+    "contact": [
+     {
+      "relationship": [
+       {
+        "text": "emergency contact"
+       }
+      ],
+      "name": {
+       "text": "Sam Avery (spouse), 214-555-0143"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "urn:handoff:code-status",
+      "valueString": "Full code"
+     }
+    ]
+   },
+   {
+    "resourceType": "AllergyIntolerance",
+    "id": "pt-0001-allergy-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "verificationStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+       "code": "confirmed"
+      }
+     ]
+    },
+    "type": "allergy",
+    "category": [
+     "medication"
+    ],
+    "criticality": "high",
+    "code": {
+     "text": "amiodarone"
+    },
+    "patient": {
+     "reference": "Patient/pt-0001"
+    },
+    "reaction": [
+     {
+      "manifestation": [
+       {
+        "text": "severe hypotension"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0001-med-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "warfarin"
+    },
+    "subject": {
+     "reference": "Patient/pt-0001"
+    },
+    "dosage": [
+     {
+      "text": "5 mg by mouth once daily"
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0001-med-2",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "metoprolol"
+    },
+    "subject": {
+     "reference": "Patient/pt-0001"
+    },
+    "dosage": [
+     {
+      "text": "25 mg by mouth twice daily"
+     }
+    ]
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0001-cond-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Coronary artery disease"
+    },
+    "subject": {
+     "reference": "Patient/pt-0001"
+    }
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0001-cond-2",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Myocardial infarction"
+    },
+    "subject": {
+     "reference": "Patient/pt-0001"
+    },
+    "onsetDateTime": "2021-06-02"
+   }
+  ],
+  "pt-0002": [
+   {
+    "resourceType": "Patient",
+    "id": "pt-0002",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "urn:handoff:synthetic-mrn",
+      "value": "pt-0002"
+     }
+    ],
+    "name": [
+     {
+      "use": "official",
+      "family": "Avery",
+      "given": [
+       "Jordan"
+      ],
+      "text": "Jordan Avery"
+     }
+    ],
+    "gender": "female",
+    "birthDate": "1991-07-22",
+    "contact": [
+     {
+      "relationship": [
+       {
+        "text": "emergency contact"
+       }
+      ],
+      "name": {
+       "text": "Lee Avery (parent), 469-555-0178"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "urn:handoff:code-status",
+      "valueString": "Full code"
+     }
+    ]
+   },
+   {
+    "resourceType": "AllergyIntolerance",
+    "id": "pt-0002-allergy-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "verificationStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+       "code": "confirmed"
+      }
+     ]
+    },
+    "type": "allergy",
+    "category": [
+     "medication"
+    ],
+    "criticality": "low",
+    "code": {
+     "text": "penicillin"
+    },
+    "patient": {
+     "reference": "Patient/pt-0002"
+    },
+    "reaction": [
+     {
+      "manifestation": [
+       {
+        "text": "hives"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0002-med-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "albuterol inhaler"
+    },
+    "subject": {
+     "reference": "Patient/pt-0002"
+    },
+    "dosage": [
+     {
+      "text": "2 puffs as needed"
+     }
+    ]
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0002-cond-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Asthma"
+    },
+    "subject": {
+     "reference": "Patient/pt-0002"
+    }
+   }
+  ],
+  "pt-0003": [
+   {
+    "resourceType": "Patient",
+    "id": "pt-0003",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "urn:handoff:synthetic-mrn",
+      "value": "pt-0003"
+     }
+    ],
+    "name": [
+     {
+      "use": "official",
+      "family": "Delgado",
+      "given": [
+       "Maria"
+      ],
+      "text": "Maria Delgado"
+     }
+    ],
+    "gender": "female",
+    "birthDate": "1955-11-02",
+    "contact": [
+     {
+      "relationship": [
+       {
+        "text": "emergency contact"
+       }
+      ],
+      "name": {
+       "text": "Ana Delgado (daughter), 972-555-0122"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "urn:handoff:code-status",
+      "valueString": "Full code"
+     }
+    ]
+   },
+   {
+    "resourceType": "AllergyIntolerance",
+    "id": "pt-0003-allergy-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "verificationStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+       "code": "confirmed"
+      }
+     ]
+    },
+    "type": "allergy",
+    "category": [
+     "medication"
+    ],
+    "criticality": "low",
+    "code": {
+     "text": "sulfonamide antibiotics"
+    },
+    "patient": {
+     "reference": "Patient/pt-0003"
+    },
+    "reaction": [
+     {
+      "manifestation": [
+       {
+        "text": "rash"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0003-med-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "metformin"
+    },
+    "subject": {
+     "reference": "Patient/pt-0003"
+    },
+    "dosage": [
+     {
+      "text": "1000 mg by mouth twice daily"
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0003-med-2",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "lisinopril"
+    },
+    "subject": {
+     "reference": "Patient/pt-0003"
+    },
+    "dosage": [
+     {
+      "text": "20 mg by mouth once daily"
+     }
+    ]
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0003-cond-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Type 2 diabetes"
+    },
+    "subject": {
+     "reference": "Patient/pt-0003"
+    }
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0003-cond-2",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Hypertension"
+    },
+    "subject": {
+     "reference": "Patient/pt-0003"
+    }
+   }
+  ],
+  "pt-0004": [
+   {
+    "resourceType": "Patient",
+    "id": "pt-0004",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "urn:handoff:synthetic-mrn",
+      "value": "pt-0004"
+     }
+    ],
+    "name": [
+     {
+      "use": "official",
+      "family": "Okafor",
+      "given": [
+       "Samuel"
+      ],
+      "text": "Samuel Okafor"
+     }
+    ],
+    "gender": "male",
+    "birthDate": "1979-05-09",
+    "contact": [
+     {
+      "relationship": [
+       {
+        "text": "emergency contact"
+       }
+      ],
+      "name": {
+       "text": "Grace Okafor (sister), 214-555-0190"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "urn:handoff:code-status",
+      "valueString": "Full code"
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0004-med-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "levetiracetam"
+    },
+    "subject": {
+     "reference": "Patient/pt-0004"
+    },
+    "dosage": [
+     {
+      "text": "500 mg by mouth twice daily"
+     }
+    ]
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0004-cond-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Epilepsy"
+    },
+    "subject": {
+     "reference": "Patient/pt-0004"
+    },
+    "onsetDateTime": "2004-01-01"
+   }
+  ],
+  "pt-0005": [
+   {
+    "resourceType": "Patient",
+    "id": "pt-0005",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "identifier": [
+     {
+      "system": "urn:handoff:synthetic-mrn",
+      "value": "pt-0005"
+     }
+    ],
+    "name": [
+     {
+      "use": "official",
+      "family": "Raman",
+      "given": [
+       "Priya"
+      ],
+      "text": "Priya Raman"
+     }
+    ],
+    "gender": "female",
+    "birthDate": "1986-01-30",
+    "contact": [
+     {
+      "relationship": [
+       {
+        "text": "emergency contact"
+       }
+      ],
+      "name": {
+       "text": "Arjun Raman (spouse), 972-555-0165"
+      }
+     }
+    ],
+    "extension": [
+     {
+      "url": "urn:handoff:code-status",
+      "valueString": "Full code"
+     }
+    ]
+   },
+   {
+    "resourceType": "MedicationStatement",
+    "id": "pt-0005-med-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "status": "active",
+    "medicationCodeableConcept": {
+     "text": "levothyroxine"
+    },
+    "subject": {
+     "reference": "Patient/pt-0005"
+    },
+    "dosage": [
+     {
+      "text": "75 mcg by mouth once daily"
+     }
+    ]
+   },
+   {
+    "resourceType": "Condition",
+    "id": "pt-0005-cond-1",
+    "meta": {
+     "tag": [
+      {
+       "system": "urn:handoff:tags",
+       "code": "synthetic",
+       "display": "Synthetic demo data"
+      }
+     ]
+    },
+    "clinicalStatus": {
+     "coding": [
+      {
+       "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+       "code": "active"
+      }
+     ]
+    },
+    "code": {
+     "text": "Hypothyroidism"
+    },
+    "subject": {
+     "reference": "Patient/pt-0005"
+    }
+   }
+  ]
+ }
+}
