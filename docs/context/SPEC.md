@@ -25,11 +25,12 @@ necessarily when the decision was made.
   anything clinical and replies only when spoken to, with memory of the last 8 exchanges. Proactive advisories
   are on by default, triggered by state changes, up to 15 words, one per 15 s. IO, IV and IM are no longer
   boosted in the ASR (they turned "I'm" into "IM"). The phone's degraded-mode parser is unchanged.
-  - **Amended Sun ~02:50 (Josh, review):** (1) **name gate:** the agent acts only on lines that start with
-    "Handoff" or "Model" (`VOICE_WAKE_WORDS`), the rest of a statement within 8 s of the name, or an answer to
-    something it just asked; room talk is never logged or sent to Nemotron. (2) An unanswered routine item stays
-    `logged`; only an allergy or dose warning is `flagged` (the dashboard and the report show `flagged` as a
-    problem). (3) The no-model status shortcut takes only unambiguous phrases.
+  - **Amended Sun ~03:05 (Josh, review):** (1) **keep or drop:** every heard line is decided first and stored
+    after. Nemotron reads it with the voice log (the last lines heard, kept or dropped) and either keeps it
+    (documents, replies, or stays silent) or answers DROP; a dropped line (room talk, filler, our own words) is
+    written nowhere, not even to `transcript`. No wake word. (2) An unanswered routine item stays `logged`; only an
+    allergy or dose warning is `flagged` (the dashboard and the report show `flagged` as a problem). (3) The
+    no-model status shortcut takes only unambiguous, non-negated phrases.
 - **Sun ~02:15 (Alan): an arrest doesn't mean CPR has started** (§9, §15, D1; module, voice and `/controls`).
   Arrest is logged as "Cardiac arrest recognised" only. CPR starts when (a) the operator taps **Start CPR** on
   `/controls` (`demo_control('cpr_start')`; CPR slow/good during an arrest count too), or (b) the medic says it's
@@ -349,13 +350,14 @@ section and add a change-log line.
     - **Read back, then "Log it?"** for every action: medications and shocks (deterministic parser, §16) and
       procedures and airway devices (Nemotron's `log_event`). After an allergy or dose warning it asks "Log it
       anyway?". Findings and MARKs are logged quietly, never acknowledged out loud.
-    - **Name gate (Josh, Sun ~02:50).** The medic addresses the agent by name: "Handoff, giving one milligram of
-      epi IO", "Model, IO access right tibia" (`VOICE_WAKE_WORDS`, default `handoff,model`; `off` disables it).
-      Acted on: a line that starts with the name (optionally after "hey" / "okay"), the rest of a statement
-      within 8 s of the name ("Handoff." … "giving amiodarone…"), and answers to what the agent just asked ("Log
-      it?", "Which drug?", "Say the birth date", a camera-seen drug's dose). "Correction" and "confirm" always
-      work. Everything else (a partner, the patient, bystanders, other teams) is never logged and never sent to
-      Nemotron. "Hands off" (before a shock) is never the name.
+    - **Keep or drop, then store (Josh, Sun ~03:05).** Every line the mic hears is decided before anything is
+      written. Kept: read-backs, answers ("yes", "correction"), status phrases, a spoken identity, "Handoff,
+      mark/look", and every line Nemotron keeps. Nemotron sees the line with the **voice log** (the last 10 lines
+      heard in 2 min, each marked kept or dropped) and the recent conversation, and keeps a line only if it is
+      about this patient's care or meant for Handoff; anything else (small talk, other people's conversations, the
+      demo) gets the answer DROP. A kept line is written to `transcript` and acted on; a dropped one is written
+      nowhere (no `transcript` row, no event, no agent step). Filler and our own words coming back are dropped
+      without a model call. No wake word.
     - **Written at once, flagged only for a warning.** The event is logged immediately (so the epi timer and the
       hospital see it). "yes", "yeah, log it", "go ahead" → `confirmed` and "Logged."; "no", "don't log it" →
       `cancelled` and "Cancelled.". A bare yes / no counts only within 30 s of the question and only as a whole
@@ -363,13 +365,13 @@ section and add a change-log line.
       routine item `logged`; only an allergy or dose warning is `flagged`** (the dashboard shows `flagged` in red
       and the handoff report lists it as "not confirmed as given"). A spoken dose for a drug the camera just saw
       still confirms it with no question (RB9).
-    - **Every addressed line reaches Nemotron** except pure filler ("Yeah.", "Okay, so") and lone words; the
-      keyword relevance gate is replaced by the name gate. Nemotron documents anything clinical, and replies (30
-      words at most, conversational) only when asked something; the name alone is not a reason to reply. It sees
-      the last 8 exchanges (5 min).
+    - **Every line reaches Nemotron** except pure filler ("Yeah.", "Okay, so"), lone words and our own words; the
+      keyword relevance gate is gone. Nemotron documents what is clinical about this patient, and replies (30 words
+      at most, conversational) only when the line is meant for Handoff. It sees the last 8 exchanges (5 min).
     - **Status shortcut (no model turn)** only for unambiguous phrases: "cardiac arrest", "pulseless", "no pulse"
-      (not "no pulse ox"), "we have a pulse", "ROSC achieved", "en route", "transporting now", "leaving scene";
-      never with conditional wording ("in case", "if", "check for"). Anything else goes to Nemotron, whose
+      (not "no pulse ox" or "no pulse in the left foot"), "we have / we've got a pulse", "ROSC achieved", "en
+      route", "transporting now", "leaving scene"; never with conditional or negated wording ("in case", "if",
+      "check for", "not", "-n't"). Anything else goes to Nemotron, whose
       `set_status` still needs the status words in the line.
       Questions never become findings, and the same fact is not logged twice within 10 minutes (both enforced in
       code). Rate budget unchanged: 20 model calls per minute, shared with the advisories.
@@ -924,7 +926,7 @@ source.*
 | 1:20 Who is it? | Hands-on | Narrator: "Find out who your patient is: check their pocket, show the card to your camera, and say 'Handoff, look'." | Takes the ID card from the patient teammate's pocket, holds it 20–50 cm from the chest camera and says "Handoff, look" (or reads the name and birth date aloud). Hears the record summary. | ★ After about 3 s: "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." | | ★ The patient section fills from the EHR: name, age, allergies, medications, history, code status. | Reads the name and birth date off the card (or hears them), decides to search the EHR, pulls the record and queues the spoken summary; asks if more than one patient matches. |
 | 1:45 Arrest and CPR | Hands-on | Demo operator triggers the simulated arrest from `/controls` (HR drops to 0). Narrator: "Your patient's heart just stopped. Hands above the chest, don't touch. Start compressions." CPR starts when the judge says "starting CPR" or the operator taps Start CPR. | Kneels beside the patient and mimes compressions: stacked hands hover a few centimetres above the chest, no contact. | ★ "Push faster" if under 100/min; silent if in range. | | Status ARREST; CPR rate live in the vitals grid. The pre-arrival alert and the destination appear in the event timeline. | Picks the hospital, posts the alert. |
 | 2:10 Pause | Hands-on | Narrator: "Stop, check for a pulse." | Stops and lifts their hands away. | ★ After 10 s: "Resume compressions." | | Timeline: "Compressions paused 10 s". | |
-| 2:20 Drugs | Hands-on | Narrator hands over the line card. | Says "Handoff, administering one milligram of epi IO." Then "Handoff, giving three hundred milligrams of amiodarone." (the name first, decision 21) | ★ "Copy. Epinephrine, one milligram, I-O. Log it?" Medic: "Yes." → "Logged." Then: "Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Log it anyway?" (decision 21) | | Next epi starts counting down when the dose is logged. The epi event appears in the timeline; the amiodarone attempt is flagged in soft red. | Logs the read-back (merging the camera's finding if the stretch is built); logs the allergy flag. |
+| 2:20 Drugs | Hands-on | Narrator hands over the line card. | Says "Administering one milligram of epi IO." Then "Giving three hundred milligrams of amiodarone." | ★ "Copy. Epinephrine, one milligram, I-O. Log it?" Medic: "Yes." → "Logged." Then: "Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Log it anyway?" (decision 21) | | Next epi starts counting down when the dose is logged. The epi event appears in the timeline; the amiodarone attempt is flagged in soft red. | Logs the read-back (merging the camera's finding if the stretch is built); logs the allergy flag. |
 | 2:40 Hospital screen | Explain | Narrator: "Transport." ER host walks the judge through the screen: the live video, the patient panel from the EHR, the vitals and the event timeline with the pre-arrival alert. Then points out the CPR numbers, the record's history and the source chips on the report. | ★ Clicks Generate Handoff and reads their own report on the hospital screen. | "Epi due" when the 45 s DEMO TIMING countdown ends. | | Status ARRIVED. The report shows the judge's own CPR numbers and the record's history, with a source chip on every line. | Writes the sourced report, with the EHR as a source. |
 | 3:30 How it works | Explain | Narrator shows the system map: SpacetimeDB as the live backbone, the Nemotron voice agent and workflows, the mock FHIR EHR. | Listens. | | | Stays on the event timeline. | |
 | 4:15 Q&A | Buffer | Narrator takes questions. | Asks questions. | | | | |
@@ -1389,7 +1391,7 @@ The medic's speech reaches the voice agent worker over the WebRTC audio link. As
 the brain's deterministic parser recognises the medication statement as soon as the final transcript arrives,
 runs `check_dose_range` and `check_allergy`, speaks the read-back (or the warning) ending in "Log it?" ("Log it
 anyway?" after a warning), and logs the event (`flagged` only after a warning; otherwise `logged` until the medic
-says yes → `confirmed` or no → `cancelled`) (decision 21). The line must start with the name ("Handoff, …"). No model call is in that path; Nemotron never logs a medication. Voice-to-voice latency is the STT end-of-turn plus TTS.
+says yes → `confirmed` or no → `cancelled`) (decision 21). No model call is in that path; Nemotron never logs a medication. Voice-to-voice latency is the STT end-of-turn plus TTS.
 
 **Guardrail 1: doses and allergies are deterministic.** `check_dose_range` (RB4) and `check_allergy` (RB7) are
 tools with fixed answers from a fixed table and the pulled record. The model only speaks their result. It never
@@ -1411,7 +1413,7 @@ sequenceDiagram
   V->>T: check_dose_range(epinephrine, 1 mg), check_allergy(epinephrine)
   T-->>V: in range, no recorded allergy
   V->>M: "Copy. Epinephrine, one milligram, I-O. Log it?"
-  V->>S: log_event (read-back), set_event_status flagged
+  V->>S: log_event (read-back); flagged only after a warning
   M->>V: "Yes" (or "No" / "Correction")
   V->>S: set_event_status confirmed (or cancelled)
   V->>M: "Logged." (or "Cancelled.")
@@ -1477,8 +1479,8 @@ replace it; the parser and voice stay the same.
 | "Correction" (within 10 s) | "Cancelled." | The last read-back is cancelled (kept in the audit trail) |
 
 On the agent path (decision 21) every read-back above ends with "Log it?", and each warning ends with "Log it
-anyway?" instead of "Say confirm or correction."; the event stays flagged until "yes" (→ "Logged.") or "no" (→
-"Cancelled."). The phone's degraded-mode wording is as in the table.
+anyway?" instead of "Say confirm or correction."; the event is `logged` (`flagged` only after a warning) until "yes"
+(→ `confirmed`, "Logged.") or "no" (→ `cancelled`, "Cancelled."). The phone's degraded-mode wording is as in the table.
 
 ### The parser (phone path) and the matching rules (both paths)
 
@@ -1868,7 +1870,7 @@ active get `incidentId = 0`.
 | `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. From the relay, `hr`/`spo2` are stored only when `status` is `pulse`; a synthetic scenario's are stored as written (the arrest's HR 0 with status `no pulse`, written only by scenarios). Readers trust hr/spo2 only on `pulse` rows. Kept 30 min |
 | `waveform` | `id`, `incidentId`, `ts`, `device`, `samples` f32[], `rateHz`, `simulated` | Raw `ir` batches, about 5 per second, up to 200 samples each. Kept 30 s |
 | `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples` |
-| `transcript` | `id`, `incidentId` (index), `ts`, `text` | One row per sentence, up to 500 characters |
+| `transcript` | `id`, `incidentId` (index), `ts`, `text` | One row per sentence, up to 500 characters. The voice worker writes only lines it kept (decision 21): room talk and filler are never stored |
 | `rtc_signal` | `id`, `ts`, `sessionId`, `sender`, `kind`, `payload` | WebRTC video handshake (§22.5). Keyed by session, not incident. Kept 10 min |
 | `event` | `id`, `incidentId` (index), `ts`, `kind`, `label`, `sources` (array of `{kind, detail, ts}`), `mergedCount`, `status` | The timeline. `status`: logged, flagged, confirmed, cancelled. Merging in §18, kinds in §22.7 |
 | `timer` | `id`, `incidentId` (index), `kind` (epi or cycle), `dueAt`, `state` (running, due, cancelled) | Epi 4 min (45 s DEMO TIMING); cycle 2 min (30 s). A new `med_epinephrine` event restarts the epi timer |

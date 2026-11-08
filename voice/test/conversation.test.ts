@@ -13,17 +13,14 @@ type Reply = { content?: string; tool_calls?: { id: string; type: 'function'; fu
 const toolCall = (name: string, args: Record<string, unknown>) => ({ id: `call-${name}`, type: 'function' as const, function: { name, arguments: JSON.stringify(args) } });
 
 /** Nemotron stand-in: answers from a queue and records every request body. */
-async function withModel(replies: Reply[], fn: (requests: any[]) => Promise<void>, wake?: string[]) {
+async function withModel(replies: Reply[], fn: (requests: any[]) => Promise<void>) {
   const realFetch = globalThis.fetch;
   const realKey = CONFIG.nvidiaApiKey;
   const realProactive = CONFIG.proactive;
-  const realWake = CONFIG.wakeWords;
   const log = console.log;
   const requests: any[] = [];
   CONFIG.nvidiaApiKey = 'test-key';
   CONFIG.proactive = false;
-  // These tests cover what happens to a line once it is let through; the name gate has its own tests below.
-  CONFIG.wakeWords = wake ?? [];
   console.log = () => {};
   globalThis.fetch = (async (_url: string, init: { body: string }) => {
     requests.push(JSON.parse(init.body));
@@ -36,7 +33,6 @@ async function withModel(replies: Reply[], fn: (requests: any[]) => Promise<void
     globalThis.fetch = realFetch;
     CONFIG.nvidiaApiKey = realKey;
     CONFIG.proactive = realProactive;
-    CONFIG.wakeWords = realWake;
     console.log = log;
   }
 }
@@ -291,56 +287,74 @@ test('fix 2: words that only look like a status change never set one without the
   });
 });
 
-test('name gate: lines that do not start with "Handoff" or "Model" are never logged or sent to the model', async () => {
+test('keep or drop: a line Nemotron drops is stored nowhere; a kept line is stored once, after the decision', async () => {
   const { conn, calls } = arrest();
-  await withModel([], async requests => {
+  await withModel([
+    { content: 'DROP' },
+    { tool_calls: [toolCall('log_event', { kind: 'finding', label: 'Skin pale and sweaty' })] }, { content: 'SILENT' },
+  ], async requests => {
     const brain = new Brain(conn, stubSpeaker, new Policy(conn));
     brain.start();
-    for (const line of ['Administering one milligram of epinephrine IO', 'Skin is pale and sweaty', 'Cardiac arrest', 'Everyone hands off, shocking', 'This model is really good']) {
+    await brain.handleUtterance('Did you see the game last night', 'pipecat');
+    await settle(() => requests.length >= 1);
+    assert.equal(callsTo(calls, 'addTranscript').length, 0, 'a dropped line is not in the transcript');
+    assert.equal(callsTo(calls, 'logAgentStep').length, 0, 'nor in the agent trace');
+    assert.equal(callsTo(calls, 'logEvent').length, 0);
+    await brain.handleUtterance('His skin is pale and sweaty', 'pipecat');
+    await settle(() => callsTo(calls, 'addTranscript').length > 0);
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['His skin is pale and sweaty']);
+    assert.deepEqual(callsTo(calls, 'logEvent').map(c => c.args.label), ['Skin pale and sweaty']);
+    // The model judged the second line with the voice log, the dropped line marked as such.
+    assert.match(requests[1].messages.at(-1).content, /VOICE LOG[\s\S]*\[dropped\] "Did you see the game last night"/);
+  });
+});
+
+test('keep or drop: filler and our own words are dropped without a model call; a read-back is always stored', async () => {
+  const { conn, calls } = arrest();
+  const saying = { recentlySaid: () => ['Two minutes. Rhythm check, switch compressors.'], dropUnspokenReadbacks: async () => {} } as unknown as Speaker;
+  await withModel([], async requests => {
+    const brain = new Brain(conn, saying, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Okay, so', 'pipecat');
+    await brain.handleUtterance('Two minutes. Rhythm check, switch compressors.', 'pipecat');
+    await settle(() => false);
+    assert.equal(requests.length, 0);
+    assert.equal(callsTo(calls, 'addTranscript').length, 0);
+    await brain.handleUtterance('Administering one milligram of epinephrine IO', 'pipecat');
+    await settle(() => callsTo(calls, 'addTranscript').length > 0);
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['Administering one milligram of epinephrine IO']);
+    assert.equal(requests.length, 0, 'the read-back needs no model call');
+  });
+});
+
+test('status shortcut: "we\'ve got a pulse" counts; negations and a limb pulse do not', async () => {
+  const { conn, calls } = fakeConn({ incident: [{ id: 1n, unit: 'Medic 12', status: 'arrest', demoMode: true, startedAt: nowTs(), updatedAt: nowTs() }] });
+  await withModel([], async () => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    for (const line of ["He's not in cardiac arrest anymore", 'No pulse in the left foot', "We're not transporting now"]) {
       await brain.handleUtterance(line, 'pipecat');
     }
     await settle(() => false);
-    assert.equal(callsTo(calls, 'logEvent').length, 0);
-    assert.equal(callsTo(calls, 'addCallout').length, 0);
     assert.equal(callsTo(calls, 'setStatus').length, 0);
-    assert.equal(requests.length, 0);
-  }, ['handoff', 'model']);
+    await brain.handleUtterance("We've got a pulse", 'pipecat');
+    await settle(() => callsTo(calls, 'setStatus').length > 0);
+    assert.deepEqual(callsTo(calls, 'setStatus').map(c => c.args.status), ['rosc']);
+  });
 });
 
-test('name gate: "Handoff," / "Model," / "hand off" start a line; the rest of the statement may follow the name', async () => {
+test('"no" while a medication is half-heard drops the half, never the read-back before it', async () => {
   const { conn, calls, rows } = arrest();
   await withModel([], async () => {
     const brain = new Brain(conn, stubSpeaker, new Policy(conn));
     brain.start();
-    await brain.handleUtterance('Handoff, administering one milligram of epinephrine IO', 'pipecat');
-    await settle(() => callsTo(calls, 'addCallout').length > 0);
-    assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'Copy. Epinephrine, one milligram, I-O. Log it?');
-    // The answer to "Log it?" needs no name.
-    await brain.handleUtterance('Yes', 'pipecat');
-    await settle(() => statusOf(rows, 'Epinephrine 1 mg IO') === 'confirmed');
-    assert.equal(statusOf(rows, 'Epinephrine 1 mg IO'), 'confirmed');
-    // The name alone, then the statement as its own line.
-    await brain.handleUtterance('Model.', 'pipecat');
-    await brain.handleUtterance('Giving three hundred milligrams of amiodarone', 'pipecat');
-    await settle(() => callsTo(calls, 'addCallout').some(c => /Amiodarone, three hundred milligrams/.test(c.args.text)));
-    await brain.handleUtterance('Hey hand off, starting compressions', 'pipecat');
-    await settle(() => callsTo(calls, 'logEvent').some(c => c.args.kind === 'cpr_started'));
-    assert.ok(callsTo(calls, 'logEvent').some(c => c.args.kind === 'cpr_started'));
-  }, ['handoff', 'model']);
-});
-
-test('name gate: Nemotron sees the line addressed to Handoff; a follow-up to its question needs no name', async () => {
-  const { conn } = arrest();
-  await withModel([{ content: 'SILENT' }, { content: 'SILENT' }], async requests => {
-    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
-    brain.start();
-    await brain.handleUtterance('Model, skin is pale and sweaty', 'pipecat');
-    await settle(() => requests.length >= 1);
-    assert.match(requests[0].messages.at(-1).content, /NEW LINE: "Handoff, skin is pale and sweaty"/);
-    // A medication half: Handoff asks "Which drug?", and the answer comes without the name.
-    await brain.handleUtterance('Handoff, giving one milligram of', 'pipecat');
-    await brain.handleUtterance('epinephrine IV', 'pipecat');
-    await settle(() => false);
-    assert.equal(requests.length, 1, 'the medication flow needs no model call');
-  }, ['handoff', 'model']);
+    await brain.handleUtterance('Administering one milligram of epinephrine IO', 'pipecat');
+    await settle(() => statusOf(rows, 'Epinephrine 1 mg IO') !== undefined);
+    await brain.handleUtterance('Amiodarone', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').some(c => c.args.text === 'Amiodarone. What dose?'));
+    await brain.handleUtterance('No', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').at(-1)!.args.text === 'Cancelled.');
+    assert.equal(statusOf(rows, 'Epinephrine 1 mg IO'), 'logged', 'the epi read-back is untouched');
+    assert.equal(callsTo(calls, 'setEventStatus').length, 0);
+  });
 });

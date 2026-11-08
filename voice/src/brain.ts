@@ -16,7 +16,6 @@ import { readState, summarize, tsMs } from './state';
 import type { Policy } from './policy';
 import type { Speaker } from './speaker';
 import { CPR_START, logCprStarted, NOT_PLAIN, runTool, STATUS_PLAIN, toolsFor, type ToolContext } from './tools';
-import { splitWake } from './wake';
 import { spoken, spokenUnit } from './spoken';
 import { seenEvent, type SeenFinding } from './seen';
 import type { Event, Incident, Transcript } from './module_bindings/types';
@@ -37,9 +36,11 @@ const HISTORY_TURNS = 8;
 const HISTORY_MS = 5 * 60_000;
 
 const SYSTEM = `You are Handoff, the voice assistant riding along with a paramedic. Prototype; all data is synthetic.
-The medic talks to you by name ("Handoff"); you only get those lines, plus the medic's answers to what you just asked. Each turn you get one new line, the recent conversation, and the live state. Do two separate jobs:
-1. DOCUMENT. If the line states something clinical about the patient or the scene, call log_event once per distinct fact (two facts in one line are two calls), with a short timeline label: a procedure the medic did or is doing (IV or IO access, suction, splint, pulse check result, monitor or pads applied), an airway device placed, or a finding (breathing, skin, pupils, bleeding, pain, injuries, mental status, what the patient or a bystander reports, medications or pill bottles found, scene hazards, a MARK note). Asking a partner to fetch something is not a procedure. Skip facts already in EVENTS. Questions or requests to you are never findings. Procedures and airway devices are read back to the medic and confirmed automatically, and findings are logged quietly: never acknowledge either out loud ("Noted", "Logged"). Medications given and shocks are read back and logged automatically by the read-back system: never log them and never repeat them back.
-2. REPLY only if the line asks you something, asks you to do something other than documenting, or answers or follows up on something you just said (see the conversation). Your name alone is not a reason to reply: "Handoff, IO access in the right tibia" is documented, not answered. Then answer with "speak" like a calm, capable partner: one or two short spoken sentences, under 25 words; summarise, never list everything. You may talk about anything, including what you can do and small talk, but facts about the patient and the incident come only from the state and tools; if the state doesn't have it, say "Not documented yet". If the line is not meant for you (the medic talking to the patient or a partner, thinking aloud, background chatter), don't speak.
+You hear every line the chest mic picks up: the medic talking to you, to a partner or to the patient, and room noise (bystanders, other conversations nearby, people who are not on this call). Each turn you get one NEW LINE, the VOICE LOG (the last lines heard, each marked kept or dropped), the recent conversation with you, and the live state.
+FIRST decide KEEP or DROP. Keep the line only if it is about this patient's care (something done to or found on this patient, the scene, the patient's identity, history or medications, the plan) or it is meant for you (it says "Handoff", asks you something, or answers or follows up on something you said). Use the voice log for context: a short line that continues a kept line is kept; a line that continues a dropped side conversation is dropped. Anything else (small talk, other people's conversations, talk about the equipment, the demo or the hackathon, anything not about this patient) is DROP: reply with the single word DROP and call no tools. A dropped line is saved nowhere. When unsure, DROP.
+If you keep it, do two separate jobs:
+1. DOCUMENT. If the line states something clinical about this patient or the scene, call log_event once per distinct fact (two facts in one line are two calls), with a short timeline label: a procedure the medic did or is doing (IV or IO access, suction, splint, pulse check result, monitor or pads applied), an airway device placed, or a finding (breathing, skin, pupils, bleeding, pain, injuries, mental status, what the patient or a bystander reports, medications or pill bottles found, scene hazards, a MARK note). Asking a partner to fetch something is not a procedure. Skip facts already in EVENTS. Questions or requests to you are never findings. Procedures and airway devices are read back to the medic and confirmed automatically, and findings are logged quietly: never acknowledge either out loud ("Noted", "Logged"). Medications given and shocks are read back and logged automatically by the read-back system: never log them and never repeat them back.
+2. REPLY only if the line is meant for you: it asks you something, asks you to do something other than documenting, or answers or follows up on something you just said (see the conversation). Your name alone is not a reason to reply: "Handoff, IO access in the right tibia" is documented, not answered. Then answer with "speak" like a calm, capable partner: one or two short spoken sentences, under 25 words; summarise, never list everything. You may talk about anything, including what you can do and small talk, but facts about the patient and the incident come only from the state and tools; if the state doesn't have it, say "Not documented yet". If the line is not meant for you (the medic talking to the patient or a partner, thinking aloud, background chatter), don't speak.
 - What you can do: read back and check doses and allergies, pull the patient's record (name and birth date, or "Handoff, look" at an ID card), document what you hear, mark moments ("Handoff, mark"), track CPR and timers, answer questions about the case, brief the hospital.
 - The live state below is current: act on it directly. Make all the log_event calls for a line in one reply.
 - Never ask the medic about a medication's drug, dose or route, and never comment on a dose: the read-back system collects and checks those on its own.
@@ -47,7 +48,7 @@ The medic talks to you by name ("Handoff"); you only get those lines, plus the m
 - If the medic says CPR or compressions are starting ("starting CPR", "starting compressions"), call log_event with kind cpr_started and label "CPR started". That starts the CPR clock (and sets the arrest if it isn't one yet). Arrest alone never means CPR has started.
 - If the medic gives the patient's full name AND birth date, call search_ehr; one match → pull_record; several → ask which with "speak"; none → say no record found. Never guess.
 - Speech-to-text garbles words. If you can't tell what a word or line means (e.g. "FEO", "FPIO"), never log it and never guess what it was; if it was meant for you, ask "Say again?".
-- When you have nothing to say, end with the single word SILENT.
+- When you keep the line but have nothing to say, end with the single word SILENT. When you drop it, reply only DROP.
 Rules: never invent vitals, times, names, doses or findings. Never give orders; advisory protocol wording only. Never mention compression depth. Doses and allergies are judged only by the check tools.`;
 
 const SYSTEM_NO_W6 = SYSTEM.replace(/- If the medic gives the patient's full name AND birth date.*\n/, '');
@@ -74,8 +75,9 @@ type Pending = {
 
 /** How long a bare "yes" / "no" counts as the answer to "Log it?". */
 const ASK_WINDOW_MS = 30_000;
-/** After the name ("Handoff." … "giving one milligram of epi IO"), the rest of the statement may come this soon. */
-const WAKE_WINDOW_MS = 8_000;
+/** The voice log Nemotron sees to judge a new line: the last lines heard, kept or dropped. */
+const VOICE_LOG_LINES = 10;
+const VOICE_LOG_MS = 2 * 60_000;
 
 /** The pieces of a medication statement heard so far ("one milligram of" … "epinephrine"). */
 type PendingMed = { drug?: string; dose?: number; unit?: Unit; route?: Route; at: number; heard: string[]; asked?: { what: 'drug' | 'dose'; at: number } };
@@ -106,10 +108,8 @@ export class Brain {
   private lastFragment?: { text: string; at: number };
   /** A medication statement heard in pieces, waiting for the rest (PENDING_MED_MS after the last piece). */
   private pendingMed?: PendingMed;
-  /** The name gate: lines without the name count until this time (just after the name was said). */
-  private awakeUntil = 0;
-  /** Handoff asked something (a birth date, a dose for a drug the camera saw): its answer needs no name. */
-  private listenUntil = 0;
+  /** Every line heard lately and whether it was kept: context for Nemotron's keep/drop decision. Memory only. */
+  private voiceLog: { text: string; at: number; kept: boolean }[] = [];
   /** Recent Nemotron turns: what the medic said and what Handoff did about it. Cleared with the incident. */
   private history: { heard: string; did: string; at: number }[] = [];
 
@@ -146,36 +146,54 @@ export class Brain {
 
   // ---- input -----------------------------------------------------------------------------------------------
 
-  /** A final utterance from the ear (Pipecat or the terminal bodycam): store it; the row coming back is processed. */
+  /**
+   * A final utterance from the ear (Pipecat or the terminal bodycam). Decided first, stored after (decision 21):
+   * a line that is acted on (a read-back, an answer, a status, a record lookup, or Nemotron keeping it) is written
+   * to `transcript`; a dropped line (room talk, filler, our own words coming back) is written nowhere.
+   */
   async handleUtterance(text: string, source: string) {
     const clean = text.replace(/\s+/g, ' ').trim().slice(0, 500);
     if (!clean) return;
+    const kept = await this.processLine(clean, source);
+    this.hear(clean, kept);
+    if (!kept) return;
+    // The row coming back is ours and already handled.
     this.ownLines = this.ownLines.filter(l => Date.now() - l.at < OWN_LINE_MS);
     this.ownLines.push({ text: clean, at: Date.now(), source });
     try {
       await this.conn.reducers.addTranscript({ text: clean });
     } catch (err) {
-      // Not stored: still act on it, once, right here.
       console.error('[voice] add_transcript failed', err);
       this.ownLines = this.ownLines.filter(l => l.text !== clean);
-      await this.processLine(clean, source);
     }
   }
 
-  /** Every transcript row, ours (from the ear) or the bodycam's (degraded mode), exactly once. */
+  /** Transcript rows: our own (already handled before they were stored) are skipped; the bodycam's (degraded mode) are handled once. */
   private async onTranscriptRow(row: Transcript) {
     if (this.processed.has(row.id)) return;
     this.processed.add(row.id);
     const mine = this.ownLines.findIndex(l => l.text === row.text);
-    const source = mine >= 0 ? this.ownLines[mine].source : 'transcript';
-    if (mine >= 0) this.ownLines.splice(mine, 1);
-    await this.processLine(row.text, source);
+    if (mine >= 0) {
+      this.ownLines.splice(mine, 1);
+      return;
+    }
+    this.hear(row.text, await this.processLine(row.text, 'transcript'));
   }
 
-  private async processLine(text: string, source: string) {
+  private hear(text: string, kept: boolean) {
+    this.voiceLog = [...this.voiceLog.filter(l => Date.now() - l.at < VOICE_LOG_MS), { text, at: Date.now(), kept }].slice(-VOICE_LOG_LINES);
+  }
+
+  /** Acts on one line. Returns whether it was kept (acted on, worth storing) or dropped. */
+  private async processLine(text: string, source: string): Promise<boolean> {
     // eslint-disable-next-line no-param-reassign -- a stitched fragment may extend the line below
     const gen = this.gen;
     const lower = text.toLowerCase();
+    // Dropped lines leave no trace in the database (decision 21), only in the worker's console.
+    const drop = (why: string) => {
+      console.log(`[voice] dropped (${why}): "${text.slice(0, 60)}"`);
+      return false;
+    };
     // A transcript row the bodycam wrote itself means the phone is in degraded mode (B11): its parser already
     // spoke the read-back and logged the event, and it handles its own corrections. Don't do it twice.
     const phoneHandled = source === 'transcript';
@@ -186,9 +204,12 @@ export class Brain {
       this.pendingMed = undefined;
       await step(this.conn, 'control', 'half-heard medication dropped (medic said "correction")');
       await this.policy.say('Cancelled.', 0, 'control');
-      return;
+      return true;
     }
-    if (control) return phoneHandled ? undefined : this.handleControl(control);
+    if (control) {
+      if (!phoneHandled) await this.handleControl(control);
+      return true;
+    }
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
     const mine = norm(text);
     const said = this.speaker.recentlySaid().map(norm);
@@ -196,39 +217,21 @@ export class Brain {
     // own "…Log it?" heard back through the mic must never answer itself.
     const asked = this.lastReadback?.askedAt;
     const answer = asked && Date.now() - asked < ASK_WINDOW_MS ? parseAnswer(text) : undefined;
-    if (answer && said.some(s => s === mine || s.endsWith(` ${mine}`))) {
-      await step(this.conn, 'echo_guard', `Ignored our own words as an answer: "${text.slice(0, 60)}"`);
-      return;
+    if (answer && said.some(s => s === mine || s.endsWith(` ${mine}`))) return drop('our own words, not an answer');
+    if (answer === 'no' && this.pendingMed && Date.now() - this.pendingMed.at < PENDING_MED_MS && !phoneHandled) {
+      this.pendingMed = undefined;
+      await step(this.conn, 'control', 'half-heard medication dropped (medic said "no")');
+      await this.policy.say('Cancelled.', 0, 'control');
+      return true;
     }
-    if (answer && !phoneHandled) return this.handleControl(answer === 'yes' ? 'confirm' : 'correction');
+    if (answer && !phoneHandled) {
+      await this.handleControl(answer === 'yes' ? 'confirm' : 'correction');
+      return true;
+    }
 
     // RB5 echo guard: our own words coming back through the mic (while speaking and shortly after).
     if (ECHO_PREFIXES.some(p => lower.startsWith(p)) || said.some(s => s === mine || (mine.split(' ').length >= 3 && s.startsWith(mine)))) {
-      await step(this.conn, 'echo_guard', `Ignored our own words: "${text.slice(0, 60)}"`);
-      return;
-    }
-
-    // The name gate (decision 21): only a line that starts with the name ("Handoff, …" / "Model, …"), the rest of a
-    // statement right after the name, or an answer to something Handoff just asked is acted on. Everything else is
-    // room talk (a partner, the patient, a bystander, another team): never logged, never sent to Nemotron.
-    const wake = splitWake(text, CONFIG.wakeWords);
-    let named = false;
-    if (CONFIG.wakeWords.length && wake.woke) {
-      this.awakeUntil = Date.now() + WAKE_WINDOW_MS;
-      if (!wake.rest) {
-        await step(this.conn, 'wake', 'name heard; listening for the rest');
-        return;
-      }
-      text = wake.rest;
-      named = true;
-      // "Handoff, correction" / "Handoff, yes" mean the same as without the name.
-      const control2 = parseControl(text);
-      if (control2) return phoneHandled ? undefined : this.handleControl(control2);
-      const answer2 = asked && Date.now() - asked < ASK_WINDOW_MS ? parseAnswer(text) : undefined;
-      if (answer2 && !phoneHandled) return this.handleControl(answer2 === 'yes' ? 'confirm' : 'correction');
-    } else if (!wake.woke && !this.expectingAnswer()) {
-      console.log(`[voice] not addressed to Handoff, ignored: "${text.slice(0, 60)}"`);
-      return;
+      return drop('our own words');
     }
 
     // RB1–RB7: the read-back fast path, no model call.
@@ -250,11 +253,12 @@ export class Brain {
     }
     if (rb && phoneHandled) {
       await step(this.conn, 'read_back', `Phone (degraded mode) already read back: "${text.slice(0, 60)}"`);
-      return;
+      return true;
     }
     if (rb?.kind === 'medication' || rb?.kind === 'shock') {
       this.pendingMed = undefined; // a full statement supersedes any half we were collecting
-      return this.handleReadback(rb, text, gen);
+      await this.handleReadback(rb, text, gen);
+      return true;
     }
 
     // A medication heard in pieces: the drug, the dose and the route can come in any order over several lines,
@@ -264,30 +268,42 @@ export class Brain {
       if (!open) this.pendingMed = undefined;
       const parts = medParts(text);
       const words = text.split(/\s+/).filter(Boolean).length;
-      if (open && (parts.drug || parts.dose !== undefined)) return this.fillMedication(open, parts, text, gen);
-      if (rb?.kind === 'missing_dose') return this.fillMedication({ at: Date.now(), heard: [] }, { drug: rb.drug }, text, gen);
-      if (rb?.kind === 'missing_drug') return this.fillMedication({ at: Date.now(), heard: [] }, { dose: rb.dose, unit: rb.unit, route: rb.route }, text, gen);
-      // "One milligram of" (the drug fell into the next line) or a lone "Epinephrine" (the dose comes next).
-      const bareDose = !parts.drug && parts.dose !== undefined && parts.unit !== undefined && parts.unit !== 'J' && words <= 6;
-      const loneDrug = !parts.dose && words <= 3 && recognizeDrug(text, false);
-      if (bareDose || loneDrug) return this.fillMedication({ at: Date.now(), heard: [] }, loneDrug ? { drug: loneDrug } : parts, text, gen);
+      let med: [PendingMed, MedParts] | undefined;
+      if (open && (parts.drug || parts.dose !== undefined)) med = [open, parts];
+      else if (rb?.kind === 'missing_dose') med = [{ at: Date.now(), heard: [] }, { drug: rb.drug }];
+      else if (rb?.kind === 'missing_drug') med = [{ at: Date.now(), heard: [] }, { dose: rb.dose, unit: rb.unit, route: rb.route }];
+      else {
+        // "One milligram of" (the drug fell into the next line) or a lone "Epinephrine" (the dose comes next).
+        const bareDose = !parts.drug && parts.dose !== undefined && parts.unit !== undefined && parts.unit !== 'J' && words <= 6;
+        const loneDrug = !parts.dose && words <= 3 && recognizeDrug(text, false);
+        if (bareDose || loneDrug) med = [{ at: Date.now(), heard: [] }, loneDrug ? { drug: loneDrug } : parts];
+      }
+      if (med) {
+        await this.fillMedication(med[0], med[1], text, gen);
+        return true;
+      }
     }
 
     // X1: "Patient is Jordan Avery, born March 14, 1968"
     const who = parseIdentity(text);
-    if (who && CONFIG.w6) return this.identifyFromNameAndDob(who.name, who.birthDate, gen, 'voice');
+    if (who && CONFIG.w6) {
+      await this.identifyFromNameAndDob(who.name, who.birthDate, gen, 'voice');
+      return true;
+    }
 
     // B6 shortcuts, deterministic (no model call, one answer): "Handoff, look" is the vision sampler's job (it
     // sees the same transcript and speaks the result); "Handoff, mark" is a MARK on the timeline.
-    // With the name gate on, the name is already off the line ("Handoff, mark" → "mark").
-    const shortcut = (named ? /^(look|mark)\b/i : /^\s*(?:hey\s+)?hand\s?-?\s?off[,.!]?\s+(look|mark)\b/i).exec(text)?.[1]?.toLowerCase();
+    const shortcut = /^\s*(?:hey\s+)?hand\s?-?\s?off[,.!]?\s+(look|mark)\b/i.exec(text)?.[1]?.toLowerCase();
     if (shortcut === 'look') {
       await step(this.conn, 'look', 'the camera check is the vision sampler\'s; no model turn');
-      return;
+      return true;
     }
     if (shortcut === 'mark') {
       const inc = activeIncident(this.conn);
-      if (!inc) return step(this.conn, 'mark', 'no active incident; not logged');
+      if (!inc) {
+        await step(this.conn, 'mark', 'no active incident; not logged');
+        return true;
+      }
       try {
         await this.conn.reducers.logEvent({ kind: 'mark', label: 'MARK (voice)', sourceKind: 'voice', sourceDetail: text.slice(0, 200) });
         await step(this.conn, 'log_event', 'mark: MARK (voice)');
@@ -295,25 +311,29 @@ export class Brain {
         await step(this.conn, 'log_event', `mark failed: ${(err as Error).message.slice(0, 80)}`);
       }
       await this.policy.say('Marked.', 1, 'control');
-      return;
+      return true;
     }
 
     // Status changes the medic states plainly are set here, at once, with no model turn ("cardiac arrest" went
-    // unhandled when Nemotron ran out of tool rounds, Sun ~02:00). Questions and history ("had an arrest") don't count.
+    // unhandled when Nemotron ran out of tool rounds, Sun ~02:00). Questions, history ("had an arrest") and
+    // conditionals ("in case he arrests") don't count.
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const inc = activeIncident(this.conn);
     const plain = !!inc && !phoneHandled && !/\?\s*$/.test(text) && !/\b(?:history of|previous|prior|had an?|last)\b/i.test(text) && !NOT_PLAIN.test(text);
+    let acted = false;
     // "Starting compressions" starts CPR (and the arrest if needed) through log_event('cpr_started'); never a status.
     if (plain && CPR_START.test(text)) {
+      acted = true;
       try {
         if (await logCprStarted(this.conn, text)) await this.policy.say('Copy, CPR started.', 1, 'control');
       } catch (err) {
         await step(this.conn, 'log_event', `cpr_started failed: ${(err as Error).message.slice(0, 80)}`);
       }
-      if (wordCount <= 6) return;
+      if (wordCount <= 6) return true;
     }
     const status = plain ? (['arrest', 'rosc', 'en_route'] as const).find(s => STATUS_PLAIN[s].test(text)) : undefined;
     if (inc && status && inc.status !== status) {
+      acted = true;
       try {
         await this.conn.reducers.setStatus({ status, sourceKind: 'voice', sourceDetail: text.slice(0, 200) });
         await step(this.conn, 'set_status', `${inc.status} → ${status} (medic said so)`);
@@ -321,43 +341,20 @@ export class Brain {
       } catch (err) {
         await step(this.conn, 'set_status', `failed: ${(err as Error).message.slice(0, 80)}`);
       }
-      if (wordCount <= 6) return;
+      if (wordCount <= 6) return true;
     }
 
-    if (!llmConfigured()) {
-      await step(this.conn, 'nemotron', `Skipped (no NVIDIA_API_KEY): "${text.slice(0, 60)}"`);
-      return;
-    }
+    // Everything else: Nemotron reads the line with the voice log and decides to keep it (document, reply) or drop
+    // it. Pure filler ("Yeah.", "Okay, so") and lone words are dropped without a model call, to save the budget.
+    if (!llmConfigured()) return acted || drop('no NVIDIA_API_KEY to judge it');
     // A one- or two-word line may be the first half of a split read-back ("Administering"); keep it for stitching.
     if (wordCount < 3) this.lastFragment = { text, at: Date.now() };
-    // Everything else goes to Nemotron, which decides whether it is clinical and whether it was meant for Handoff.
-    // Only pure filler ("Yeah.", "Okay, so") and lone words are skipped, to save the rate budget.
-    if (FILLER.test(text) || (wordCount < 2 && !/\?/.test(text))) {
-      await step(this.conn, 'nemotron', `Skipped filler: "${text.slice(0, 60)}"`);
-      return;
-    }
+    if (FILLER.test(text) || (wordCount < 2 && !/\?/.test(text))) return acted || drop('filler');
     const now = Date.now();
     this.llmTurnTimes = this.llmTurnTimes.filter(t => now - t < 60_000);
-    if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) {
-      await step(this.conn, 'nemotron', `Skipped: ${LLM_TURNS_PER_MIN} turns in the last minute (rate budget)`);
-      return;
-    }
+    if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) return acted || drop(`rate budget: ${LLM_TURNS_PER_MIN} model turns in the last minute`);
     this.llmTurnTimes.push(now);
-    // The name was taken off for the parsers; Nemotron sees it ("Model" read as "Handoff"), so it knows who was spoken to.
-    await this.nemotronTurn(normalizeTranscript(named ? `Handoff, ${text}` : text), source, gen);
-  }
-
-  /** Handoff is waiting for the medic: right after the name, or after asking for a piece or an answer. */
-  private expectingAnswer(): boolean {
-    const now = Date.now();
-    const last = this.lastReadback;
-    return (
-      now < this.awakeUntil ||
-      now < this.listenUntil ||
-      (!!this.pendingMed && now - this.pendingMed.at < PENDING_MED_MS) ||
-      (!!last?.askedAt && now - last.askedAt < ASK_WINDOW_MS) ||
-      (last?.reason === 'missing_dose' && now - last.at < PENDING_DOSE_MS)
-    );
+    return (await this.nemotronTurn(normalizeTranscript(text), source, gen)) || acted;
   }
 
   // ---- read-back ------------------------------------------------------------------------------------------
@@ -533,7 +530,6 @@ export class Brain {
     if (matches.length > 1) {
       // X8: never guess.
       await step(this.conn, 'search_ehr', `${matches.length} matches; asking`);
-      this.listenUntil = Date.now() + ASK_WINDOW_MS; // the birth date needs no name
       await this.policy.say(`${matches.length === 2 ? 'Two' : 'Several'} patients named ${name}. Say the birth date.`, 1, 'ask', undefined, () => !this.stale(gen, inc?.id));
       return;
     }
@@ -682,8 +678,7 @@ export class Brain {
     this.incidentId = undefined;
     this.history = [];
     this.pendingMed = undefined;
-    this.awakeUntil = 0;
-    this.listenUntil = 0;
+    this.voiceLog = [];
   }
 
   // ---- RB8–RB10: drugs the camera sees ----------------------------------------------------------------------
@@ -708,7 +703,8 @@ export class Brain {
     const an = /^[aeiou]/i.test(drug) ? 'an' : 'a';
 
     const flag = async (reason: Pending['reason']) => {
-      this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: true, reason, drug };
+      // askedAt: a bare "yes" / "no" answers the spoken "Confirm?" / "What dose?" like any read-back question.
+      this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: true, reason, drug, askedAt: Date.now() };
       if (ev.status !== 'flagged' && !this.stale(gen, ev.incidentId)) {
         try {
           await this.conn.reducers.setEventStatus({ eventId: ev.id, status: 'flagged' });
@@ -737,14 +733,12 @@ export class Brain {
       // stays flagged (RB9) until the medic confirms or speaks the dose; the read-back of what was seen asks.
       await flag('unconfirmed');
       await step(this.conn, 'seen', `camera saw ${drug} ${printed[1]} ${unit} given${dose?.verdict === 'in_range' ? ' (in range)' : ''}; awaiting confirm`);
-      this.listenUntil = Date.now() + ASK_WINDOW_MS;
       await this.policy.say(`Saw ${drug}${doseWords}. Confirm?`, 2, 'ask', undefined, () => !this.stale(gen, ev.incidentId));
       return;
     }
     // RB9: seen but not said: flagged until a dose is spoken; ask once. A dose within 30 s merges and confirms.
     await flag('missing_dose');
     await step(this.conn, 'seen', `camera saw ${drug} given, no dose spoken yet`);
-    this.listenUntil = Date.now() + ASK_WINDOW_MS;
     await this.policy.say(`Saw ${drug}. What dose?`, 2, 'ask', undefined, () => !this.stale(gen, ev.incidentId));
   }
 
@@ -754,7 +748,8 @@ export class Brain {
     return { conn: this.conn, policy: this.policy, corpus: [], pullRecord: (ref, method) => this.pullRecord(ref, method), valid, utterance, confirmAction: (kind, label) => this.confirmAction(kind, label, valid) };
   }
 
-  private async nemotronTurn(text: string, source: string, gen: number) {
+  /** One Nemotron turn on a line. Returns whether it kept the line (acted, replied or SILENT) or dropped it (DROP). */
+  private async nemotronTurn(text: string, source: string, gen: number): Promise<boolean> {
     const deadline = Date.now() + CONFIG.llmTimeoutMs;
     const incidentId = activeIncident(this.conn)?.id;
     const valid = () => !this.stale(gen, incidentId);
@@ -764,9 +759,16 @@ export class Brain {
     ctx.corpus.push(summary, text, ...this.history.map(h => h.heard));
     // Memory goes in as plain text, not as past assistant turns: the model copied that format into its replies.
     const conversation = this.history.map(h => `- heard "${h.heard}" → you: ${h.did}`).join('\n');
+    // The voice log: what was heard lately and what was kept, so a follow-up is judged with its context.
+    const voiceLog = this.voiceLog.map(l => `- [${l.kept ? 'kept' : 'dropped'}] "${l.text}"`).join('\n');
     const messages: ChatMessage[] = [
       { role: 'system', content: `${CONFIG.w6 ? SYSTEM : SYSTEM_NO_W6}\n\nLIVE STATE\n${summary}` },
-      { role: 'user', content: `${conversation ? `RECENT CONVERSATION (oldest first)\n${conversation}\n\n` : ''}NEW LINE: "${text}"` },
+      {
+        role: 'user',
+        content:
+          `${voiceLog ? `VOICE LOG (oldest first)\n${voiceLog}\n\n` : ''}` +
+          `${conversation ? `RECENT CONVERSATION WITH YOU (oldest first)\n${conversation}\n\n` : ''}NEW LINE: "${text}"`,
+      },
     ];
     // The state is already in the prompt, so get_state only burned tool rounds (live, Sun ~02:00). A question is
     // answered, not documented: without log_event the model can't spend the turn re-logging.
@@ -775,34 +777,43 @@ export class Brain {
     const tools = toolsFor(CONFIG.w6).filter(t => t.function.name !== 'get_state' && !(question && t.function.name === 'log_event'));
     const did: string[] = [];
     let spoke = false;
-    await step(this.conn, 'nemotron', `turn on "${text.slice(0, 60)}" (${source})`);
+    // Traced only once the line is kept: a dropped line leaves nothing in the database (decision 21).
+    const kept = async () => {
+      await step(this.conn, 'nemotron', `kept "${text.slice(0, 60)}" (${source}): ${did.join('; ') || 'nothing to say'}`);
+      this.remember(text, did);
+      return true;
+    };
     try {
       for (let turn = 0; turn < 3; turn++) {
         const remaining = deadline - Date.now();
         if (remaining < 800) throw new Error('voice turn deadline reached');
         const reply = await chat(messages, { tools, timeoutMs: remaining });
         if (this.stale(gen, incidentId)) {
-          await step(this.conn, 'nemotron', 'dropped: the incident changed during the turn');
-          return;
+          console.log(`[voice] dropped (the incident changed during the turn): "${text.slice(0, 60)}"`);
+          return did.length > 0;
         }
         if (reply.toolCalls.length === 0) {
           // Lightning sometimes answers in text as `speak: …` instead of calling the tool; same meaning.
           const content = reply.content.trim().replace(/^(?:speak|said)\s*[:(]\s*/i, '').replace(/^["']|["')]+$/g, '').trim();
+          // DROP: not about this patient and not for Handoff. Nothing was done, so nothing is stored.
+          if (!spoke && !did.length && (/^drop\b/i.test(content) || /\bDROP\.?$/.test(content))) {
+            console.log(`[voice] dropped (Nemotron): "${text.slice(0, 60)}"`);
+            return false;
+          }
           if (!content || /^silent\b/i.test(content) || /\bSILENT\.?$/.test(content) || spoke) {
-            if (!spoke && !did.length) await step(this.conn, 'nemotron', 'SILENT');
+            // kept, nothing to say
           } else if (/^(?:logged|set status|stayed silent|heard)\b/i.test(content)) {
             await step(this.conn, 'nemotron', `Not spoken (an action note, not speech): "${content.slice(0, 60)}"`);
           } else if (await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) {
             did.push(`said "${content}"`);
           }
-          this.remember(text, did);
-          return;
+          return kept();
         }
         messages.push({ role: 'assistant', content: reply.content || null, tool_calls: reply.toolCalls });
         for (const call of reply.toolCalls) {
           if (this.stale(gen, incidentId)) {
-            await step(this.conn, 'nemotron', 'dropped: the incident changed during the tool calls');
-            return;
+            console.log(`[voice] stopped (the incident changed during the tool calls): "${text.slice(0, 60)}"`);
+            return did.length > 0;
           }
           let args: Record<string, unknown> = {};
           try {
@@ -823,16 +834,18 @@ export class Brain {
           else if (call.function.name === 'set_status') did.push(`set status ${args.status}`);
         }
       }
-      await step(this.conn, 'nemotron', 'stopped after 3 tool rounds');
+      did.push('stopped after 3 tool rounds');
       // Spoken to and still no answer: one last call with no tools, so a question is never met with silence.
       if (addressed && !spoke && deadline - Date.now() > 800) {
         const last = await chat([...messages, { role: 'user', content: 'Answer the medic now in one or two short sentences, from the state and the tool results above. No tools.' }], { timeoutMs: deadline - Date.now() });
         const content = last.content.trim().replace(/^(?:speak|said)\s*[:(]\s*/i, '').replace(/^["']|["')]+$/g, '').trim();
-        if (content && !/^silent\b/i.test(content) && valid() && await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) did.push(`said "${content}"`);
+        if (content && !/^(?:silent|drop)\b/i.test(content) && valid() && await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) did.push(`said "${content}"`);
       }
-      this.remember(text, did);
+      return kept();
     } catch (err) {
-      await step(this.conn, 'nemotron', `${(err as Error).message.slice(0, 100)}; staying silent (rules are the safety net)`);
+      // No decision (timeout, API error): stored only if something was already done; the rules are the safety net.
+      console.log(`[voice] Nemotron failed on "${text.slice(0, 60)}": ${(err as Error).message.slice(0, 100)}`);
+      return did.length > 0 ? kept() : false;
     }
   }
 

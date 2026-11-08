@@ -29,8 +29,6 @@ export const CONFIG = {
   apiPort: Number(env.VOICE_API_PORT ?? 8787),
   /** This worker pulls the record when incident.patientRef is set (W6). Off if the bodycam lane does it. */
   w6: (env.VOICE_W6 ?? 'on') === 'on',
-  /** The name gate (decision 21): a line is acted on only if it starts with one of these ("off" = every line). */
-  wakeWords: (env.VOICE_WAKE_WORDS ?? 'handoff,model').toLowerCase() === 'off' ? [] : (env.VOICE_WAKE_WORDS ?? 'handoff,model').split(',').map(w => w.trim()).filter(Boolean),
   /** Unprompted Nemotron advisories on state changes: 15 words or fewer, at most one per 15 s. */
   proactive: (env.VOICE_PROACTIVE ?? 'on') === 'on',
   timeZone: env.DISPLAY_TZ ?? 'America/Chicago',
