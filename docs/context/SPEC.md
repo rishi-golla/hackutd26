@@ -16,6 +16,15 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~02:30 (Rishi): the voice agent asks before it logs, documents what it hears, and speaks up on its
+  own** (§0.1 decision 21; `voice/` only, no table or reducer changes). Every action the medic says is read back
+  and ends with "Log it?" ("Log it anyway?" after an allergy or dose warning): medications and shocks from the
+  deterministic parser, procedures and airway devices from Nemotron. The event is written at once and stays
+  `flagged` until the medic answers; "yes" → `confirmed` ("Logged."), "no" → `cancelled`. Findings are logged
+  quietly. The keyword relevance gate is gone: every line except filler reaches Nemotron, which documents
+  anything clinical and replies only when spoken to, with memory of the last 8 exchanges. Proactive advisories
+  are on by default, triggered by state changes, up to 15 words, one per 15 s. IO, IV and IM are no longer
+  boosted in the ASR (they turned "I'm" into "IM"). The phone's degraded-mode parser is unchanged.
 - **Sun ~02:15 (Alan): an arrest doesn't mean CPR has started** (§9, §15, D1; module, voice and `/controls`).
   Arrest is logged as "Cardiac arrest recognised" only. CPR starts when (a) the operator taps **Start CPR** on
   `/controls` (`demo_control('cpr_start')`; CPR slow/good during an arrest count too), or (b) the medic says it's
@@ -286,8 +295,8 @@ section and add a change-log line.
     - **One speech queue.** The brain speaks only through `add_callout`. Its speaker forwards the next unspoken
       callout (lowest priority number, then oldest) to whichever "mouth" is connected on its local API (the
       Pipecat worker, or the terminal bodycam mock) and calls `callout_spoken` when the mouth finishes. Rule
-      callouts and agent speech share the 4 s spacing, the dedup and the trace. Agent advisories: 8 words or
-      fewer, P2, at most one per 20 s, off by default (`VOICE_PROACTIVE`).
+      callouts and agent speech share the 4 s spacing, the dedup and the trace. Agent advisories: 15 words or
+      fewer, P2, at most one per 15 s, on by default (`VOICE_PROACTIVE`; amended by decision 21).
     - **Failover (B11):** with no mouth connected the brain marks nothing spoken, so the bodycam page speaks the
       rows itself as today. The bodycam stops speaking callout rows while its audio link to the worker is up and
       resumes when it drops. That is the whole trigger; no new tables.
@@ -330,6 +339,28 @@ section and add a change-log line.
       serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam.
     - **Vision model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, hosted; `VISION_MODEL` overrides.
     - PRs #5 and #6 are closed; their descriptions and test notes are history.
+21. **The voice agent confirms before it logs and helps without being asked** (Rishi, Sun ~02:30). Agent path
+    only (`voice/`); the phone's degraded-mode parser keeps the §16 wording.
+    - **Read back, then "Log it?"** for every action: medications and shocks (deterministic parser, §16) and
+      procedures and airway devices (Nemotron's `log_event`). After an allergy or dose warning it asks "Log it
+      anyway?". Findings and MARKs are logged quietly, never acknowledged out loud.
+    - **Written at once, flagged until answered.** The event is logged immediately (so the epi timer and the
+      hospital see it) with status `flagged`; "yes", "yeah, log it", "go ahead" → `confirmed` and "Logged.";
+      "no", "don't log it" → `cancelled` and "Cancelled.". A bare yes / no counts only within 30 s of the
+      question and only as a whole line, so "No pulse" is never an answer. "Confirm" and "Correction" work as
+      before. No answer leaves it flagged, which the dashboard and report show. A spoken dose for a drug the
+      camera just saw still confirms it with no question (RB9).
+    - **Every line reaches Nemotron** except pure filler ("Yeah.", "Okay, so") and lone words; the keyword
+      relevance gate is gone. Nemotron documents anything clinical whoever it was said to, and replies (30 words
+      at most, conversational) only when the line is meant for Handoff. It sees the last 8 exchanges (5 min).
+      Questions never become findings, and the same fact is not logged twice within 10 minutes (both enforced in
+      code). Rate budget unchanged: 20 model calls per minute, shared with the advisories.
+    - **Proactive advisories on by default,** on state changes only (status, events, flags, timers, the
+      record, vitals bands, CPR), checked every 10 s: safety links between facts (allergy, home medications,
+      code status), trends, and gaps in the documentation. 15 words or fewer, one per 15 s, "Consider…" /
+      "Note:" wording, never an order, never a number the state doesn't hold, never a repeat of a rule callout.
+    - **ASR:** IO, IV and IM are no longer boosted (they turned "I'm" into "IM" and noise into "IO"); the long
+      forms (intraosseous, intravenous, intramuscular) are boosted instead.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -875,7 +906,7 @@ source.*
 | 1:20 Who is it? | Hands-on | Narrator: "Find out who your patient is: check their pocket, show the card to your camera, and say 'Handoff, look'." | Takes the ID card from the patient teammate's pocket, holds it 20–50 cm from the chest camera and says "Handoff, look" (or reads the name and birth date aloud). Hears the record summary. | ★ After about 3 s: "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." | | ★ The patient section fills from the EHR: name, age, allergies, medications, history, code status. | Reads the name and birth date off the card (or hears them), decides to search the EHR, pulls the record and queues the spoken summary; asks if more than one patient matches. |
 | 1:45 Arrest and CPR | Hands-on | Demo operator triggers the simulated arrest from `/controls` (HR drops to 0). Narrator: "Your patient's heart just stopped. Hands above the chest, don't touch. Start compressions." CPR starts when the judge says "starting CPR" or the operator taps Start CPR. | Kneels beside the patient and mimes compressions: stacked hands hover a few centimetres above the chest, no contact. | ★ "Push faster" if under 100/min; silent if in range. | | Status ARREST; CPR rate live in the vitals grid. The pre-arrival alert and the destination appear in the event timeline. | Picks the hospital, posts the alert. |
 | 2:10 Pause | Hands-on | Narrator: "Stop, check for a pulse." | Stops and lifts their hands away. | ★ After 10 s: "Resume compressions." | | Timeline: "Compressions paused 10 s". | |
-| 2:20 Drugs | Hands-on | Narrator hands over the line card. | Says "Administering one milligram of epi IO." Then "Giving three hundred milligrams of amiodarone." | ★ "Copy. Epinephrine, one milligram, I-O." Then: "Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Say confirm or correction." | | Next epi starts counting down when the dose is logged. The epi event appears in the timeline; the amiodarone attempt is flagged in soft red. | Logs the read-back (merging the camera's finding if the stretch is built); logs the allergy flag. |
+| 2:20 Drugs | Hands-on | Narrator hands over the line card. | Says "Administering one milligram of epi IO." Then "Giving three hundred milligrams of amiodarone." | ★ "Copy. Epinephrine, one milligram, I-O. Log it?" Medic: "Yes." → "Logged." Then: "Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Log it anyway?" (decision 21) | | Next epi starts counting down when the dose is logged. The epi event appears in the timeline; the amiodarone attempt is flagged in soft red. | Logs the read-back (merging the camera's finding if the stretch is built); logs the allergy flag. |
 | 2:40 Hospital screen | Explain | Narrator: "Transport." ER host walks the judge through the screen: the live video, the patient panel from the EHR, the vitals and the event timeline with the pre-arrival alert. Then points out the CPR numbers, the record's history and the source chips on the report. | ★ Clicks Generate Handoff and reads their own report on the hospital screen. | "Epi due" when the 45 s DEMO TIMING countdown ends. | | Status ARRIVED. The report shows the judge's own CPR numbers and the record's history, with a source chip on every line. | Writes the sourced report, with the EHR as a source. |
 | 3:30 How it works | Explain | Narrator shows the system map: SpacetimeDB as the live backbone, the Nemotron voice agent and workflows, the mock FHIR EHR. | Listens. | | | Stays on the event timeline. | |
 | 4:15 Q&A | Buffer | Narrator takes questions. | Asks questions. | | | | |
@@ -1338,8 +1369,9 @@ full and numbers in words, so "micrograms" can never sound like "milligrams".
 
 The medic's speech reaches the voice agent worker over the WebRTC audio link. As built (`voice/`, decision 18),
 the brain's deterministic parser recognises the medication statement as soon as the final transcript arrives,
-runs `check_dose_range` and `check_allergy`, speaks the read-back (or the warning) and logs the event. No model
-call is in that path; Nemotron never logs a medication. Voice-to-voice latency is the STT end-of-turn plus TTS.
+runs `check_dose_range` and `check_allergy`, speaks the read-back (or the warning) ending in "Log it?" ("Log it
+anyway?" after a warning), and logs the event as `flagged` until the medic says yes (`confirmed`) or no
+(`cancelled`) (decision 21). No model call is in that path; Nemotron never logs a medication. Voice-to-voice latency is the STT end-of-turn plus TTS.
 
 **Guardrail 1: doses and allergies are deterministic.** `check_dose_range` (RB4) and `check_allergy` (RB7) are
 tools with fixed answers from a fixed table and the pulled record. The model only speaks their result. It never
@@ -1360,11 +1392,11 @@ sequenceDiagram
   M->>V: "Administering one milligram of epi IO" (WebRTC audio)
   V->>T: check_dose_range(epinephrine, 1 mg), check_allergy(epinephrine)
   T-->>V: in range, no recorded allergy
-  V->>M: "Copy. Epinephrine, one milligram, I-O."
-  V->>S: log_event (voice, read back)
-  M->>V: "Correction" (optional, within 10 s)
-  V->>S: set_event_status cancelled
-  V->>M: "Cancelled."
+  V->>M: "Copy. Epinephrine, one milligram, I-O. Log it?"
+  V->>S: log_event (read-back), set_event_status flagged
+  M->>V: "Yes" (or "No" / "Correction")
+  V->>S: set_event_status confirmed (or cancelled)
+  V->>M: "Logged." (or "Cancelled.")
 ```
 
 ### The phone-side path (degraded mode, and the possible first hop)
@@ -1426,6 +1458,10 @@ replace it; the parser and voice stay the same.
 | "Did we give epi yet?" · "Get the epi ready" | (silent: a question or a plan, not a dose) | Nothing |
 | "Correction" (within 10 s) | "Cancelled." | The last read-back is cancelled (kept in the audit trail) |
 
+On the agent path (decision 21) every read-back above ends with "Log it?", and each warning ends with "Log it
+anyway?" instead of "Say confirm or correction."; the event stays flagged until "yes" (→ "Logged.") or "no" (→
+"Cancelled."). The phone's degraded-mode wording is as in the table.
+
 ### The parser (phone path) and the matching rules (both paths)
 
 - **Verb:** administering, giving, given, gave, pushing, pushed, "… in" ("epi in").
@@ -1476,7 +1512,7 @@ as well as from what the medic says.
 | --- | --- | --- |
 | RB1 | Detects medication statements (verb + drug + dose), ignores questions and plans | 9 of 10 test sentences trigger; 0 of 10 questions do |
 | RB2 | Reads back: "Copy. Drug, dose in words, unit in full, route." On the phone path, with no network wait | Phone path: audio starts within 1 s of the sentence ending (Wi-Fi off still works if recognition already returned). Agent path: within about 1.2 s (the brain's parser, no model call; measure with the Riva pipeline) |
-| RB3 | "Correction", "cancel that" or "scratch that" within 10 s cancels; "confirm" confirms | Spoken "Cancelled." / "Confirmed." |
+| RB3 | "Correction", "cancel that" or "scratch that" within 10 s cancels; "confirm" confirms. Agent path (decision 21): the read-back asks "Log it?"; a whole-line "yes" within 30 s confirms, "no" cancels | Spoken "Cancelled." / "Confirmed." (agent path: "Logged.") |
 | RB4 | Dose check for epinephrine and amiodarone, deterministic (`check_dose_range` tool on the agent path, the same table on the phone) | "Epi ten milligrams" asks for confirm |
 | RB5 | Echo guard | The read-back never creates a second event |
 | RB6 | Shows a big read-back card on the bodycam screen and a "read back" chip on the hospital timeline | Visible on both within 1 s |
@@ -1599,8 +1635,8 @@ There are two parts:
   patient record, latest valid vitals (or "no valid reading"), CPR rate/count/pause, timers, the last 8 events
   with chips, recent speech, the last 6 transcript lines. Format in `voice/README.md`. Never raw waveforms.
 - **Proactive speech:** the deterministic triggers always speak (record found, "Saw epinephrine. What dose?",
-  allergy warnings). Nemotron advisories are optional (`VOICE_PROACTIVE`): one model call when the state changed,
-  every 20 s at most, 8 words or fewer, "Consider…" wording. The policy layer (`voice/src/policy.ts`) keeps §15:
+  allergy warnings). Nemotron advisories are on by default (`VOICE_PROACTIVE`, decision 21): one model call when
+  the state changed (checked every 10 s), one advisory per 15 s at most, 15 words or fewer, "Consider…" wording. The policy layer (`voice/src/policy.ts`) keeps §15:
   one callout per 4 s across rules and agent (read-backs exempt), P0–P3, the server drops identical unspoken
   words, never talk over the medic (the mouth reports `user_speaking`). `tick_rules` stays the safety net.
 - **Tools (as built):** `get_state`, `get_recent_transcript`, `get_timeline`, `log_event` (airway, procedure,
@@ -1699,8 +1735,8 @@ sequenceDiagram
 
 - Uses only facts stored in SpacetimeDB. Never invents vitals, times, names, allergies or doses.
 - Dose and allergy answers come only from the deterministic tools; the model speaks their result.
-- Its own unprompted advisory callouts are 8 words or fewer, at most one every 20 s, and always inside the §15
-  policy layer.
+- Its own unprompted advisory callouts are 15 words or fewer, at most one every 15 s, and always inside the §15
+  policy layer (decision 21).
 - Advisory, protocol wording ("Epi due", "Consider…"), never orders.
 - Never claims compression depth.
 - Every step goes to the trace (`log_agent_step`).
