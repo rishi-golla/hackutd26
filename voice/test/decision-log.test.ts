@@ -251,6 +251,7 @@ test('a dashboard sentence in the advisory field is a keep-monitoring decision, 
   assert.equal(copied.advisory, null);
   assert.match(copied.summary, /continuing to monitor/);
   const status = advisoryDecision(JSON.stringify({ advisory: 'Monitoring the patient; no additional advisory needed.', summary: 'whatever' }), corpus);
+  assert.equal(advisoryDecision(JSON.stringify({ advisory: 'No valid reading available; continuing to monitor.', summary: 'x' }), corpus).advisory, null, 'live Sun ~05:16');
   assert.equal(status.advisory, null);
   const plain = advisoryDecision('Reviewed the latest update; continuing to monitor.', corpus);
   assert.equal(plain.advisory, null, 'legacy plain text in status wording is not spoken either');

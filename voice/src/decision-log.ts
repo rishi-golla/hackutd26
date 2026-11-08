@@ -64,10 +64,12 @@ export function publicSummary(value: unknown, corpus: string, fallback: string):
  * {"advisory": "Reviewed the latest state; continuing to monitor…"} and it was queued for the speaker. Status
  * wording ("Reviewed…", "Monitoring…", "No additional advisory…") and the offered summaries are never spoken.
  */
-const STATUS_WORDING = /^(?:reviewed|reviewing|monitoring|continuing to monitor|no (?:additional |further )?advisory|nothing (?:to|further)|the (?:patient|state|incident) (?:is|was|remains)|state (?:reviewed|unchanged))\b/i;
+const STATUS_WORDING = /^(?:reviewed|reviewing|monitoring|continuing to monitor|no (?:additional |further )?advisory|nothing (?:to|further)|no (?:current |valid )*(?:reading|data|vitals|record)|the (?:patient|state|incident) (?:is|was|remains)|state (?:reviewed|unchanged))\b/i;
+/** Anywhere in the text: "…; continuing to monitor." is a dashboard sentence however it starts (live Sun ~05:16). */
+const STATUS_ANYWHERE = /\b(?:continuing to monitor|no (?:additional|further) advisory|keep monitoring|will monitor)\b/i;
 export function isStatusNotAdvisory(text: string, corpus: string): boolean {
   const t = text.trim().replace(/\s+/g, ' ');
-  return publicSummaries(corpus).some(s => s.toLowerCase() === t.toLowerCase()) || STATUS_WORDING.test(t);
+  return publicSummaries(corpus).some(s => s.toLowerCase() === t.toLowerCase()) || STATUS_WORDING.test(t) || STATUS_ANYWHERE.test(t);
 }
 
 /**
