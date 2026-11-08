@@ -18,6 +18,8 @@ const ADVISORY_GAP_S = 15;
  *  keeps the advisory's 15-word cap and spoken numbers but not the 15 s advisory gap (the 4 s spacing still holds). */
 const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20, trend: 15 };
 const DECIMAL_OR_INT = /\b\d{1,3}(?:\.\d+)?\b/g;
+/** An unprompted advisory shorter than this is a fragment, not advice. */
+const ADVISORY_MIN_WORDS = 4;
 /** An unprompted note is not repeated within this long, even in different capitalisation or punctuation. */
 const REPEAT_S = 120;
 const sameWords = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim() === b.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -60,6 +62,11 @@ export class Policy {
       if (kept) words = kept;
     }
     const count = words.split(' ').length;
+    // A fragment is not an advisory ("Consider: epinephrine running", live Sun ~05:03): a whole short sentence or nothing.
+    if (kind === 'advisory' && count < ADVISORY_MIN_WORDS) {
+      await step(this.conn, 'policy', `Dropped advisory (${count} words, a fragment): "${words.slice(0, 60)}"`);
+      return false;
+    }
     if (count > WORD_LIMIT[kind]) {
       await step(this.conn, 'policy', `Dropped ${kind} (${count} words, limit ${WORD_LIMIT[kind]}): "${words.slice(0, 60)}"`);
       return false;

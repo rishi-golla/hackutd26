@@ -27,8 +27,8 @@ test('a long answer keeps the whole leading sentences that fit; one long sentenc
 test('advisories are limited to one per 20 seconds and order wording gets Consider prefix', async () => {
   const { conn, calls, rows } = fakeConn();
   const policy = new Policy(conn);
-  assert.equal(await policy.say('Push faster', 2, 'advisory', 'CPR rate 111'), true);
-  assert.equal(rows.callout[0].text, 'Consider: Push faster');
+  assert.equal(await policy.say('Push faster on the compressions', 2, 'advisory', 'CPR rate 111'), true);
+  assert.equal(rows.callout[0].text, 'Consider: Push faster on the compressions');
   assert.equal(await policy.say('Consider another check', 2, 'advisory', ''), false);
   assert.equal(callsTo(calls, 'addCallout').length, 1);
 });
@@ -58,4 +58,12 @@ test('"1 mg" is spoken as "one milligram", "300 mg" as "three hundred milligrams
   const policy = new Policy(conn);
   await policy.say("We've given epinephrine 1 mg IO and amiodarone 300 mg.", 1, 'answer', 'EVENTS 1 mg 300 mg');
   assert.equal(callsTo(calls, 'addCallout')[0].args.text, "We've given epinephrine one milligram I-O and amiodarone three hundred milligrams.");
+});
+
+test('an advisory fragment under four words is dropped; a whole short sentence passes', async () => {
+  const { conn, calls } = fakeConn({ incident: [{ id: 1n, status: 'arrest', startedAt: nowTs(), updatedAt: nowTs(), demoMode: true }] });
+  const policy = new Policy(conn);
+  assert.equal(await policy.say('epinephrine running', 2, 'advisory', 'epinephrine'), false);
+  assert.ok(callsTo(calls, 'logAgentStep').some(c => /a fragment/.test(c.args.summary)));
+  assert.equal(await policy.say('Consider rechecking the airway now.', 2, 'advisory', ''), true);
 });

@@ -1047,7 +1047,9 @@ export class Brain {
     return {
       status: s.incident?.status ?? 'none',
       flagged: String(s.events.filter(e => e.status === 'flagged').length),
-      timers: s.timers.map(t => `${t.kind}:${t.state}`).join(','),
+      // Only a timer that is DUE is news; one that just started is the dose that was read back a moment ago (the
+      // review after it produced "Consider: epinephrine running", live Sun ~05:03).
+      timers: s.timers.filter(t => t.state === 'due').map(t => `${t.kind}:due`).join(','),
       record: s.record ? `${s.record.name} (${s.record.allergies.length} allergies)` : 'none',
       vitals: v?.valid ? `HR ~${Math.round((v.hr ?? 0) / 10) * 10} SpO2 ~${Math.round((v.spo2 ?? 0) / 3) * 3}` : v ? `no valid reading (${v.status})` : 'none',
       cpr: s.cpr?.fresh ? (s.cpr.compressing ? 'compressing' : 'paused') : 'none',
