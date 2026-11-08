@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Speaker } from '../src/speaker.js';
 import type { Callout } from '../src/module_bindings/types.js';
-import { callsTo, fakeConn, timestamp } from './fakes.js';
+import { callsTo, fakeConn, nowTs, timestamp } from './fakes.js';
 
 class FakeSocket {
   sent: string[] = [];
@@ -77,5 +77,26 @@ test('detaching mouth leaves the in-flight callout unspoken for degraded-mode pl
   assert.equal(speaker.connected, false);
   assert.equal(rows.callout[0].spokenAt, undefined);
   assert.equal(callsTo(calls, 'calloutSpoken').length, 0);
+  speaker.close();
+});
+
+test('P2 rows wait while a question is waiting for its answer; P0 still goes; the answer releases them', async () => {
+  const fake = fakeConn({ incident: [{ id: 1n, status: 'arrest', startedAt: nowTs(), updatedAt: nowTs(), demoMode: true }] });
+  const speaker = new Speaker(fake.conn);
+  const sent: string[] = [];
+  const ws = { send: (m: string) => sent.push(JSON.parse(m).text), close: () => {}, on: () => {} } as unknown as import('ws').WebSocket;
+  speaker.attach(ws);
+  speaker.holdLow(8000);
+  fake.db.callout.insert({ id: 1n, incidentId: 1n, text: 'Two minutes. Rhythm check, switch compressors.', priority: 2, createdAt: nowTs(), spokenAt: undefined });
+  speaker.tick();
+  assert.deepEqual(sent, [], 'the rule callout waits behind the open question');
+  fake.db.callout.insert({ id: 2n, incidentId: 1n, text: 'Logged.', priority: 0, createdAt: nowTs(), spokenAt: undefined });
+  speaker.tick();
+  assert.deepEqual(sent, ['Logged.'], 'P0 is not held');
+  // The mouth finishes "Logged." (the row is marked spoken), the answer releases the hold, and the held row goes.
+  fake.db.callout.update({ ...fake.rows.callout[1], spokenAt: nowTs() });
+  speaker.releaseLow();
+  speaker.tick();
+  assert.deepEqual(sent, ['Logged.', 'Two minutes. Rhythm check, switch compressors.']);
   speaker.close();
 });

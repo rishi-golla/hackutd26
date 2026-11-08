@@ -35,6 +35,9 @@ export class Speaker {
   private playbackErrors = 0;
   /** Callouts the medic talked over once; they get one more try (spec §15: never cut off, so say it again). */
   private retried = new Set<bigint>();
+  /** While a question ("Log it?") waits for its answer, P2/P3 rows wait too: the demo-timing "Two minutes…" rule
+   *  landing right after the question kept swallowing the medic's yes / no (live Sun ~06:00). P0/P1 still go. */
+  private lowHoldUntil = 0;
 
   constructor(private conn: Conn) {
     conn.db.callout.onInsert(() => this.tick());
@@ -140,9 +143,21 @@ export class Speaker {
       .sort((a, b) => a.priority - b.priority || Number(a.id - b.id))[0];
     if (!next) return;
     if (Date.now() < this.holdUntil) return;
+    if (next.priority >= 2 && Date.now() < this.lowHoldUntil) return;
     if (this.userSpeaking && (next.priority > 1 || Date.now() - this.userSpeakingSince < STUCK_SPEAKING_MS)) return;
     this.inFlight = { callout: next, sentAt: Date.now(), acking: false };
     this.mouth.send(JSON.stringify({ type: 'speak', id: String(next.id), text: next.text, priority: next.priority }));
+  }
+
+  /** A question is waiting for the medic's answer: keep P2/P3 rows back for `ms` (the answer or `releaseLow` ends it early). */
+  holdLow(ms: number) {
+    this.lowHoldUntil = Math.max(this.lowHoldUntil, Date.now() + ms);
+  }
+
+  /** The question was answered (or dropped): low-priority rows may go again. */
+  releaseLow() {
+    this.lowHoldUntil = 0;
+    this.tick();
   }
 
   /**

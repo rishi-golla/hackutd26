@@ -25,7 +25,10 @@ necessarily when the decision was made.
   What still speaks: read-backs and "Log it?", the allergy and dose warnings, "Record found…", answers when spoken
   to, the `tick_rules` callouts, and the deterministic vitals-trend note (its own 5 s timer runs when advisories are
   off). Also seen: a second voice worker (older code) on Maincloud answered the same question a second time;
-  decision 18 (one voice worker per database) has to be enforced by hand before a demo.
+  decision 18 (one voice worker per database) has to be enforced by hand before a demo. **~06:05:** the demo-timing
+  "Two minutes. Rhythm check, switch compressors." rule (every 30 s in an arrest) kept landing right after "Log it?"
+  and talking over the medic's yes / no, so the brain's speaker now holds P2/P3 rows for 8 s after a question (the
+  answer releases them early); P0/P1 still go. §15 spacing and the rules themselves are unchanged.
 - **Sun ~05:00 (Alan): the agent speaks only when spoken to, watches the vitals trend, and sees what the camera
   sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` plus one caption for the new `trend` step in
   `web/src/routes/hospital/thoughts.ts` (hospital lane, for Josh's OK); no table, reducer or audio-link changes). Found
