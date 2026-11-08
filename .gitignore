@@ -4,3 +4,25 @@ dist
 .DS_Store
 .env*.local
 spacetime.local.json
+
+# Pi hub and Chromatic firmware: track only the source. Keys, backups and captures stay out.
+/chromatic/*
+!/chromatic/pi/
+!/chromatic/tools/
+/chromatic/tools/*
+!/chromatic/tools/pi.sh
+!/chromatic/fw/
+/chromatic/fw/*
+!/chromatic/fw/xp2/
+/chromatic/fw/xp2/build/
+/chromatic/fw/xp2/managed_components/
+/chromatic/fw/xp2/sdkconfig
+/chromatic/fw/xp2/XP_README.md
+/chromatic/fw/xp2/XP2_README.md
+/chromatic/fw/xp2/CHANGELOG.md
+*.db
+*.rvf*
+.claude-flow/
+.swarm/
+__pycache__/
+data/
