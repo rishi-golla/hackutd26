@@ -17,7 +17,7 @@ voice/
 
 History: two voice-agent PRs were built in parallel on Saturday. This tree is PR #5 (the TypeScript brain and the
 Riva Pipecat worker, live-tested with a real mic) plus the parts of Devin's PR #6 it lacked: the vision sampler,
-the phone page's WebRTC link (`hub/phone.html?voice=`), `GET /api/ice`, the phone page served from the worker,
+the phone page's WebRTC link (`hub/phone.html`, which finds the worker through the Pi hub; SPEC decision 23), `GET /api/ice`, the phone page served from the worker,
 the Pi-hub frame fallback and `test_client.py`. PR #6's self-hosted Omni and Kokoro (an H100 behind a tunnel) were
 not adopted: everything here runs on NVIDIA's hosted API with the one `nvapi-` key.
 
@@ -55,7 +55,7 @@ would read back and log everything twice).
 
 ```mermaid
 flowchart LR
-  subgraph phone[Bodycam phone: hub/phone.html?voice=]
+  subgraph phone[Bodycam phone: hub/phone.html]
     MIC[mic + camera] -->|WebRTC audio + video| PC
     PC -->|agent voice| SPK[speaker]
   end

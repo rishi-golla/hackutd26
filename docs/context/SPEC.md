@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~03:45 (Josh): the bodycam page keeps an open mic to the voice agent by itself** (§0.1 decision 23, §22.6).
+  The voice worker announces its https link to the Pi hub (`voice/pipecat/link.sh`: a Cloudflare quick tunnel,
+  posted as `{"what":"voice"}`), and `hub/phone.html` opened from the Pi's usual link connects its mic and camera to
+  it with no `?voice=`, for as long as the bodycam runs. Drops reconnect on their own (2, 4, 8, then every 15 s).
+  No module changes; no degraded-mode speech yet.
 - **Sun ~02:30 (Rishi): the voice agent asks before it logs, documents what it hears, and speaks up on its
   own** (§0.1 decision 21; `voice/` only, no table or reducer changes). Every action the medic says is read back
   and ends with "Log it?" ("Log it anyway?" after an allergy or dose warning): medications and shocks from the
@@ -342,7 +347,8 @@ section and add a change-log line.
       findings to the brain's `POST /seen`, which does all database writes. The camera lane owns the phone page
       and the hospital video. Decision 1 amended accordingly.
     - **The phone page is `hub/phone.html`** for now: `?voice=<worker>` turns the voice link on; the worker can
-      serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam.
+      serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam. (Amended by
+      decision 23: the page finds the worker through the Pi hub, so `?voice=` is only an override.)
     - **Vision model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, hosted; `VISION_MODEL` overrides.
     - PRs #5 and #6 are closed; their descriptions and test notes are history.
 21. **The voice agent confirms before it logs and helps without being asked** (Rishi, Sun ~02:30). Agent path
@@ -381,6 +387,27 @@ section and add a change-log line.
       "Note:" wording, never an order, never a number the state doesn't hold, never a repeat of a rule callout.
     - **ASR:** IO, IV and IM are no longer boosted (they turned "I'm" into "IM" and noise into "IO"); the long
       forms (intraosseous, intravenous, intramuscular) are boosted instead.
+
+23. **The bodycam page finds the voice agent through the Pi hub and keeps the open mic up** (Josh, Sun ~03:45).
+    (22 is the hospital's live frame feed, PR #15.)
+    - **Discovery:** the laptop that runs the voice worker also runs `voice/pipecat/link.sh`: a free Cloudflare
+      quick tunnel to the worker's port 7860 (https, so the phone's page may call it), announced to the hub as
+      `{"from":"voice","what":"voice","value":"https://….trycloudflare.com"}` at once and every 30 s. The hub keeps
+      the newest value and replays it to a page that connects.
+    - **The page** (`hub/phone.html`) takes the worker from `?voice=` (`off` = none), else its own origin when the
+      worker serves it, else the newest hub `voice` link. From Start until the camera stops it keeps one WebRTC
+      link up (mic + camera up, the agent's voice down, §22.6), reconnects by itself after a drop, a failure or 15 s
+      without connecting (backoff 2, 4, 8, then 15 s), and switches when a new link is announced. The "Voice" dot
+      shows it; the hint says "Voice agent reconnecting…" while it's down.
+    - **Not built yet:** with the link down the phone speaks no callouts (B11's degraded mode: §22.6 Failover and
+      §23 describe it, but `hub/phone.html` doesn't do it). One phone runs the bodycam at a time (the worker takes
+      one connection); a stopped page never reconnects, and a worker that keeps ending sessions is retried more and
+      more slowly. A replayed hub link older than 90 s is ignored, so a dead link from an earlier run never returns.
+    - **Exposure:** the hub's `/send` and `/state` have no auth, so anyone with the Pi's public link could post a
+      `voice` link (and get the bodycam's mic and camera) or read the worker's link and its TURN password. Fine for
+      a hackathon demo; use throwaway TURN passwords and stop `link.sh` when not demoing.
+    - **Network:** the tunnel carries only the handshake; audio is phone ↔ laptop WebRTC, so the same Wi-Fi or the
+      phone's hotspot, or a TURN relay (`TURN_URL`/`TURN_USER`/`TURN_PASS`).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -2022,8 +2049,11 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
   echo cancellation on (the speaker is next to the mic) and the camera track for the vision sampler (decision 20).
   Down: the agent's voice.
 - **Endpoint:** the voice agent worker on the laptop (`voice/pipecat/`, Pipecat with its SmallWebRTC transport).
-- **Signaling:** served by `voice/pipecat/run.py` on the laptop, port 7860. The phone page (`hub/phone.html`,
-  opened with `?voice=https://<laptop>:7860`) does `GET /api/ice` then `POST /api/offer` with `{sdp, type}`; the
+- **Discovery (decision 23):** the worker's https link reaches the phone through the Pi hub as the message
+  `{"from":"voice","what":"voice","value":"<https url>"}` (`voice/pipecat/link.sh`, at once and every 30 s); the
+  phone page connects to the newest one. `?voice=<url>` still overrides it, and `?voice=off` turns it off.
+- **Signaling:** served by `voice/pipecat/run.py` on the laptop, port 7860. The phone page (`hub/phone.html`)
+  does `GET /api/ice` then `POST /api/offer` with `{sdp, type}`, and reconnects by itself after a drop; the
   prebuilt test page at `/client` does `POST /start` then `POST`/`PATCH /sessions/<id>/api/offer`. `--ssl` serves
   https with a self-signed cert so the phone's mic works off-localhost; `ICE_SERVERS` or `TURN_URL`/`TURN_USER`/
   `TURN_PASS` add a TURN relay for both peers. With `HUB_URL` set, the worker also serves the phone page at
@@ -2033,7 +2063,8 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
   video (hotspot, then TURN).
 - **Data:** the worker reads state from SpacetimeDB (compact summary, never raw 25 Hz waveforms) and writes
   through existing reducers only. No new tables without the hospital lane.
-- **Failover:** when the link or pipeline drops, the bodycam switches to on-device mode (B11).
+- **Failover:** when the link or pipeline drops, the bodycam switches to on-device mode (B11). **Not built yet in
+  `hub/phone.html`** (decision 23): it reconnects by itself but speaks no callouts while the link is down.
 
 ### 22.7 Event kinds and source chips
 
@@ -2074,7 +2105,7 @@ report under 30 s.
 | If this fails | You'll see | Keep going by |
 | --- | --- | --- |
 | Live video won't connect | "connecting…" on the video tile | Switch to the hotspot, then a TURN relay. No snapshot video |
-| Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Trigger: the bodycam's audio link to the worker is down (§0.1 decision 18) |
+| Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | (Not built yet in `hub/phone.html`, decision 23: it only reconnects.) **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Trigger: the bodycam's audio link to the worker is down (§0.1 decision 18) |
 | Phone can't reach the voice agent worker (venue Wi-Fi) | No agent voice from the start | Hotspot or TURN; degraded mode meanwhile |
 | Wi-Fi or hotspot drops | "Connecting…" in the `/hospital` event timeline header, "stale" on the live view | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); switch networks; demo controls force the next beat |
 | Finger clip gives no reading | "—" (no data) in place of the number | Switch the relay to simulated vitals |

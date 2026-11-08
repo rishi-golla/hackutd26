@@ -95,6 +95,7 @@ const words = {
   hub: () => 'Hub started',
   mark: () => 'MARK pressed',
   link: (v) => `Phone link: ${v}`,
+  voice: (v) => `Voice agent link: ${v}`,
 };
 function feed(m) {
   if (!Object.hasOwn(words, m.what)) return;
