@@ -1,0 +1,23 @@
+voice/pipecat/README.md
+  s_6c9c1def2ca6c1::t_eeacdcf59fa406 76-98
+voice/pipecat/client/index.html
+  s_6c9c1def2ca6c1::t_1587b6f265abe5 1-678
+voice/pipecat/run.py
+  s_6c9c1def2ca6c1::t_d23cf28dbf2cc6 54,188,251,258-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1eda5b48cd3ffb19d09a7625a36d0308ace4617",
+  "prompts": {},
+  "sessions": {
+    "s_6c9c1def2ca6c1": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_6c9c1def2ca6c1",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
