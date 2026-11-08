@@ -16,6 +16,16 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Rishi): session video per call** (decision 28). The phone records camera and mic in chunks to the voice
+  worker, which saves them on the laptop; the brain attaches each clip to the open call and the dashboard plays it
+  after the call closes.
+- **Sun (Rishi): recorded-video trace** (decision 26 extended; supersedes "playback creates no clinical facts"
+  for video-only imports). An offline analyzer (`voice/pipecat/analyze_recording.py`) transcribes the clip
+  with Riva ASR, looks at a frame every 2 s with Nemotron vision and reads the transcript for stated actions.
+  `demo_control("recording_trace")` writes transcript, `seen_*`/`said_*` events and steps into that import
+  only, stamped import time + seconds into the video and sourced `recording_analysis`. Patient and Tracing
+  show those rows as video times (click to play from there). A rerun replaces the previous analysis.
+  Imports stay closed, unidentified and outside live care and reports.
 - **Sun (Rishi): explicit New patient and supported vitals** (decision 27). Patients offers a confirmed,
   atomic switch to a fresh unidentified encounter, retaining prior records and cancelling prior care timers.
   The modern live vitals panels show HR and experimental SpO₂; unsupported temperature is removed.
@@ -31,6 +41,17 @@ necessarily when the decision was made.
   intact by user choice. Reload the phone and tap Start to use the new UUID protocol. Relay ingestion was
   verified after restart; a fresh physical camera run still needs that reload/Start. No demo video URLs
   have been supplied or attached.
+- **Sun (Rishi): Start/End on Live Operations, fill-in vitals, recorded-video timeline** (decisions 15 and 27
+  amended, §9, §14, §22; module + `web/`). Live Operations has **Start patient** when no encounter is active
+  (`demo_control('new_patient')`, empty expected ID) and **End encounter** (confirm, then `demo_control('close')`)
+  when one is; the harness camera still opens an encounter on a fresh session. The "Hardware preview · not attached"
+  note hides while fresh relay readings arrive. Once a finger has been on the clip for 2 s (status pulse, acquiring
+  or calibrating; never with the finger off or a sensor fault), `push_vitals` fills whatever a reading still lacks
+  (usually SpO₂ while it settles) from the looping `normal` scenario on a second row at the same timestamp: device
+  `sim-fill`, `simulated = true`, only the missing fields; the relay's row is untouched. The tiles keep their plain
+  labels (Rishi: no "simulated" on screen for a fill-in; the mark lives on the row, and "Simulated vitals" still
+  means a scenario has replaced the whole reading). Tracing shows a
+  clickable timeline under a traced recording: analyzer events and transcript lines along the clip, a playhead.
 - **Sun (Rishi): hospital dashboard restyle, top navigation** (§0.1 decision 25 amended, §14; `web/` only).
   The sidebar becomes a top bar: brand, pill navigation (Live Operations, Patients, Tracing; the active page is
   a solid dark pill) and round controls for the classic dashboard and the light/dark switch. Logs leaves the
@@ -377,6 +398,9 @@ section and add a change-log line.
     **Normal vitals** → `demo_control('normal')`, a looping `normal` scenario (HR 72–84, SpO₂ 97–99, device `sim-normal`,
     `simulated = true`) for when the finger clip is off or unreliable; **Stop normal vitals** → `demo_control('sim_off')`.
     Module change, hospital lane: published to Maincloud by Alan during the demo rehearsal; Josh to review.
+    **Fill-in** (Rishi, Sun): once a finger has been on the clip for 2 s, a `push_vitals` reading that lacks HR or
+    SpO₂ gets the missing field from the `normal` scenario on a separate `sim-fill` row (nothing with the finger off) (`simulated = true`, same timestamp); the relay's numbers are
+    never altered and the tile keeps its plain label (the mark lives on the row). A running scenario replaces the relay as before.
 16. **The camera logs drugs it sees being given: stretch** (Alan, Sat ~18:20; made a stretch goal at the 19:31
     meeting). In the MVP, medications are logged from what the medic says, through the voice read-back. If the
     stretch is built, the camera also logs what it sees: a medication seen being given is logged even if nobody
@@ -687,6 +711,19 @@ section and add a change-log line.
       serving that asset; videos are not committed to Git or uploaded to public storage.
       `/controls` → Patient recording accepts these local paths and offers "Add as new patient" as well as
       attachment to an existing encounter. Starting a real call with the reserved unit label is rejected.
+      **Recorded-video trace (Rishi):** the user chose to trace what a video-only import shows.
+      `voice/pipecat/analyze_recording.py <file> --url /recordings/<file>` runs offline: Riva ASR
+      (word offsets) for the transcript, Nemotron vision on a frame every 2 s (scene sentence plus findings:
+      ID card shown, chest compressions, responsiveness check, AED pads, airway, oxygen, IV/IO, a drug
+      being given; confidence ≥ 0.7, one event per finding per 10 s, one "Seen:" scene event per 6 s), and a
+      Nemotron text pass listing actions the medic states, pinned to real transcript lines ("Said: …").
+      `demo_control("recording_trace", JSON {url|incidentId, transcript[{t,text}], events[{t,kind,label,detail}],
+      steps[{t,tool,summary}]})` accepts only a closed `Recorded session`; `t` is seconds into the video and
+      rows are stored at import time + `t`. Event kinds must be `seen_*` or `said_*` (no clinical event kinds
+      such as `epi_given`), sources are `recording_analysis`, steps use workflow `recording`. A rerun replaces
+      the previous transcript, analysis events and steps. On a video-only import Patient, Tracing and Logs
+      show those times as video offsets (m:ss) that seek the player. The trace is what the footage and audio
+      show, not verified care: it creates no identity, vitals or report, and live care is never touched.
     - **Log layout:** a date/time rail with event categories and confirmation badges, separate Vitals,
       Transcript and Agent activity categories, and bounded batches for long histories.
 
@@ -698,7 +735,9 @@ section and add a change-log line.
       IDs are no-ops, so retries cannot close the patient just created. Preserve the unit and demo-timing
       configuration; never copy EHR,
       vitals, medications, timers or overrides into the new encounter. Subsequent relay readings use the new ID.
-    - The action is an explicit exception to the earlier hospital-only-Generate-Handoff restriction. Other demo
+    - The action is an explicit exception to the earlier hospital-only-Generate-Handoff restriction. Live
+      Operations also offers **Start patient** (same action, no active call) and **End encounter** (confirm, then
+      `demo_control('close')`), so the dashboard operator never needs `/controls` for the lifecycle. Other demo
       controls stay on `/controls`. The UI opens the created encounter from its request-correlated start event.
     - Modern live vitals panels show **heart rate and experimental SpO₂**. There is no temperature sensor in
       the current harness, so do not reserve a temperature tile. CPR rate is shown only with a valid current
@@ -706,6 +745,18 @@ section and add a change-log line.
       arrest. Both appear under Care timing, rather than as permanently empty vital tiles. Elapsed remains a
       session attribute. Historical Logs show a temperature column only if that encounter actually has stored
       temperature values (including explicitly labelled simulated rows). The classic fallback keeps its layout.
+
+28. **Each call keeps its own session video** (Rishi, Sun; supersedes "there is no recording" in decision 25).
+    - While the bodycam runs with a voice worker, `hub/phone.html` records its camera and mic (MediaRecorder,
+      webm, about 1.5 Mbit/s) and uploads 4 s chunks in order to the worker's `POST /api/recording?clip=&seq=&ext=`
+      (`voice/pipecat/recording.py`). The worker appends them to `web/public/recordings/<clip>.webm` (gitignored,
+      served by the dashboard laptop) and asks the brain's `POST /recording` (`voice/src/recording.ts`).
+    - The brain attaches a clip to the open call with `demo_control("attach_recording")`, label `Session video`,
+      as soon as there is one. When that call closes or another starts, the phone starts a new clip; a clip that
+      finds no call within about a minute is deleted. Out-of-order chunks are refused and restart the clip; an
+      unreachable laptop keeps up to about three minutes of chunks, then drops them and starts again.
+    - The dashboard hides a call's own session video while the call is open and plays it once it is closed.
+      Patients lists the calls that have a session video. No video bytes go into SpacetimeDB or Git.
 
 Conflicts resolved when this file was created (for the record):
 
