@@ -51,6 +51,7 @@ from config import ASR_MODEL, NVIDIA_SPEECH_SERVER, TTS_MODEL, Config, load_conf
 from vision import VisionConfig, VisionSampler
 
 HUB_PHONE_PAGE = Path(__file__).resolve().parent.parent.parent / "hub" / "phone.html"
+CLIENT_DIR = Path(__file__).resolve().parent / "client"
 
 # How long the medic may pause before the turn ends and the brain may speak again (after VAD's own 0.2 s). Short,
 # because a read-back waits for it. BrainBridge joins the ASR finals of one turn, so "epi ... one milligram"
@@ -184,6 +185,7 @@ def make_app(cfg: Config, barge_in: bool):
     from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, RedirectResponse
+    from fastapi.staticfiles import StaticFiles
     from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
 
     from pipecat.transports.smallwebrtc.connection import IceServer, SmallWebRTCConnection
@@ -246,13 +248,30 @@ def make_app(cfg: Config, barge_in: bool):
     async def lifespan(app):
         yield
         await handler.close()
+        await brain.aclose()
         if hub:
             await hub.aclose()
 
     app = FastAPI(lifespan=lifespan)
     # The real bodycam page is served from another origin (the Pi hub, Vite, or the deployed site).
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-    app.mount("/client", SmallWebRTCPrebuiltUI)
+    # The Handoff voice client (client/index.html) at /client; Pipecat's stock page stays at /classic.
+    app.mount("/client", StaticFiles(directory=CLIENT_DIR, html=True), name="client")
+    app.mount("/classic", SmallWebRTCPrebuiltUI)
+
+    # The client's view of the brain (it can't reach 127.0.0.1:8787 from another device): state, conversation,
+    # health, and typed messages (POST /transcript, as if said).
+    brain = httpx.AsyncClient(base_url=cfg.brain_url, timeout=5)
+
+    @app.api_route("/api/brain/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+    async def brain_proxy(path: str, request: Request):
+        if path not in ("state", "conversation", "health", "transcript"):
+            raise HTTPException(404, "not a brain route")
+        try:
+            r = await brain.request(request.method, "/" + path, content=await request.body(), headers={"Content-Type": "application/json"})
+        except httpx.HTTPError as e:
+            raise HTTPException(502, f"brain unreachable: {e!r}")
+        return Response(r.content, r.status_code, media_type="application/json", headers={"Cache-Control": "no-store"})
 
     @app.get("/", include_in_schema=False)
     async def root():

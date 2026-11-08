@@ -1,7 +1,37 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readState, summarize } from '../src/state.js';
+import { conversationJson, readState, summarize } from '../src/state.js';
 import { fakeConn, timestamp } from './fakes.js';
+
+test('conversation merges what the medic and Handoff said in time order, with the trace, for the latest incident', () => {
+  const t0 = Date.now() - 60_000;
+  const { conn } = fakeConn({
+    incident: [
+      { id: 1n, unit: 'Medic 12', status: 'closed', demoMode: true, startedAt: timestamp(t0 - 600_000), updatedAt: timestamp(t0 - 500_000) },
+      { id: 2n, unit: 'Medic 12', status: 'closed', demoMode: true, startedAt: timestamp(t0), updatedAt: timestamp(t0 + 50_000) },
+    ],
+    transcript: [
+      { id: 1n, incidentId: 1n, ts: timestamp(t0 - 550_000), text: 'old call' },
+      { id: 2n, incidentId: 2n, ts: timestamp(t0 + 1_000), text: 'Administering one milligram of epinephrine IV' },
+      { id: 3n, incidentId: 2n, ts: timestamp(t0 + 5_000), text: 'Yes' },
+    ],
+    callout: [
+      { id: 1n, incidentId: 2n, text: 'Copy. Epinephrine, one milligram, I-V. Log it?', priority: 0, createdAt: timestamp(t0 + 1_500), spokenAt: timestamp(t0 + 2_000) },
+      { id: 2n, incidentId: 2n, text: 'Logged.', priority: 0, createdAt: timestamp(t0 + 5_500), spokenAt: undefined },
+    ],
+    agentStep: [{ id: 1n, incidentId: 2n, ts: timestamp(t0 + 1_200), workflow: 'voice', tool: 'read_back', summary: 'Epinephrine 1 mg IV' }],
+  });
+  const c = conversationJson(conn);
+  assert.deepEqual(c.incident, { id: 2, unit: 'Medic 12', status: 'closed', active: false });
+  assert.deepEqual(c.lines.map(l => `${l.who}: ${l.text}`), [
+    'user: Administering one milligram of epinephrine IV',
+    'assistant: Copy. Epinephrine, one milligram, I-V. Log it?',
+    'user: Yes',
+    'assistant: Logged.',
+  ]);
+  assert.equal((c.lines[3] as { spoken?: boolean }).spoken, false, 'queued, not spoken yet');
+  assert.deepEqual(c.steps.map(s => s.tool), ['read_back']);
+});
 
 test('empty database summarizes as standby with no incident', () => {
   const { conn } = fakeConn();

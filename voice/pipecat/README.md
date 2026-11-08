@@ -73,6 +73,29 @@ session ends when it can't reach the brain within 1.5 s (see "No mouth, no link"
 | `.venv/bin/python run.py --list-voices` | Ask the hosted TTS which voices it has (needs the key) |
 | `.venv/bin/python test_client.py --image idcard.jpg a.wav b.wav` | A whole session over real WebRTC without a phone: WAV files as the mic, an image as the camera; prints the time from the end of each utterance to the first reply audio and saves the agent's audio under `test-out/` |
 
+**The voice client (`/client`).** `client/index.html`, one file with no build step, served by `run.py`. Pipecat's
+stock page is still at `/classic`.
+- **Studio:** Connect and End, mic mute, camera, and screen share. The screen share rides on the camera's track, so
+  the agent's eyes see whatever is shared, e.g. an ID card on screen. A waveform follows whoever is talking.
+- **Side tabs:**
+  - **Transcript:** what the medic said and what Handoff said or has queued, from the brain's `GET /conversation`,
+    plus a live line while you talk.
+  - **Overview:** incident, patient, vitals, timers, timeline and pending callouts, from `GET /state`.
+  - **Tools:** the `agent_step` trace.
+- **Send a message:** posts to the brain's `/transcript` as if it were said. It works without a call; the reply is
+  queued and shows in the transcript.
+- **Bottom:** the session status, an event log with a filter, latency metrics (voice-to-voice and each service's
+  TTFB from Pipecat's RTVI messages), and the device pickers.
+- **Sessions and Settings:** past calls from this browser; echo cancellation, noise suppression, camera on start
+  and dark mode.
+
+It talks to the worker the way `hub/phone.html` does (`GET /api/ice`, `POST /api/offer`): transceiver 0 carries the
+mic, 1 the camera. A data channel carries a 1 s `ping` keep-alive and Pipecat's RTVI messages (`client-ready`,
+speaking events, interim transcripts, metrics). The worker proxies `GET /api/brain/{state,conversation,health}` and
+`POST /api/brain/transcript` to the brain, so the page also works from a phone.
+
+**One call at a time:** connecting from this page ends any bodycam session on the same worker.
+
 **The bodycam phone page.** `hub/phone.html` (the Pi hub's page) connects to this worker when opened with
 `?voice=https://<laptop>:7860`: it fetches `GET /api/ice`, sends its mic and camera over one WebRTC connection to
 `POST /api/offer`, and plays the agent's voice; a "Voice" dot shows the link. Without the parameter the page is
