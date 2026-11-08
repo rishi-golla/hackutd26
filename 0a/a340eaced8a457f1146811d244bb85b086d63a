@@ -1,0 +1,18 @@
+web/src/routes/hospital/HospitalApp.tsx
+  h_f876d4e77222e2 16,55-56
+web/src/routes/hospital/handoff-mark.svg
+  h_f876d4e77222e2 1-5
+web/src/routes/hospital/hospital.css
+  h_f876d4e77222e2 61-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0aa340eaced8a457f1146811d244bb85b086d63a",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
