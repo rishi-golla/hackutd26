@@ -55,6 +55,7 @@ import SendRtcSignalReducer from "./send_rtc_signal_reducer";
 import SetDestinationReducer from "./set_destination_reducer";
 import SetEventStatusReducer from "./set_event_status_reducer";
 import SetStatusReducer from "./set_status_reducer";
+import StartBodycamSessionReducer from "./start_bodycam_session_reducer";
 import StartIncidentReducer from "./start_incident_reducer";
 import SynthesizeSeizureReducer from "./synthesize_seizure_reducer";
 import ToggleIncidentReducer from "./toggle_incident_reducer";
@@ -296,6 +297,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_destination", SetDestinationReducer),
   __reducerSchema("set_event_status", SetEventStatusReducer),
   __reducerSchema("set_status", SetStatusReducer),
+  __reducerSchema("start_bodycam_session", StartBodycamSessionReducer),
   __reducerSchema("start_incident", StartIncidentReducer),
   __reducerSchema("synthesize_seizure", SynthesizeSeizureReducer),
   __reducerSchema("toggle_incident", ToggleIncidentReducer),

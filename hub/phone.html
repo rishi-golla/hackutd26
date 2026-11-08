@@ -68,6 +68,7 @@
 <script>
 const video = $('video'), canvas = $('canvas');
 let stream = null, recorder = null, facing = 'environment', running = false, hrAt = 0, stAt = 0, o2At = 0;
+let cameraSession = '';
 
 const dot = (id, state) => { $(id).className = 'dot ' + state; };
 const hint = (text, err) => { $('hint').hidden = !text; $('hint').textContent = text || ''; $('hint').classList.toggle('err', !!err); };
@@ -183,7 +184,8 @@ setInterval(() => {
       send('camdiag', `frame ${n}: ${canvas.width}x${canvas.height} brightness=${mean} video paused=${video.paused} readyState=${video.readyState} track=${track.label} muted=${track.muted}`);
     } catch (_) {}
   }
-  canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
+  const frameSession = cameraSession;
+  canvas.toBlob((b) => post('/frame?n=' + (++n) + '&session=' + encodeURIComponent(frameSession), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
 
 // Voice agent (spec §19, §22.6, decision 23): while the bodycam runs, the mic and camera go to the Pipecat worker
@@ -295,6 +297,7 @@ $('start').onclick = async () => {
   try { await openCamera(); }
   catch (_) { dot('dCam', 'off'); dot('dMic', 'off'); stopped(); return hint('Camera or mic blocked. Allow both for this site, then tap Start.', true); }
   try { await navigator.wakeLock.request('screen'); } catch (_) {}
+  cameraSession = crypto.randomUUID();
   running = true;
   $('start').disabled = true;
   $('start').textContent = '● Live';

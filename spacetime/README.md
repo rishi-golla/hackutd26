@@ -43,6 +43,45 @@ spacetime publish handoff-local --server local --module-path . --yes
 #   VITE_SPACETIMEDB_DB_NAME=handoff-local
 ```
 
+## Hosted patient recordings
+
+Publish the updated module before using `/controls` → Patient recording. Choose an existing encounter and
+paste a direct HTTPS MP4/WebM URL (a hosted video file, not a video-site watch page). The existing
+`demo_control` reducer accepts action `attach_recording` with a JSON string argument:
+
+```json
+{"incidentId":"13","url":"https://your-video-host.example/session.mp4","label":"Training scenario"}
+```
+
+An empty `url` removes the reference. The server validates the encounter and URL and appends a
+`session_recording` event. Its `recording` source contains `{url, label}`; newest non-cancelled reference
+wins. This works for closed encounters without reopening them. No video bytes or inferred clinical values
+are inserted. Patient and Tracing play the hosted file directly; the host must allow browser playback.
+
+## Deployment order for camera sessions
+
+Publish the module first, preserving all existing rows (`--delete-data=never`). Then update `hub/hub.py`,
+`hub/phone.html`, and `bridge/hub_bridge.py` on the Pi and restart the hub/bridge services. Reload the phone
+page and start the camera to mint its session UUID. Deploying the bridge before the reducer is available
+would hold readings while registration retries. `UNIT` and `BODYCAM_DEVICE` configure its session identity.
+
+Closing a call keeps it closed even if the camera continues streaming. Live Operations then shows an
+unassigned hardware preview. Reload/restart the bodycam for the next encounter; an existing active encounter
+is reused. MARK presses from before the camera session or while registration is pending are not backfilled
+with a misleading timestamp; the bridge logs why they were not forwarded.
+
+## Local integration checks
+
+Use a disposable local server, never the shared demo database:
+
+```bash
+spacetime start --listen-addr 127.0.0.1:3900 --in-memory --non-interactive
+spacetime publish handoff-hospital-test --server http://127.0.0.1:3900 --module-path spacetime --anonymous --delete-data=never --yes=skip-login
+python -m unittest discover -s spacetime/test -v
+```
+
+These tests reset only `handoff-hospital-test` at the hardcoded loopback address.
+
 ## Relay (HTTP, no SDK)
 
 On the Pi these calls are made by `bridge/hub_bridge.py`, which forwards the sensor readings from kgand's hub
@@ -99,6 +138,7 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Relay / bodycam | `mark(device, json)` | json `{}` or `{"note":"…","source":"voice"}`; relay default source `MARK` |
 | Relay | `toggle_incident(device)` | hold button |
 | Any | `start_incident(unit)` | no-op if an incident is already active; status `on_scene`, DEMO TIMING on |
+| Bridge | `start_bodycam_session(device, sessionId, unit)` | Starts/reuses an encounter after actual camera frames arrive. A UUID is handled once, including across bridge restarts and call closure. HTTP arguments: `["bodycam-1", "<session UUID>", "Medic 12"]`. |
 | Any | `set_status(status, sourceKind, sourceDetail)` | `on_scene` `arrest` `rosc` `en_route` `arrived` `closed`; the source is the timeline chip, e.g. `("arrest", "voice", "her heart stopped")`. Any transition is allowed (demo controls need it) |
 | Any | `heartbeat(device, kind)` | keeps the `device` row's `lastSeen` fresh |
 | Bodycam | `pushCpr({rate?, count, sinceLastS, paused, compressing})` | phone detector output, about 2×/s. Before the first compression, send `sinceLastS` = seconds since the page started; the server caps pauses at the time since the arrest began. `count` may reset on page reload |
@@ -110,7 +150,7 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Bodycam (W6) | `savePatientRecord({...})`, `addCallout({text, priority})`, `logAgentStep({workflow, tool, summary})` | |
 | Bodycam / hospital | `sendRtcSignal({sessionId, sender, kind, payload})` | WebRTC handshake, below |
 | Monitor | `monitorTap({button})` | `EPI` `AMIO` `SHOCK` `AIRWAY` `ROSC` `MARK`. A tap carries no dose: it logs "Epinephrine (tap)" and the read-back adds the dose when they merge |
-| Monitor | `demoControl({action, arg})` | `start` `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_slow` `cpr_good` `cpr_clear` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`) |
+| Monitor | `demoControl({action, arg})` | `start` `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_slow` `cpr_good` `cpr_clear` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS `url`, optional `label`; empty URL removes the reference) |
 | Any (caller not decided) | `synthesizeSeizure({active})` / HTTP `synthesize_seizure` `[true]` or `[false]` | Overrides the relay's sensor data with a hardcoded seizure. See "Synthetic seizure" below |
 | Hospital | `requestReport()` | the Generate Handoff button; works on the newest incident even after close |
 | Agent | `setDestination({hospitalId, etaMin})`, `erMessageOut({text})`, `saveReport({incidentId, contentJson})`, `logAgentStep(...)` | |
@@ -136,7 +176,7 @@ Differences from spec §22 (deliberate):
   `save_snapshot` and `er_message_in` don't exist. Added: `toggle_incident`, `heartbeat`, `set_event_status`,
   `request_report`, `synthesize_seizure` (and its `vitals_override` table).
 
-`incident`, `device`, `vitals` (kept 30 min), `waveform` (kept 30 s), `cpr_state` (one row per incident),
+`incident`, `device`, `vitals` (encounter rows retained until reset; unassigned preview rows kept 30 min), `waveform` (kept 30 s), `cpr_state` (one row per incident),
 `transcript`, `rtc_signal` (kept 10 min), `event`, `timer`, `callout`, `er_message`, `agent_step`, `hospital`
 (3 fictional, seeded), `patient_record`, `report`, `vitals_override` (a row means a synthetic scenario is on). Private: `rule_state`, `tick_schedule`. Note that the SQL
 column for SpO₂ is `spo_2`; in TS it's `spo2`.

@@ -27,6 +27,8 @@ HUB = os.environ.get("HUB_URL", "http://127.0.0.1:8000").rstrip("/")
 STDB = os.environ.get("SPACETIMEDB_URL", "https://maincloud.spacetimedb.com").rstrip("/")
 DB = os.environ.get("SPACETIMEDB_DB", "handoff-hackutd26")
 DEVICE = os.environ.get("DEVICE", "relay-1")
+UNIT = os.environ.get("UNIT", "Medic 12")
+BODYCAM_DEVICE = os.environ.get("BODYCAM_DEVICE", "bodycam-1")
 TOKEN_FILE = Path(os.environ.get("TOKEN_FILE", Path.home() / ".handoff-bridge-token"))
 STALE_S = float(os.environ.get("STALE_S", "3"))
 SEND_EVERY_S = 1.0                                     # spec R3: vitals once a second
@@ -81,6 +83,31 @@ def call(reducer, args):
 
 # ---------------------------------------------------------------- hub
 
+def accept_camera_message(message, now):
+    """Only actual live frame notifications can register a session; never hub replay or a Start button alone."""
+    if message.get("what") != "camera":
+        return False
+    session = message.get("session")
+    if message.get("value") == "live" and not message.get("replay") and isinstance(session, str) and session:
+        with lock:
+            if latest.get("camera_session", (None,))[0] != session:
+                latest["camera_started"] = (session, now)
+            latest["camera_session"] = (session, now)
+    return True
+
+
+def register_camera_session(sent_session):
+    """Returns (registered session, waiting). Failed registration is retried before forwarding live vitals."""
+    with lock:
+        camera = latest.get("camera_session")
+    if camera and time.monotonic() - camera[1] <= STALE_S and camera[0] != sent_session:
+        if not call("start_bodycam_session", [BODYCAM_DEVICE, camera[0], UNIT]):
+            return sent_session, True
+        log(ev="camera_session", session=camera[0], registered=True)
+        return camera[0], False
+    return sent_session, False
+
+
 def poll_hub():
     """Long-poll the hub forever, keeping the newest value of each message. Catch-up (replay) messages only set
     the MARK baseline: they are old values and are never forwarded as live readings."""
@@ -103,6 +130,8 @@ def poll_hub():
                         with lock:
                             marks.extend([now] * n)
                         mark_seen = value
+                    continue
+                if accept_camera_message(m, now):
                     continue
                 if m.get("replay") or what not in ("hr", "spo2", "state"):
                     continue
@@ -140,15 +169,27 @@ def main():
     TOKEN = token()
     log(ev="start", hub=HUB, stdb=STDB, db=DB, device=DEVICE)
     threading.Thread(target=poll_hub, daemon=True).start()
-    sent_ok, last_status = None, None
+    sent_ok, last_status, sent_session, was_waiting = None, None, None, False
     next_at = time.monotonic()
     while True:
+        # A fresh frame, not merely a connected browser, starts the encounter. Retry failures before forwarding
+        # its vitals; the reducer remembers session IDs across reconnects and incident closure.
+        sent_session, waiting_for_session = register_camera_session(sent_session)
+        if waiting_for_session != was_waiting:
+            log(ev="camera_registration", waiting=waiting_for_session)
+            was_waiting = waiting_for_session
         with lock:
             pending, marks[:] = list(marks), []
+            camera_started = latest.get("camera_started")
+        # Never relabel an old press as a new patient event or backfill it with the wrong capture time.
+        kept = [] if waiting_for_session else [at for at in pending if not camera_started or at >= camera_started[1]]
+        if len(kept) != len(pending):
+            log(ev="mark_not_forwarded", count=len(pending) - len(kept), reason="camera session not registered at press time")
+        pending = kept
         for _ in pending:
             ok = call("mark", [DEVICE, json.dumps({"source": "MARK"})])
             log(ev="mark", forwarded=ok)
-        v = vitals_now()
+        v = None if waiting_for_session else vitals_now()
         if v is not None:
             ok = call("push_vitals", [DEVICE, json.dumps(v)])
             if ok != sent_ok or v["status"] != last_status:

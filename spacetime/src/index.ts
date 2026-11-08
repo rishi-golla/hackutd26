@@ -34,6 +34,7 @@ import {
   writeSyntheticFrame,
 } from './helpers';
 import { runRules } from './rules';
+import { attachRecording, shouldPruneVitals, startCameraSession } from './sessions';
 
 export default spacetimedb;
 
@@ -64,12 +65,12 @@ export const tickRules = spacetimedb.reducer(
   { timer: tickSchedule.rowType },
   ctx => {
     const now = ctx.timestamp;
-    // Prune: waveform keeps 30 s, vitals 30 min, handshakes 10 min, unspoken callouts 20 s.
+    // Encounter vitals are retained until explicit reset. Only unassigned preview vitals expire after 30 min.
     for (const r of [...ctx.db.waveform.iter()]) {
       if (secondsBetween(r.ts, now) > 30) ctx.db.waveform.id.delete(r.id);
     }
     for (const r of [...ctx.db.vitals.iter()]) {
-      if (secondsBetween(r.ts, now) > 1800) ctx.db.vitals.id.delete(r.id);
+      if (shouldPruneVitals(r.incidentId, secondsBetween(r.ts, now))) ctx.db.vitals.id.delete(r.id);
     }
     for (const r of [...ctx.db.rtcSignal.iter()]) {
       if (secondsBetween(r.ts, now) > 600) ctx.db.rtcSignal.id.delete(r.id);
@@ -185,6 +186,12 @@ export const startIncident = spacetimedb.reducer(
   (ctx, { unit }) => {
     beginIncident(ctx, unit, 'tap');
   }
+);
+
+/** The bridge calls this after receiving actual frames from a new harness session, not on dashboard visits. */
+export const startBodycamSession = spacetimedb.reducer(
+  { device: t.string(), sessionId: t.string(), unit: t.string() },
+  (ctx, { device, sessionId, unit }) => startCameraSession(ctx, device, sessionId, unit)
 );
 
 /**
@@ -370,6 +377,9 @@ export const monitorTap = spacetimedb.reducer({ button: t.string() }, (ctx, { bu
  */
 export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.string() }, (ctx, { action, arg }) => {
   switch (action) {
+    case 'attach_recording':
+      attachRecording(ctx, arg);
+      return;
     case 'start':
       beginIncident(ctx, arg || 'Medic 12', 'demo');
       return;

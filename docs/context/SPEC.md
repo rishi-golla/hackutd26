@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Rishi): live harness workflow, retained patient vitals and hosted recordings** (§0.1 decision 26).
+  Live Operations becomes the camera/relay demonstration. A new actual camera session opens an encounter;
+  its readings persist after close. Hosted HTTPS videos can be attached to an explicit encounter through
+  `/controls`, with clearly labelled playback in Patient and Tracing. Logs separates care, vitals, transcript
+  and agent activity. Backend/bridge changes must be deployed before automatic creation and retention apply.
 - **Sun ~07:00 (Rishi): the hospital dashboard becomes three pages** (§0.1 decision 25, §14; `web/` only, no
   table or reducer changes; hospital lane, pending Josh's OK). Live Operations, Patient and Tracing behind one
   sidebar, light with dark mode, built from the tables only; the mockups' invented capacity, fleet, map, BP and
@@ -600,6 +605,34 @@ section and add a change-log line.
       alarm colour in an arrest, one action (Generate Handoff), and its "no reply" state after 30 s.
     - **Reverses** these Sat ~21:30 removals now that there is room: route and ETA (shown only when the agent set a
       destination), and the spoken transcript (Patient's "Heard from the medic", Tracing's Transcript tab).
+
+26. **Live Operations demonstrates the harness; patient encounters keep their history** (Rishi, Sun;
+    supersedes decision 25's fleet counters and "no playback" limitation).
+    - **Live Operations:** the current harness camera, relay vitals, current patient's EHR context, care
+      timeline and recent conversation. No active-call / next-arrival / pending-read-back / calls-today cards.
+      The camera can preview before an encounter exists, like the classic dashboard; historical patient pages
+      never show that preview as the old patient's video.
+      With no active encounter, Live Operations also reads incident-0 relay vitals from SpacetimeDB, labelled
+      as hardware preview, with the real sensor state (e.g. "No finger detected"). Missing values stay blank.
+    - **Automatic encounter:** each successful bodycam Start gets a UUID. Actual frames carry it to the hub;
+      the bridge calls `start_bodycam_session(device, sessionId, unit)` on fresh frames only. Reuse an active
+      encounter; otherwise create an unidentified one. Durable session deduplication prevents reconnects or
+      repeated frames from reopening a closed call. Starting a camera does not invent a name, EHR, vitals or
+      care event. Existing identification and medication-confirmation rules still apply.
+    - **History:** encounter-linked vitals stay until explicit demo reset. Only unassigned preview readings
+      (`incidentId = 0`) expire after 30 minutes. Closed-call live metrics remain blank; the Logs Vitals tab
+      shows timestamped saved measurements, including missing/simulated states. Previously pruned data cannot
+      be recovered. Clinical events, transcript and agent activity remain scoped to the encounter.
+    - **Hosted recordings:** the user chose hosted video URLs. Files stay on their HTTPS host/CDN;
+      SpacetimeDB stores a `session_recording` event with a `recording` source containing JSON `{url, label}`.
+      `/controls` → Patient recording attaches/removes a link for an explicit incident ID via
+      `demo_control("attach_recording", JSON)`. The newest non-cancelled reference wins; empty URL removes it.
+      Patient and Tracing use native video playback labelled "Recorded video"; live video stays separate.
+      Unsupported/expired links show a load error. Playback creates no clinical facts and is not synchronized
+      to historical vitals unless independently timestamped. This is attachment/playback, not automatic video
+      recording. No user videos have been supplied yet; do not insert synthetic cases or stock clips as real care.
+    - **Log layout:** a date/time rail with event categories and confirmation badges, separate Vitals,
+      Transcript and Agent activity categories, and bounded batches for long histories.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1272,8 +1305,9 @@ stateDiagram-v2
 | `arrived` | None; report generation | Report summary |
 | `closed` | None; the record is read-only | None |
 
-As built: `standby` means there is no active incident (no row). Starting an incident (`start_incident`, demo
-Start, or the relay's 2 s hold) creates one in `on_scene` with DEMO TIMING on. Entering `arrest` doesn't start
+As built: `standby` means there is no active incident (no row). Starting an incident (`start_incident`, a new
+actual harness camera session through `start_bodycam_session`, demo Start, or the relay's 2 s hold) creates one
+in `on_scene` with DEMO TIMING on. Camera-session retries never reopen a closed encounter. Entering `arrest` doesn't start
 CPR (Alan, Sun ~02:15): CPR starts when the demo operator taps Start CPR (or CPR slow/good during an arrest) on
 `/controls`, or the medic says it's starting (the voice agent logs `cpr_started`). That starts the cycle timer,
 resets the CPR stats for this arrest and adds "CPR started" to the timeline; the CPR callouts (§15) only run
@@ -1531,16 +1565,16 @@ original Inter typography, video, status, vitals, timeline and patient panels re
 
 | Page | Content |
 | --- | --- |
-| **Live Operations**, `/hospital` | Compact cards for active calls, next arrival, pending read-backs and today's calls. Live ambulance view and current patient above a larger calls table and activity feed. Clicking a call opens its patient page. Counts and ETA come from database rows; no capacity, GPS map, fleet or trend data is invented. |
+| **Live Operations**, `/hospital` | Current harness camera, relay vitals, patient context, care timeline and recent conversation. Camera preview is available before an encounter starts. The session header opens the active patient's details; no fleet counters or calls table. |
 | **Patients**, `/hospital/patients` | Selectable list of patient encounters, newest first, with name and age when known, record source, unit, status and call start date. Unknown patients appear as "Not identified"; each encounter opens its own detail page. |
 | **Patient**, `/hospital/patient` | Name, age, actual record reference, unit, status and ETA. Three columns: live video and latest medic transcripts above the care timeline; vitals and EHR clinical details; ER communication log and handoff report. A ready report opens in the video panel with a Live / Report switch. |
-| **Tracing**, `/hospital/tracing` | Selected call, unit, start and duration; live video and a phase bar from recorded status events above session events. Transcript / Overview / Logs tabs show spoken or queued lines, counts, and the decision timeline. No video recording or playback controls. |
-| **Logs**, `/hospital/logs` | Patient encounter picker and Care events / Transcript / Agent activity tabs, filtered to the selected incident. Includes a link back to that patient's details. |
+| **Tracing**, `/hospital/tracing` | Selected call, unit, start and duration; live video or an explicitly attached recording, and a phase bar from recorded status events. Transcript / Overview / Logs tabs show spoken or queued lines, counts, and decisions. Native playback controls apply only to an attached recording. |
+| **Logs**, `/hospital/logs` | Patient encounter picker and Care events / Vitals / Transcript / Agent activity tabs, filtered to the selected incident. Care events have date separators, event categories and confirmation labels; vitals show recorded timestamps and sources. Includes a link back to that patient's details. |
 
 `?incident=<id>` selects a call. Missing IDs never silently fall back to another patient. Without a selection,
 the newest call is shown. Historical or closed calls never show another incident's current vitals or camera.
 Live view retains the halftone heart before the first frame, stale badge after 3 s, click to enlarge and Escape
-to minimize. No recording is available for closed calls.
+to minimize. A closed call can play only its explicitly attached hosted recording; the UI labels it as recorded.
 
 Vitals retain H3: HR, SpO₂, temperature, CPR rate, next epi and elapsed; measuring dots while settling, dimmed
 last-good values for at most 6 s, then dots or "—". During arrest the real clip is blank; simulated HR 0 is
@@ -2135,7 +2169,7 @@ active get `incidentId = 0`.
 | --- | --- | --- |
 | `incident` | `id` u64 PK auto, `unit`, `status`, `startedAt`, `updatedAt`, `arrestStartedAt?`, `destinationId?` u64, `etaAt?` timestamp, `patientRef?`, `demoMode` bool | `status`: standby, on_scene, arrest, rosc, en_route, arrived, closed. The active incident is the newest one not `closed`. `etaAt` is the arrival time (remaining minutes = `etaAt` − now). New incidents start with `demoMode` on |
 | `device` | `id` PK, `kind`, `lastSeen` | Who's connected and when last seen (`heartbeat`, and relay/bodycam writes) |
-| `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. From the relay, `hr`/`spo2` are stored only when `status` is `pulse`; a synthetic scenario's are stored as written (the arrest's HR 0 with status `no pulse`, written only by scenarios). Readers trust hr/spo2 only on `pulse` rows. Kept 30 min |
+| `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. From the relay, `hr`/`spo2` are stored only when `status` is `pulse`; a synthetic scenario's are stored as written (the arrest's HR 0 with status `no pulse`, written only by scenarios). Encounter readings persist until explicit reset; only incident 0 preview readings expire after 30 min. |
 | `waveform` | `id`, `incidentId`, `ts`, `device`, `samples` f32[], `rateHz`, `simulated` | Raw `ir` batches, about 5 per second, up to 200 samples each. Kept 30 s |
 | `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples` |
 | `transcript` | `id`, `incidentId` (index), `ts`, `text` | One row per sentence, up to 500 characters. The voice worker writes only lines it kept (decision 21): room talk and filler are never stored |
@@ -2176,6 +2210,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Relay / bodycam | `mark(device, json)` | json `{}` or `{"note":"…","source":"voice"}`; relay default source `MARK` |
 | Relay (HTTP) | `toggle_incident(device)` | 2 s hold: starts an incident if none is active (unit "Medic 12"), else closes it |
 | Any | `start_incident(unit)` | No-op if one is active; status `on_scene`, DEMO TIMING on |
+| Bridge | `start_bodycam_session(device, sessionId, unit)` | Fresh camera session UUID; create/reuse an encounter once. Persistent deduplication prevents reopening a closed call on retry. |
 | Any | `set_status(status, sourceKind, sourceDetail)` | Any transition allowed; the source becomes the timeline chip, e.g. `("arrest", "voice", "her heart stopped")` |
 | Any | `heartbeat(device, kind)` | Keeps `device.lastSeen` fresh |
 | Bodycam | `push_cpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s (§22.4). Ignored while a demo override is on |
