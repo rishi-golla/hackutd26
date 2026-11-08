@@ -27,7 +27,7 @@ test('parseSeen validates the finding shapes the vision sampler posts', () => {
   assert.deepEqual(parseSeen({ type: 'id_card', name: 'AVERY, JORDAN', birth_date: '1968-03-14', confidence: 0.99 }), {
     type: 'id_card', name: 'Jordan Avery', birthDate: '1968-03-14', confidence: 0.99, detail: undefined,
   });
-  assert.equal(parseSeen({ type: 'id_card', name: 'Jordan Avery', birthDate: 'March 14' }), undefined, 'birth date must be ISO');
+  assert.deepEqual(parseSeen({ type: 'id_card', name: 'Jordan Avery', birthDate: 'March 14' }), { type: 'id_card', name: 'Jordan Avery', confidence: undefined, detail: undefined }, 'a date that is not ISO is left out, never guessed');
   assert.equal(parseSeen({ type: 'id_card', name: 'Jordan', birthDate: '1968-03-14' }), undefined, 'a single name is not an identity');
   assert.deepEqual(parseSeen({ type: 'medication', drug: 'epinephrine', dose: '1 mg/10 mL' }), {
     type: 'medication', drug: 'epinephrine', dose: '1 mg/10 mL', confidence: undefined, detail: undefined,

@@ -18,6 +18,20 @@ const ADVISORY_GAP_S = 15;
  *  keeps the advisory's 15-word cap and spoken numbers but not the 15 s advisory gap (the 4 s spacing still holds). */
 const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20, trend: 15 };
 const DECIMAL_OR_INT = /\b\d{1,3}(?:\.\d+)?\b/g;
+const PROPER_NOUN_ALLOW = new Set(['Handoff', 'Consider', 'Note', 'Copy', 'Logged', 'Cancelled', 'Nemotron', 'EHR', 'ID', 'CPR', 'ROSC', 'AED', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Medic', 'Patient']);
+/** The first capitalised word (not at a sentence start, not allowed above) that the facts don't contain, or undefined. */
+export function unknownProperNoun(text: string, corpus: string): string | undefined {
+  const facts = corpus.toLowerCase();
+  const tokens = text.split(/\s+/);
+  for (let i = 1; i < tokens.length; i++) {
+    if (/[.!?:;"]$/.test(tokens[i - 1])) continue; // a sentence start
+    const word = tokens[i].replace(/^[("'“]+|[)"'”,.!?;:]+$/g, '');
+    if (!/^[A-Z][a-z]{2,}$/.test(word) || PROPER_NOUN_ALLOW.has(word)) continue;
+    if (!facts.includes(word.toLowerCase())) return word;
+  }
+  return undefined;
+}
+
 /** An unprompted advisory shorter than this is a fragment, not advice. */
 const ADVISORY_MIN_WORDS = 4;
 /** An unprompted note is not repeated within this long, even in different capitalisation or punctuation. */
@@ -79,6 +93,15 @@ export class Policy {
     if (corpus !== undefined && !numbersSupported(words, corpus)) {
       await step(this.conn, 'policy', `Dropped ${kind}: a number in it is not in the facts: "${words.slice(0, 60)}"`);
       return false;
+    }
+    // Names too: a capitalised word mid-sentence that the facts don't contain is the model's ("Borischa" for
+    // "Donocha", live Sun ~09:07). Sentence starts, months, days and Handoff's own words are allowed.
+    if (corpus !== undefined && (kind === 'answer' || kind === 'advisory')) {
+      const stray = unknownProperNoun(words, corpus);
+      if (stray) {
+        await step(this.conn, 'policy', `Dropped ${kind}: "${stray}" is not in the facts`);
+        return false;
+      }
     }
     // Numbers are spoken in words (spec §15). Read-backs already are; answers and advisories come from the model.
     if (kind === 'answer' || kind === 'advisory' || kind === 'trend') {

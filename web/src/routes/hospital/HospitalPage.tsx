@@ -15,7 +15,8 @@ import LiveVideo from './LiveVideo';
 import ReportView from './ReportView';
 import { LiveThought, ThoughtRow } from './ThoughtRows';
 import { groupThoughts, liveThoughts, type Thought } from './thoughts';
-import './hospital.css';
+import { isRecordedEncounter } from './recordings';
+import './hospital-classic.css';
 
 const VITALS_STALE_MS = 5000;
 // A dropout shorter than this (finger shifts, one noisy second) keeps the last good number, dimmed.
@@ -90,7 +91,7 @@ export default function HospitalPage() {
   const [openThoughts, setOpenThoughts] = useState<ReadonlySet<string>>(new Set());
 
   // The newest incident, closed or not, so the dashboard still shows a finished run.
-  const incident: Incident | undefined = useMemo(() => [...incidents].sort(byNewest)[0], [incidents]);
+  const incident: Incident | undefined = useMemo(() => incidents.filter(i => !isRecordedEncounter(i)).sort(byNewest)[0], [incidents]);
   const incId = incident?.id;
   const record = records.find(r => r.incidentId === incId);
   const report = reports.find(r => r.incidentId === incId);
@@ -257,7 +258,7 @@ export default function HospitalPage() {
 
       <section className="panel panel--patient" aria-label="Patient">
         {/* X7: a cached record must not pass for a live one. */}
-        <h2 className="panel__title">Patient{record && (record.source === 'cached' ? ' · cached copy' : ' · from EHR')}</h2>
+        <h2 className="panel__title">Patient{record && (record.source === 'cached' ? ' · cached copy' : record.source === 'ID card' ? ' · from the ID card, no EHR record' : ' · from EHR')}</h2>
         <PatientData record={record} patientRef={incident?.patientRef} />
       </section>
 
@@ -340,7 +341,10 @@ function PatientData({ record, patientRef }: { record?: PatientRecord; patientRe
         {record.name}
         {age !== undefined && <span className="patient__age">, {age}</span>}
       </p>
-      {record.allergies.length > 0 ? (
+      {record.source === 'ID card' ? (
+        // Identified from the card alone (no EHR match): nothing clinical is known, and it must not read as "none".
+        <p className="patient__line">Allergies unknown: no EHR record</p>
+      ) : record.allergies.length > 0 ? (
         <p className="patient__allergy">Allergy: {record.allergies.join(', ')}</p>
       ) : (
         <p className="patient__line">No known allergies</p>

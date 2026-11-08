@@ -27,3 +27,6 @@ spacetime.local.json
 .swarm/
 __pycache__/
 data/
+
+# User-supplied demo videos are served locally, never committed.
+/web/public/recordings/

@@ -31,7 +31,8 @@ recent = []                                              # (seq, json line) of t
 seq = 0
 EPOCH = os.urandom(4).hex()                              # changes every start, so viewers notice a hub restart
 news = threading.Condition()                             # guards latest/recent/seq; wakes waiting polls
-frame = {"jpg": b"", "n": 0, "seq": 0, "said": 0.0, "at": 0.0}
+frame = {"jpg": b"", "n": 0, "seq": 0, "said": 0.0, "at": 0.0, "session": ""}
+camera_sessions = set()
 new_frame = threading.Condition()
 
 FILES = {"/": "phone.html", "/phone": "phone.html", "/dash": "dash.html", "/common.js": "common.js"}
@@ -147,6 +148,9 @@ class H(BaseHTTPRequestHandler):
                 return self.reply(400, b'{"ok":false,"error":"need JSON with a short text \\"what\\""}')
             return self.reply(body=b'{"ok":true}')
         if p == "/frame":
+            session = parse_qs(qs).get("session", [""])[0]
+            if len(session) > 128 or (session and not all(c.isascii() and (c.isalnum() or c in "_-") for c in session)):
+                return self.reply(400, b'{"ok":false,"error":"invalid camera session"}')
             try:
                 n = int(parse_qs(qs).get("n", ["0"])[0])
             except ValueError:
@@ -154,13 +158,16 @@ class H(BaseHTTPRequestHandler):
             if data[:2] != b"\xff\xd8":
                 return self.reply(400, b'{"ok":false,"error":"not a JPEG"}')
             with new_frame:
-                fresh = n > frame["n"] or frame["n"] - n > 50       # drop late frames; a big jump back = phone restarted
+                new_session = bool(session) and session != frame["session"] and session not in camera_sessions
+                fresh = new_session or (session == frame["session"] and (n > frame["n"] or frame["n"] - n > 50))
                 if fresh:
-                    frame.update(jpg=data, n=n, seq=frame["seq"] + 1, at=time.time())
+                    if session:
+                        camera_sessions.add(session)
+                    frame.update(jpg=data, n=n, seq=frame["seq"] + 1, at=time.time(), session=session)
                     new_frame.notify_all()
-            if fresh and time.time() - frame["said"] > 1:       # each message wakes every viewer: once a second is enough
-                frame["said"] = time.time()
-                publish({"from": "phone", "what": "camera", "value": "live"})
+                if fresh and (new_session or time.time() - frame["said"] > 1):  # announce new sessions immediately
+                    frame["said"] = time.time()
+                    publish({"from": "phone", "what": "camera", "value": "live", "session": session})
             return self.reply(body=b'{"ok":true}')
         if p == "/audio":
             with open(DATA / "mic.webm", "wb" if "new=1" in qs else "ab") as f:

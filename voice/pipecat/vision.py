@@ -48,13 +48,13 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 PROMPT = """You see one frame from a paramedic's bodycam. Report only what is clearly visible. Return JSON only:
 {"scene": "<one short sentence saying what is happening in view, e.g. 'medic's gloved hands over the patient's chest, syringe in the right hand'; empty if nothing is visible>", "findings": [ ... ]}
 where each finding is one of
-{"type": "id_card", "name": "<name exactly as printed>", "birth_date": "YYYY-MM-DD", "confidence": 0-1}
+{"type": "id_card", "name": "<name exactly as printed>", "birth_date": "YYYY-MM-DD, or null when no complete date of birth is printed", "confidence": 0-1}
 {"type": "medication", "drug": "<generic name, lowercase>", "dose": "<as printed, or empty>", "being_given": true|false, "confidence": 0-1}
 {"type": "aed_pads", "confidence": 0-1}
 {"type": "airway_device", "confidence": 0-1}
 {"type": "iv_io", "confidence": 0-1}
 The scene describes actions and equipment only: no names, no printed text, no one but the medic and the patient.
-If nothing relevant is visible, the findings list is empty: {"scene": "...", "findings": []}. Never guess text you cannot read."""
+If nothing relevant is visible, the findings list is empty: {"scene": "...", "findings": []}. Never guess text you cannot read. Never infer a birth date from an age, an expiry or an issue date: if any part of the date of birth is not printed and readable, birth_date is null."""
 
 # B6: the shortcut is "Handoff, look". A bare "look" ("look at his pupils") must not trigger a camera check.
 LOOK = re.compile(r"\bhand\s?-?\s?off,?\s+look\b", re.I)
@@ -169,9 +169,14 @@ def to_seen(f: dict) -> dict | None:
     conf = float(f.get("confidence") or 0)
     if kind == "id_card":
         name, dob = str(f.get("name") or "").strip(), str(f.get("birth_date") or "").strip()
-        if not name or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", dob):
+        if len(name) < 3:
             return None
-        return {"type": "id_card", "name": name, "birthDate": dob, "confidence": conf}
+        body = {"type": "id_card", "name": name, "confidence": conf}
+        # A date that isn't a complete ISO date is no date: the card is reported without one, never with a guess
+        # (live Sun ~09:07: a card with no date of birth came back with an invented one).
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", dob):
+            body["birthDate"] = dob
+        return body
     if kind == "medication":
         drug = str(f.get("drug") or "").strip().lower()
         if not drug or not f.get("being_given"):
@@ -188,7 +193,7 @@ def to_seen(f: dict) -> dict | None:
 
 def dedupe_key(seen: dict) -> str:
     if seen["type"] == "id_card":
-        return f"id:{seen['name'].lower()}:{seen['birthDate']}"
+        return f"id:{seen['name'].lower()}:{seen.get('birthDate', '')}"
     if seen["type"] == "medication":
         return f"med:{seen['drug']}"
     return seen["type"]

@@ -48,7 +48,7 @@
 <body>
 <header>
   <div class="logo">Hand<i>off</i></div>
-  <span id="dHub" class="dot">Hub</span><span id="dCam" class="dot">Cam</span><span id="dMic" class="dot">Mic</span><span id="dVoice" class="dot" hidden>Voice</span>
+  <span id="dHub" class="dot">Hub</span><span id="dCam" class="dot">Cam</span><span id="dMic" class="dot">Mic</span><span id="dVoice" class="dot" hidden>Voice</span><span id="dRec" class="dot" hidden>Rec</span>
 </header>
 
 <div class="cam"><video id="video" autoplay playsinline muted></video><div id="hint" class="hint">Tap Start to turn on the camera and mic</div></div>
@@ -68,6 +68,7 @@
 <script>
 const video = $('video'), canvas = $('canvas');
 let stream = null, recorder = null, facing = 'environment', running = false, hrAt = 0, stAt = 0, o2At = 0;
+let cameraSession = '';
 
 const dot = (id, state) => { $(id).className = 'dot ' + state; };
 const hint = (text, err) => { $('hint').hidden = !text; $('hint').textContent = text || ''; $('hint').classList.toggle('err', !!err); };
@@ -114,6 +115,7 @@ async function mainRearCamera() {
 
 async function openCamera() {
   if (recorder && recorder.state !== 'inactive') recorder.stop();
+  stopClip();
   if (stream) stream.getTracks().forEach((t) => t.stop());
   // Echo cancellation on: the speaker sits on the chest next to the mic, and the voice agent must not hear itself.
   const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
@@ -150,6 +152,65 @@ async function openCamera() {
   voiceOn = true;
   voiceBackoff = 2000;
   connectVoice().catch(voiceRetry);
+  if (running) startClip();                                      // a flip mid-session: the new lens, a new clip
+}
+
+// Session video (decision 28): camera and mic recorded in 4 s chunks, uploaded in order to the voice worker, which
+// saves them on the laptop and attaches the clip to the open call. Its reply says when to start a new clip (the call
+// ended or another began, or a chunk was refused). An unreachable laptop keeps the chunks and retries; past about
+// three minutes of backlog they are dropped and a fresh clip starts. No voice worker, no recording.
+const CLIP_TYPES = [['video/webm;codecs=vp9,opus', 'webm'], ['video/webm;codecs=vp8,opus', 'webm'], ['video/webm', 'webm'], ['video/mp4', 'mp4']];
+const CLIP_BACKLOG = 45;
+let clip = null, clipPumping = false;
+const clipQueue = [];
+
+function startClip() {
+  stopClip();
+  if (!running || !voiceUrl || !stream || typeof MediaRecorder === 'undefined') return;
+  const [mimeType, ext] = CLIP_TYPES.find(([t]) => MediaRecorder.isTypeSupported(t)) || [];
+  if (!mimeType) return;
+  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 });
+  const c = clip = { id: `clip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, ext, seq: 0, rec };
+  rec.ondataavailable = (e) => { if (e.data.size) { clipQueue.push({ clip: c, seq: c.seq++, blob: e.data }); pumpClips(); } };
+  rec.onerror = () => { if (clip === c) { dot('dRec', 'off'); startClip(); } };
+  rec.start(4000);
+  $('dRec').hidden = false;
+  dot('dRec', '');
+}
+
+function stopClip() {
+  const c = clip;
+  clip = null;
+  if (c && c.rec.state !== 'inactive') c.rec.stop();
+}
+
+async function pumpClips() {
+  if (clipPumping) return;
+  clipPumping = true;
+  try {
+    while (clipQueue.length) {
+      const item = clipQueue[0];
+      let r = null;
+      try {
+        const base = (voiceUrl || '').replace(/\/$/, '');
+        r = await fetch(`${base}/api/recording?clip=${item.clip.id}&seq=${item.seq}&ext=${item.clip.ext}`,
+          { method: 'POST', body: item.blob, signal: AbortSignal.timeout(30000) });
+      } catch (_) {}
+      if (!r || r.status >= 500) {
+        if (item.clip === clip) dot('dRec', 'off');
+        if (clipQueue.length > CLIP_BACKLOG) { clipQueue.length = 0; if (clip) startClip(); }
+        await new Promise((done) => setTimeout(done, 3000));
+        continue;
+      }
+      clipQueue.shift();
+      const body = await r.json().catch(() => ({}));
+      if (item.clip !== clip) continue;                            // the tail of a finished clip
+      dot('dRec', r.ok ? 'on' : 'off');
+      if (!r.ok || body.restart) startClip();
+    }
+  } finally {
+    clipPumping = false;
+  }
 }
 
 // Mic: 1 s chunks into one webm file on the hub, a fresh file each time the mic starts.
@@ -183,7 +244,8 @@ setInterval(() => {
       send('camdiag', `frame ${n}: ${canvas.width}x${canvas.height} brightness=${mean} video paused=${video.paused} readyState=${video.readyState} track=${track.label} muted=${track.muted}`);
     } catch (_) {}
   }
-  canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
+  const frameSession = cameraSession;
+  canvas.toBlob((b) => post('/frame?n=' + (++n) + '&session=' + encodeURIComponent(frameSession), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
 
 // Voice agent (spec §19, §22.6, decision 23): while the bodycam runs, the mic and camera go to the Pipecat worker
@@ -208,6 +270,7 @@ function setVoiceUrl(url) {
   if (voiceFixed || typeof url !== 'string' || !/^https?:\/\//.test(url) || url === voiceUrl) return;
   voiceUrl = url;
   $('dVoice').hidden = false;
+  if (running && !clip) startClip();
   if (voiceOn) { voiceBackoff = 2000; connectVoice().catch(voiceRetry); }   // a new worker link: switch now
 }
 
@@ -286,7 +349,7 @@ async function connectVoice() {
   }
 }
 
-function stopped() { running = false; voiceOn = false; closeVoice(); dot('dVoice', 'off'); $('start').disabled = false; $('start').textContent = 'Start'; }
+function stopped() { running = false; voiceOn = false; closeVoice(); stopClip(); dot('dVoice', 'off'); dot('dRec', 'off'); $('start').disabled = false; $('start').textContent = 'Start'; }
 
 $('start').onclick = async () => {
   speak('Bodycam on');                                        // this tap also unlocks the speaker
@@ -295,10 +358,12 @@ $('start').onclick = async () => {
   try { await openCamera(); }
   catch (_) { dot('dCam', 'off'); dot('dMic', 'off'); stopped(); return hint('Camera or mic blocked. Allow both for this site, then tap Start.', true); }
   try { await navigator.wakeLock.request('screen'); } catch (_) {}
+  cameraSession = crypto.randomUUID();
   running = true;
   $('start').disabled = true;
   $('start').textContent = '● Live';
   send('bodycam', 'on');
+  startClip();
 };
 $('test').onclick = () => speak('Speaker test');
 $('flip').onclick = async () => {

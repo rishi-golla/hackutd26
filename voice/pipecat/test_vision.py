@@ -151,7 +151,8 @@ def test_pure_functions():
         "a brace inside the scene string does not break the parse"
 
     assert to_seen(ID_CARD) == {"type": "id_card", "name": "AVERY, JORDAN", "birthDate": "1968-03-14", "confidence": 0.99}
-    assert to_seen({**ID_CARD, "birth_date": "March 14 1968"}) is None, "non-ISO date is not acted on"
+    assert to_seen({**ID_CARD, "birth_date": "March 14 1968"}) == {"type": "id_card", "name": "AVERY, JORDAN", "confidence": 0.99}, "a date that is not a complete ISO date is left out, never guessed"
+    assert to_seen({**ID_CARD, "birth_date": None}) == {"type": "id_card", "name": "AVERY, JORDAN", "confidence": 0.99}
     assert to_seen(EPI) == {"type": "medication", "drug": "epinephrine", "dose": "1 mg", "confidence": 0.9}
     assert to_seen(EPI_LABEL_ONLY) is None, "a label in view is not a dose given (RB8)"
     assert to_seen({"type": "iv_io", "confidence": 0.8}) == {"type": "iv_io", "confidence": 0.8}

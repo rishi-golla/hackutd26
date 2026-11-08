@@ -563,3 +563,58 @@ test('a line meant for Handoff is never dropped: a DROP on "Handoff, what have w
     assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['Handoff, what have we given so far?'], 'kept and stored');
   });
 });
+
+test('a name and birth date with no EHR match still identify the patient: a card-only record, never "no allergies"', async () => {
+  const { conn, calls, rows } = arrest();
+  const realFetch = globalThis.fetch;
+  // The EHR answers with an empty FHIR bundle.
+  globalThis.fetch = (async () => new Response(JSON.stringify({ resourceType: 'Bundle', entry: [] }), { headers: { 'content-type': 'application/fhir+json' } })) as typeof fetch;
+  try {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Patient is Alex Rivera, born June 2, 1980', 'pipecat');
+    await settle(() => callsTo(calls, 'savePatientRecord').length > 0 && callsTo(calls, 'addCallout').length > 0);
+    const saved = callsTo(calls, 'savePatientRecord')[0].args;
+    assert.equal(saved.source, 'ID card');
+    assert.equal(saved.name, 'Alex Rivera');
+    assert.equal(saved.birthDate, '1980-06-02');
+    assert.deepEqual(saved.allergies, ['unknown (no EHR record)']);
+    assert.equal(saved.patientRef, 'card:alex-rivera-1980-06-02');
+    assert.deepEqual(callsTo(calls, 'identifyPatient').map(c => c.args.patientRef), ['card:alex-rivera-1980-06-02']);
+    assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'No EHR record for Alex Rivera. Identified from the spoken name.');
+    const { readState, summarize } = await import('../src/state.js');
+    assert.match(summarize(readState(conn)), /^PATIENT Alex Rivera, \d+ \(ID card only, NO EHR record\) · allergies unknown/m);
+    // A dose read back against this record is not checked for allergies as if the list were empty.
+    await brain.handleUtterance('Giving three hundred milligrams of amiodarone', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 1);
+    assert.match(callsTo(calls, 'addCallout').at(-1)!.args.text, /^Copy\. Amiodarone, three hundred milligrams\. Log it\?$/);
+    assert.ok(rows.agentStep.some(s => /no EHR record, allergy not checked/.test(s.summary)));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('an ID card with no date of birth identifies by name alone: no invented date, no age, and "who is the patient" is answered from the record', async () => {
+  const { conn, calls } = arrest();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ resourceType: 'Bundle', entry: [] }), { headers: { 'content-type': 'application/fhir+json' } })) as typeof fetch;
+  try {
+    const { parseSeen } = await import('../src/seen.js');
+    const finding = parseSeen({ type: 'id_card', name: 'KIM, JOSHUA DONOCHA', confidence: 0.9 });
+    assert.deepEqual(finding, { type: 'id_card', name: 'Joshua Donocha Kim', confidence: 0.9, detail: undefined });
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleSeen(finding!);
+    await settle(() => callsTo(calls, 'savePatientRecord').length > 0);
+    const saved = callsTo(calls, 'savePatientRecord')[0].args;
+    assert.equal(saved.birthDate, '', 'no date is invented');
+    assert.equal(saved.patientRef, 'card:joshua-donocha-kim');
+    const { readState, summarize } = await import('../src/state.js');
+    assert.match(summarize(readState(conn)), /^PATIENT Joshua Donocha Kim \(ID card only, NO EHR record\)/m, 'no age without a date');
+    await brain.handleUtterance("Handoff, who's the patient?", 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 1);
+    assert.equal(callsTo(calls, 'addCallout').at(-1)!.args.text, 'Patient is Joshua Donocha Kim, identified from the ID card; no EHR record.');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

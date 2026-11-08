@@ -13,7 +13,7 @@ import { advisoryDecision, DecisionLog, publicSummaries, toolProgress, ungrounde
 import { ECHO_PREFIXES, medParts, normalizeTranscript, parseAnswer, parseControl, parseIdentity, type MedParts, parseReadback, recognizeDrug, type ReadbackMatch, type Route, type Unit } from './readback';
 import { checkAllergy, checkDoseRange, composeReadback, type DoseVerdict } from './checks';
 import { cachedMatch, fetchRecord, searchPatients, spokenRecordSummary } from './ehr';
-import { readState, summarize, TREND_SPO2_DROP, tsMs, type CameraScene, type State } from './state';
+import { ageOn, readState, summarize, TREND_SPO2_DROP, tsMs, type CameraScene, type State } from './state';
 import type { Policy } from './policy';
 import { looksLikeSpeech } from './speech';
 import type { Speaker } from './speaker';
@@ -129,6 +129,11 @@ type PendingMed = { drug?: string; dose?: number; unit?: Unit; route?: Route; at
 const PENDING_MED_MS = 20_000;
 
 const DOSE_IN_LABEL = /(\d+(?:\.\d+)?)\s*(mg|mcg|g|mL|units?|J)\b/i;
+/** Identity questions get a fixed answer from the record, so a name is never reworded by the model. */
+const WHO_IS_PATIENT = /\b(?:who(?:'s| is| am i treating)\b.*\b(?:patient|treating|this|he|she)\b|(?:patient(?:'s)?|his|her|their) name\b|what(?:'s| is) (?:his|her|their|the patient's) name|how old is (?:he|she|the patient))/i;
+/** A patient identified from the card or the spoken name with no EHR match: a record that is not a record. */
+const CARD_ONLY = 'ID card';
+const NO_EHR = 'unknown (no EHR record)';
 /** "MG", "ml", "unit" → the Unit the checks and spoken units use. */
 function normUnit(raw: string): Unit {
   const u = raw.toLowerCase();
@@ -392,6 +397,19 @@ export class Brain {
       return text;
     }
 
+    // "Who's the patient?" is answered from the record by fixed code, never reworded by the model (live Sun ~09:07:
+    // Nemotron turned "Donocha" into "Borischa" and spoke a birth year the card never showed).
+    if (WHO_IS_PATIENT.test(text) && !phoneHandled) {
+      const r = readState(this.conn).record;
+      const age = r?.birthDate ? ageOn(r.birthDate) : undefined;
+      const answer = !r
+        ? 'Patient not identified yet.'
+        : `Patient is ${r.name}${age !== undefined ? `, ${spoken(age)}` : ''}, ${r.source === CARD_ONLY ? 'identified from the ID card; no EHR record' : r.source === 'cached' ? 'from the cached record' : 'from the EHR'}.`;
+      await step(this.conn, 'identify_patient', `answered who the patient is from the record (${r ? r.source : 'none'})`);
+      await this.policy.say(answer, 1, 'answer');
+      return text;
+    }
+
     // Status changes the medic states plainly are set here, at once, with no model turn ("cardiac arrest" went
     // unhandled when Nemotron ran out of tool rounds, Sun ~02:00). Questions, history ("had an arrest") and
     // conditionals ("in case he arrests") don't count.
@@ -482,14 +500,15 @@ export class Brain {
   private async handleReadback(rb: ReadbackMatch, text: string, gen: number) {
     const s = readState(this.conn);
     const dose: DoseVerdict = rb.drug ? checkDoseRange(rb.drug, rb.dose, rb.unit) : { verdict: 'no_range' };
-    const allergy = rb.drug ? checkAllergy(rb.drug, s.record?.allergies ?? []) : { allergic: false };
+    const ehr = s.record && s.record.source !== CARD_ONLY ? s.record : undefined;
+    const allergy = rb.drug ? checkAllergy(rb.drug, ehr?.allergies ?? []) : { allergic: false };
     const out = composeReadback(rb, dose, allergy);
     const inc = s.incident;
     // RB9: a spoken dose for a drug the camera just saw merges into that event and confirms it: nothing to ask.
     const seenWaiting = !!inc && !out.flagged && [...this.conn.db.event.iter()].some(e =>
       e.incidentId === inc.id && e.kind === rb.eventKind && e.status === 'flagged' && e.sources.some(x => x.kind === 'seen') && Date.now() - tsMs(e.ts) < PENDING_DOSE_MS);
     const spokenText = seenWaiting ? rb.spoken : out.spoken;
-    await step(this.conn, 'read_back', `${rb.label}${out.flagged ? ` FLAGGED (${out.reason})` : seenWaiting ? ' (camera saw it: confirms)' : ' · asked "Log it?"'}${!s.record && rb.drug ? ' · no record yet, allergy not checked' : ''}`);
+    await step(this.conn, 'read_back', `${rb.label}${out.flagged ? ` FLAGGED (${out.reason})` : seenWaiting ? ' (camera saw it: confirms)' : ' · asked "Log it?"'}${!ehr && rb.drug ? ' · no EHR record, allergy not checked' : ''}`);
     // Speak first (RB2 latency), then log.
     await this.policy.say(spokenText, 0, 'readback');
 
@@ -596,13 +615,14 @@ export class Brain {
   /** X1: the medic said the name and birth date ("voice"), or the camera read them off the ID card ("ID card"). */
   private async identifyFromNameAndDob(name: string, birthDate: string, gen: number, method: 'voice' | 'ID card') {
     const inc = activeIncident(this.conn);
-    await step(this.conn, 'search_ehr', `${method === 'voice' ? 'heard' : 'ID card read'} "${name}, born ${birthDate}"`);
+    // `birthDate` is '' when the card showed none: the search is by name alone, and nothing invents a date.
+    await step(this.conn, 'search_ehr', `${method === 'voice' ? 'heard' : 'ID card read'} "${name}${birthDate ? `, born ${birthDate}` : ', no date of birth'}"`);
     let matches;
     try {
-      matches = await searchPatients(name, birthDate);
+      matches = await searchPatients(name, birthDate || undefined);
     } catch (err) {
       // X7: the EHR is down. The cached synthetic record is used only for exactly this name and birth date.
-      const cached = cachedMatch(name, birthDate);
+      const cached = birthDate ? cachedMatch(name, birthDate) : undefined;
       await step(this.conn, 'search_ehr', `EHR unavailable: ${(err as Error).message.slice(0, 80)}${cached ? `; cached copy matches ${cached.patientRef}` : ''}`);
       if (!cached) {
         await this.policy.say('Record lookup unavailable.', 1, 'ask');
@@ -613,7 +633,11 @@ export class Brain {
     if (this.stale(gen, inc?.id)) return;
     if (matches.length === 0) {
       await step(this.conn, 'search_ehr', 'no match');
-      await this.policy.say(`No record found for ${name}.`, 1, 'ask', undefined, () => !this.stale(gen, inc?.id));
+      // The identity still counts (Alan, Sun ~06:45): the hospital sees the name and birth date from the card or the
+      // medic's words, marked as having no EHR record. Allergies, medications and code status are "unknown", never
+      // "none": the checks treat this record as no record.
+      if (inc) await this.saveCardOnlyRecord(inc, name, birthDate, method, gen);
+      await this.policy.say(`No EHR record for ${name}. Identified from the ${method === 'voice' ? 'spoken name' : 'ID card'}.`, 1, 'ask', undefined, () => !this.stale(gen, inc?.id));
       return;
     }
     if (matches.length > 1) {
@@ -674,8 +698,8 @@ export class Brain {
         await step(this.conn, 'seen', `ID card ${f.name}, ${f.birthDate}${conf}: no active incident`);
         return 'no active incident';
       }
-      await step(this.conn, 'seen', `ID card: ${f.name}, born ${f.birthDate}${conf}${f.detail ? ` · ${f.detail}` : ''}`);
-      await this.identifyFromNameAndDob(f.name, f.birthDate, gen, 'ID card');
+      await step(this.conn, 'seen', `ID card: ${f.name}, ${f.birthDate ? `born ${f.birthDate}` : 'no date of birth printed'}${conf}${f.detail ? ` · ${f.detail}` : ''}`);
+      await this.identifyFromNameAndDob(f.name, f.birthDate ?? '', gen, 'ID card');
       return 'identified';
     }
     const ev = seenEvent(f);
@@ -696,6 +720,27 @@ export class Brain {
     }
     if (!this.stale(gen, inc.id)) await step(this.conn, 'log_event', `${ev.kind}: ${ev.label} (seen${conf})`);
     return 'logged';
+  }
+
+  /**
+   * A patient with a name and birth date but no EHR match: saved as a record from the card (source `ID card`,
+   * patientRef `card:<name>-<date>`), so the dashboard and the report show who it is, with every clinical field
+   * "unknown (no EHR record)". `identify_patient` then points the incident at it. Done once per incident.
+   */
+  private async saveCardOnlyRecord(inc: Incident, name: string, birthDate: string, method: 'voice' | 'ID card', gen: number) {
+    const patientRef = `card:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}${birthDate ? `-${birthDate}` : ''}`;
+    if ([...this.conn.db.patientRecord.iter()].some(r => r.incidentId === inc.id && r.patientRef === patientRef)) return;
+    if (this.stale(gen, inc.id)) return;
+    try {
+      await this.conn.reducers.savePatientRecord({
+        patientRef, name, birthDate,
+        allergies: [NO_EHR], medications: [NO_EHR], conditions: [], codeStatus: NO_EHR, source: CARD_ONLY,
+      });
+      await step(this.conn, 'save_patient_record', `${name}${birthDate ? `, born ${birthDate}` : ', no date of birth'}: no EHR record; identity from the ${method} saved as "${CARD_ONLY}"`);
+      if (inc.patientRef !== patientRef) await this.conn.reducers.identifyPatient({ patientRef, method });
+    } catch (err) {
+      await step(this.conn, 'save_patient_record', `card-only record failed: ${(err as Error).message.slice(0, 80)}`);
+    }
   }
 
   /**
@@ -795,7 +840,7 @@ export class Brain {
     const gen = this.gen;
     const drug = ev.kind.slice(4).replace(/_/g, ' ');
     const s = readState(this.conn);
-    const allergy = checkAllergy(drug, s.record?.allergies ?? []);
+    const allergy = checkAllergy(drug, s.record && s.record.source !== CARD_ONLY ? s.record.allergies : []);
     // The label carries the printed dose when the camera could read one ("Epinephrine 1 mg"); never a guess.
     const printed = DOSE_IN_LABEL.exec(ev.label);
     const unit = printed ? normUnit(printed[2]) : undefined;

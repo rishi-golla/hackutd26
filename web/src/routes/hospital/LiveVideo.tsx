@@ -43,7 +43,7 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
 
   const send = (sessionId: string, kind: string, payload: string) => {
     const conn = getConnection() as DbConnection | null;
-    if (!conn) return;
+    if (!conn?.isActive) return;
     void conn.reducers.sendRtcSignal({ sessionId, sender: 'hospital', kind, payload }).catch(console.error);
   };
 
