@@ -5,8 +5,10 @@ Reads the vitals table back over SpacetimeDB's SQL endpoint and prints:
   - how many rows DEVICE has, per status, and how many "pulse" rows carry SpO2 (the sensor publishes SpO2 only once
     3 readings in a row agree within 2 points, so a pulse stretch of a few seconds has none)
   - the newest rows, and whether the newest one is at most STALE_S old (the bridge's own cutoff)
+  - anything that isn't the Pi's real feed: rows marked simulated, rows from another device (a mock relay such as
+    voice/'s `npm run mock:relay`), or the synthetic scenario (vitals_override), whose rows replace the relay's
 
-Exit code 0 when the feed is live, 1 when it isn't, 2 when SpacetimeDB can't be read.
+Exit code 0 when the feed is live and real, 1 when it isn't, 2 when SpacetimeDB can't be read.
   python3 bridge/check_vitals.py [--rows N]
 Settings (environment, same names as hub_bridge.py): SPACETIMEDB_URL, SPACETIMEDB_DB, DEVICE, STALE_S.
 """
@@ -41,11 +43,19 @@ def main():
     try:
         token = post("/v1/identity")["token"]          # read-only queries: a throwaway identity is enough
         rows = sql(token, f"SELECT ts, status, hr, spo2, simulated FROM vitals WHERE device = '{device}'")
+        sources = collections.Counter((d, s) for d, s in sql(token, "SELECT device, simulated FROM vitals"))
+        override = sql(token, "SELECT scenario FROM vitals_override")
     except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError) as e:
         print(f"can't read {DB} at {STDB}: {e}", file=sys.stderr)
         return 2
     rows.sort(key=lambda r: r[0][0])
     print(f"{DB} at {STDB}, device {DEVICE}: {len(rows)} vitals rows (the module keeps 30 min)")
+    fake = {k: c for k, c in sources.items() if k != (DEVICE, False)}
+    for (d, s), c in fake.items():
+        print(f"NOT REAL: {c} rows from {d}{' marked simulated' if s else ''}")
+    if override:
+        print(f"NOT REAL: synthetic scenario {override[0][0]!r} is on; its rows replace the relay's")
+    real = not fake and not override
     if not rows:
         print("NOT LIVE: no rows from this device. Is handoff-bridge running on the Pi?")
         return 1
@@ -58,7 +68,9 @@ def main():
     age = max(0.0, time.time() - rows[-1][0][0] / 1e6)
     live = age <= STALE_S
     print(f"{'LIVE' if live else 'NOT LIVE'}: newest row is {age:.1f} s old (live means {STALE_S:g} s or less)")
-    return 0 if live else 1
+    if real:
+        print(f"REAL: every vitals row is from {DEVICE} with simulated false")
+    return 0 if live and real else 1
 
 
 if __name__ == "__main__":
