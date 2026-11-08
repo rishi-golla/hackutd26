@@ -237,6 +237,10 @@ The same override, started by the demo controls instead of `synthesize_seizure`:
 
 ### CPR start (Alan, Sun ~02:15)
 
+- `demo_control('normal')` starts the `normal` scenario (Sun ~06:15): realistic HR 72–84 and SpO₂ 97–99 that loop, device
+  `sim-normal`, `simulated = true`, for a patient teammate whose finger clip is off or unreliable. `demo_control('sim_off')`
+  stops whatever scenario is on. Arrest, ROSC and the seizure replace it like any other scenario.
+
 Arrest doesn't start CPR. CPR starts with `demo_control('cpr_start')` (also `cpr_slow` / `cpr_good` during an
 arrest), or `log_event('cpr_started', …)` from the voice agent when the medic says it. That sets the arrest if
 needed, starts the cycle timer, resets the CPR stats and logs "CPR started" once; again is a no-op. The CPR

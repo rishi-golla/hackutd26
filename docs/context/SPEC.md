@@ -25,8 +25,18 @@ necessarily when the decision was made.
   table or reducer changes; hospital lane, pending Josh's OK). Live Operations, Patient and Tracing behind one
   sidebar, light with dark mode, built from the tables only; the mockups' invented capacity, fleet, map, BP and
   checklist are left out.
+- **Sun (Alan): ElevenLabs Flash speech output** (§0.1 decision 20 amended, §19). The Pipecat mouth
+  selects ElevenLabs when `ELEVENLABS_API_KEY` is present, using `eleven_flash_v2_5`, stock George,
+  WebSocket streaming and auto mode for complete phrases. `TTS_PROVIDER=nvidia` selects Magpie again;
+  this is a manual fallback, not automatic retry. ASR, Nemotron, vision, the speech queue and barge-in stay
+  unchanged. `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL` override the defaults. Keys stay in `voice/.env.local`.
+
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
+- **Sun ~06:15 (Alan): "Normal vitals" on `/controls`** (decision 15, D1; module + `web/`). A looping synthetic
+  scenario (HR 72–84, SpO₂ 97–99, device `sim-normal`, `simulated = true`) started by `demo_control('normal')` and
+  stopped by `demo_control('sim_off')`, so the demo has believable vitals when the finger clip is off or unreliable;
+  arrest, ROSC and the seizure replace it. Reducer signatures unchanged, no new tables; republished to Maincloud.
 - **Sun ~05:50 (Alan): model advisories off for the demo** (`VOICE_PROACTIVE=off` in the demo laptop's
   `voice/.env.local`; decision 21 default unchanged). In the first full phone run the unprompted Nemotron advisories
   ("Note: warfarin and metoprolol on board", "Consider checking pulse after CPR cycle") were low value and talked over
@@ -34,7 +44,10 @@ necessarily when the decision was made.
   What still speaks: read-backs and "Log it?", the allergy and dose warnings, "Record found…", answers when spoken
   to, the `tick_rules` callouts, and the deterministic vitals-trend note (its own 5 s timer runs when advisories are
   off). Also seen: a second voice worker (older code) on Maincloud answered the same question a second time;
-  decision 18 (one voice worker per database) has to be enforced by hand before a demo.
+  decision 18 (one voice worker per database) has to be enforced by hand before a demo. **~06:05:** the demo-timing
+  "Two minutes. Rhythm check, switch compressors." rule (every 30 s in an arrest) kept landing right after "Log it?"
+  and talking over the medic's yes / no, so the brain's speaker now holds P2/P3 rows for 8 s after a question (the
+  answer releases them early); P0/P1 still go. §15 spacing and the rules themselves are unchanged.
 - **Sun ~05:00 (Alan): the agent speaks only when spoken to, watches the vitals trend, and sees what the camera
   sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` plus one caption for the new `trend` step in
   `web/src/routes/hospital/thoughts.ts` (hospital lane, for Josh's OK); no table, reducer or audio-link changes). Found
@@ -338,7 +351,10 @@ section and add a change-log line.
     ~02:00): the demo controls' Arrest also starts an `arrest` scenario (HR 0, no SpO₂, status `no pulse`, flat
     waveform; device `sim-arrest`), and ROSC switches to a `rosc` scenario (HR back to ~104 and SpO₂ to ~93
     over ~10 s, then held; device `sim-rosc`). Same override path: the real clip is ignored while one runs, and
-    close or reset ends it. This settles the mock-arrest pulse question (§28).
+    close or reset ends it. This settles the mock-arrest pulse question (§28). **Normal vitals** (Alan, Sun ~06:15): `/controls` also has
+    **Normal vitals** → `demo_control('normal')`, a looping `normal` scenario (HR 72–84, SpO₂ 97–99, device `sim-normal`,
+    `simulated = true`) for when the finger clip is off or unreliable; **Stop normal vitals** → `demo_control('sim_off')`.
+    Module change, hospital lane: published to Maincloud by Alan during the demo rehearsal; Josh to review.
 16. **The camera logs drugs it sees being given: stretch** (Alan, Sat ~18:20; made a stretch goal at the 19:31
     meeting). In the MVP, medications are logged from what the medic says, through the voice read-back. If the
     stretch is built, the camera also logs what it sees: a medication seen being given is logged even if nobody
@@ -393,7 +409,11 @@ section and add a change-log line.
 20. **One voice worker, from both voice PRs** (Alan, Sat ~23:30). Two teams built the §19 worker in parallel
     (PR #5, Alan; PR #6, Devin for Rishi). `main` carries PR #5's brain and Riva audio worker plus PR #6's
     vision sampler, phone-page link, ICE endpoint, hub proxy and test client, all in `voice/`.
-    - **Hosted, not self-hosted.** ASR, TTS, the voice LLM and vision all run on NVIDIA's API with one key. PR #6's
+    - **Hosted, not self-hosted.** ASR, the voice LLM and vision run on NVIDIA's API. **Amended Sun (Alan):**
+      speech output uses ElevenLabs Flash v2.5 with stock George when `ELEVENLABS_API_KEY` is set;
+      otherwise NVIDIA Magpie. `TTS_PROVIDER=nvidia|elevenlabs` explicitly selects the provider.
+      ElevenLabs uses WebSocket streaming with auto mode; `ELEVENLABS_VOICE_ID` / `ELEVENLABS_MODEL`
+      override defaults. NVIDIA remains a manual fallback; no automatic provider retry. PR #6's
       vLLM Omni and Kokoro on a rented H100 were dropped: a second machine and a tunnel are two more things that
       can die at the demo table, for about the same latency.
     - **Vision lives in `voice/pipecat/`** (`vision.py`), not in the camera lane: it taps the phone's video on the
@@ -1230,7 +1250,7 @@ first time. The agent asks "Say again the drug." when it heard a dose but no dru
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
-| D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, ROSC, en route, arrived, close, CPR slow / CPR good / live, epi due now, seizure, demo timing, identify patient manually, **Reset for the next judge** (two taps). Built Sun ~01:00 | Reset clears every screen in under 10 s, devices stay connected |
+| D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, ROSC, en route, arrived, close, CPR slow / CPR good / live, epi due now, seizure, normal vitals (Sun ~06:15), demo timing, identify patient manually, **Reset for the next judge** (two taps). Built Sun ~01:00 | Reset clears every screen in under 10 s, devices stay connected |
 | D2 | ~~Every spoken callout also appears in big text on the hospital screen~~ Dropped from the dashboard (Sat ~21:30, §14); callouts are spoken by the bodycam | — |
 | D3 | The agent identifies the patient from the ID card or the spoken name and pulls the record (§17) | Record on the hospital screen within about 5 s of showing the card (or of the spoken name) |
 | D4 | The report uses the judge's own run (average CPR rate, longest pause, compressions, doses) plus the record's history | Numbers match what the hospital screen showed |
@@ -1917,7 +1937,7 @@ There are two parts:
 - **Worker (as built, `voice/`):** two processes on the laptop. The **brain** (`voice/src`, Node) subscribes to
   SpacetimeDB, runs the deterministic paths and the Nemotron turns, and speaks through `add_callout`. The
   **Pipecat worker** (`voice/pipecat`, Python) is the ear and mouth: WebRTC (or the laptop mic for solo testing)
-  → Silero VAD → NVIDIA Riva STT → `POST /transcript` to the brain; brain `WS /mouth` → Riva TTS → the phone.
+  → Silero VAD → NVIDIA Riva STT → `POST /transcript` to the brain; brain `WS /mouth` → ElevenLabs Flash TTS (or NVIDIA Magpie, decision 20) → the phone.
   Pipecat handles barge-in and turn-taking. Expected voice-to-voice: read-backs well under 1 s plus the database
   round trip (no model call); Nemotron answers 1–3 s more.
 - **What it sees:** a plain-text state summary of about 250 tokens, rebuilt every turn: incident and status,
@@ -1954,9 +1974,9 @@ There are two parts:
   - Voice turns: `nvidia/nemotron-3.5-lightning-30b-a3b` (fast 30B MoE; tool calling per third-party listings,
     untested), thinking off; falls back to `nvidia/nemotron-3-ultra-550b-a55b` if the slug is rejected.
     Alternative with NVIDIA-documented tool calling: `nvidia/nemotron-nano-3-30b-a3b` (that is the API id;
-    the build.nvidia.com page slug has the words in another order). `GET /v1/models` lists the ids without a key. Speech: NVIDIA Riva on the same key
-    (Pipecat `pipecat-ai[nvidia]`: `NvidiaSTTService` with nemotron-asr-streaming or Parakeet, `NvidiaTTSService`
-    with Magpie voices). Verified to exist; audio quality and latency untested until a key is on the laptop.
+    the build.nvidia.com page slug has the words in another order). `GET /v1/models` lists the ids without a key. Speech recognition: NVIDIA Riva on the same key (`NvidiaSTTService`, Parakeet by default).
+    Speech output: `ElevenLabsTTSService`, Flash v2.5 and stock George when an ElevenLabs key is present;
+    `NvidiaTTSService` with Magpie remains selectable (decision 20). Phone quality and latency need a live check.
   - Fallback: Deepgram STT + Cartesia or ElevenLabs TTS (swap the two Pipecat services).
   - **Rejected:** speech-to-speech models (OpenAI Realtime, Gemini Live). They are faster (~300–500 ms) but are
     not Nemotron, which weakens the NVIDIA track.
