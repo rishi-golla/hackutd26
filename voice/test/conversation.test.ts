@@ -358,3 +358,74 @@ test('"no" while a medication is half-heard drops the half, never the read-back 
     assert.equal(callsTo(calls, 'setEventStatus').length, 0);
   });
 });
+
+test('keep or drop: DROP after a tool ran keeps the line and is never spoken; "Drop in heart rate…" is an answer', async () => {
+  const { conn, calls } = arrest();
+  await withModel([
+    { tool_calls: [toolCall('get_timeline', {})] }, { content: 'DROP' },
+    { content: 'Drop in heart rate since ROSC.' },
+  ], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('What did we do so far for him', 'pipecat');
+    await settle(() => callsTo(calls, 'addTranscript').length > 0);
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['What did we do so far for him'], 'a tool ran: kept');
+    assert.ok(!callsTo(calls, 'addCallout').some(c => /drop/i.test(c.args.text)), '"DROP" is never said');
+    await brain.handleUtterance('Handoff, anything changed in his heart rate?', 'pipecat');
+    await settle(() => requests.length >= 3 && callsTo(calls, 'addTranscript').length > 1);
+    assert.equal(callsTo(calls, 'addTranscript').length, 2, 'a reply that starts with "Drop" is not a DROP');
+  });
+});
+
+test('keep or drop: a line nobody could judge is stored; a lone fragment is dropped, the statement after it stored', async () => {
+  const { conn, calls } = arrest();
+  await withModel([], async () => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    CONFIG.nvidiaApiKey = '';
+    await brain.handleUtterance('His skin is pale and sweaty', 'pipecat');
+    CONFIG.nvidiaApiKey = 'test-key';
+    await brain.handleUtterance('Administering', 'pipecat');
+    await brain.handleUtterance('one milligram of epinephrine IO', 'pipecat');
+    await settle(() => callsTo(calls, 'addTranscript').length >= 2);
+    // "One milligram of epinephrine IO" is a whole statement on its own, so it is the line stored.
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['His skin is pale and sweaty', 'one milligram of epinephrine IO']);
+  });
+});
+
+test('keep or drop: a kept line is never stored under the next incident', async () => {
+  const fake = arrest();
+  const { conn, calls } = fake;
+  await withModel([{ tool_calls: [toolCall('log_event', { kind: 'finding', label: 'Skin pale' })] }, { content: 'SILENT' }], async () => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    const modelFetch = globalThis.fetch;
+    let reset = false;
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      const res = await modelFetch(...args);
+      if (!reset) {
+        reset = true; // a new incident starts while the model is thinking
+        fake.db.incident.insert({ id: 2n, unit: 'Medic 12', status: 'on_scene', demoMode: true, startedAt: nowTs(), updatedAt: nowTs() });
+      }
+      return res;
+    }) as typeof fetch;
+    await brain.handleUtterance('His skin is pale', 'pipecat');
+    await settle(() => false);
+    assert.equal(callsTo(calls, 'addTranscript').length, 0);
+  });
+});
+
+test('"no" drops a half-heard medication even with no earlier read-back', async () => {
+  const { conn, calls } = arrest();
+  await withModel([], async () => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Amiodarone', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').some(c => c.args.text === 'Amiodarone. What dose?'));
+    await brain.handleUtterance('No', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').at(-1)!.args.text === 'Cancelled.');
+    await brain.handleUtterance('Three hundred milligrams', 'pipecat');
+    await settle(() => false);
+    assert.equal(callsTo(calls, 'logEvent').length, 0, 'the dropped half is not completed later');
+  });
+});
