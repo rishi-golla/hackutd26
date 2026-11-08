@@ -1,8 +1,9 @@
 # Handoff voice worker (Pipecat). Install: see README.md.
 # nvidia  = NVIDIA hosted speech over gRPC (nvidia-riva-client): Nemotron streaming ASR + Magpie TTS
+# fish    = Fish Audio streaming TTS over WebSocket (TTS_PROVIDER=fish; the free model only, see run.py)
 # webrtc  = SmallWebRTCTransport (aiortc); also brings av + numpy for test_client.py
 # Silero VAD and the turn processors are in the base package (onnxruntime), no extra needed.
-pipecat-ai[nvidia,elevenlabs,webrtc]==1.15.0
+pipecat-ai[nvidia,elevenlabs,fish,webrtc]==1.15.0
 # the browser test client served at /client
 pipecat-ai-small-webrtc-prebuilt==2.5.0
 # the small signaling server in run.py, and the proxy to the Pi hub (HUB_URL)

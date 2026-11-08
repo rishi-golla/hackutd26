@@ -78,8 +78,30 @@ def make_vision(cfg: Config) -> VisionSampler | None:
     )
 
 
+# Fish Audio's free model only, for now (team decision, Sun ~06:45): $0 per byte. The paid models (s2.1-pro, $15 per
+# million UTF-8 bytes) are a one-line change here, never an env var, so nothing spends credits by accident.
+FISH_MODEL = "s2.1-pro-free"
+
+
+def tts_label(cfg: Config) -> str:
+    """The speech model and voice, for the startup lines."""
+    if cfg.tts_provider == "elevenlabs":
+        return f"{cfg.elevenlabs_model} · {cfg.elevenlabs_voice_id}"
+    if cfg.tts_provider == "fish":
+        return f"{FISH_MODEL} · {cfg.fish_voice_id or 'Fish default voice'}"
+    return f"{TTS_MODEL} · {cfg.voice}"
+
+
 def make_tts(cfg: Config):
     """Select only the mouth; the brain queue, STT and interruption path stay shared."""
+    if cfg.tts_provider == "fish":
+        from pipecat.services.fish.tts import FishAudioTTSService
+
+        # Streams over Fish's WebSocket; "balanced" latency is the faster of its two modes.
+        return FishAudioTTSService(
+            api_key=cfg.fish_api_key,
+            settings=FishAudioTTSService.Settings(model=FISH_MODEL, voice=cfg.fish_voice_id or None, latency="balanced"),
+        )
     if cfg.tts_provider == "elevenlabs":
         from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 
@@ -405,14 +427,14 @@ async def check(cfg: Config, barge_in: bool) -> int:
     print(f"pipecat-ai {version('pipecat-ai')}, nvidia-riva-client {version('nvidia-riva-client')}")
     print(f"NVIDIA_API_KEY: {'present' if cfg.has_key else 'missing'}")
     print(f"brain {cfg.brain_url} · ASR {cfg.asr_model} · TTS {cfg.tts_provider}")
-    print(f"voice {cfg.elevenlabs_voice_id if cfg.tts_provider == 'elevenlabs' else cfg.voice}")
+    print(f"speech {tts_label(cfg)}")
     if cfg.boost_words:
         print(f"ASR word boost: {', '.join(cfg.boost_words)}")
     if cfg.ice_servers:
         print(f"ICE servers: {', '.join(str(s.get('urls')) for s in cfg.ice_servers)}")
     print(f"vision: {f'{cfg.vision_model} at {cfg.vision_base_url}, every {cfg.vision_interval_s:g} s' if cfg.vision else 'off'}" + (f", hub {cfg.hub_url}" if cfg.hub_url else ""))
     print(f"phone page: {HUB_PHONE_PAGE} ({'found' if HUB_PHONE_PAGE.exists() else 'MISSING'})")
-    dummy = replace(cfg, api_key="nvapi-check-dummy-key", elevenlabs_api_key="check-dummy-key")
+    dummy = replace(cfg, api_key="nvapi-check-dummy-key", elevenlabs_api_key="check-dummy-key", fish_api_key="check-dummy-key")
 
     connection = SmallWebRTCConnection()
     transport = SmallWebRTCTransport(webrtc_connection=connection, params=webrtc_params(dummy))
@@ -485,9 +507,7 @@ def main():
         sys.exit(asyncio.run(check(cfg, barge_in)))
     if args.list_voices:
         sys.exit(list_voices(cfg))
-    logger.info(f"Speech output: {cfg.tts_provider} · "
-                f"{cfg.elevenlabs_model if cfg.tts_provider == 'elevenlabs' else TTS_MODEL} · "
-                f"{cfg.elevenlabs_voice_id if cfg.tts_provider == 'elevenlabs' else cfg.voice}")
+    logger.info(f"Speech output: {cfg.tts_provider} · {tts_label(cfg)}")
     if not cfg.has_key:
         logger.warning("NVIDIA_API_KEY is missing or not an nvapi- key: NVIDIA speech will fail to connect")
     if args.transport == "local":
