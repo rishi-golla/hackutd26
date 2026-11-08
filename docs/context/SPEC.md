@@ -17,9 +17,18 @@ Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spe
 necessarily when the decision was made.
 
 - **Sat ~20:00 (Alan): hospital dashboard visual clean-up** (no data or behaviour changes).
-  - **Look:** one font (Geist) on a 12/14/16/20/24/32/48 scale, a graphite base, one accent (cornflower) only on
-    Generate Handoff and a fresh callout, red/amber/green only for alarm/caution/live. No all-caps labels, pill
-    tags or coloured rings; the lead tile row (CPR in an arrest, vitals otherwise) gets the biggest numbers.
+  - **Look:** one font (Geist) on a 12/14/16/20/24/32/48 scale, a deep-navy base and one accent, electric lime
+    (Display P3 on the Mac), for the one action, what just happened and what's on track; red and amber only for
+    alarm and caution. No all-caps labels, pill tags or coloured rings; the lead tile row (CPR in an arrest,
+    vitals otherwise) gets the biggest numbers.
+  - **H3 charts:** SpO₂ and temperature get 5-minute trend lines (time axis, broken where readings are missing,
+    this incident only, SpO₂ readings from an arrest left out); HR gets the live pulse waveform (last 6 s) instead
+    of a trend. All of them hide when vitals are stale or the number is hidden. CPR rate sits on a 60–160 bar
+    with the 100–120 target band; epi and cycle timers drain a ring (intervals copied from
+    `spacetime/src/helpers.ts`).
+  - **Motion with a job:** a lime bar drains over the 8 s a callout counts as fresh; a new timeline row slides in
+    on a lime wash; a lime beam runs round Generate Handoff while the report is written; the report rises in.
+    All off under reduced motion.
   - **Labels are sentence case:** "Arrest", "Demo timing", "Simulated", "Stale · no video for 3 s", "Handoff
     report". Spec text in capitals ("ARREST", "DEMO TIMING", "HANDOFF") names the label, not its case.
   - **States:** the connection dot is gone; the header says "Connecting to the database…" only while
@@ -1090,7 +1099,7 @@ is **Generate Handoff**. No demo controls here.
 | --- | --- | --- |
 | H1 | Header: unit, status, destination, ETA (hidden once arrived or closed) | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
-| H3 | Vitals tiles with 5-minute trend lines, a pulse waveform, a CPR panel and dose timers | A missing reading shows "no data", never a stale number; "Epi due" matches the bodycam to the second |
+| H3 | Vitals tiles with 5-minute trend lines (SpO₂, temperature), a pulse waveform (in the HR tile), a CPR panel and dose timers | A missing reading shows "no data", never a stale number; "Epi due" matches the bodycam to the second |
 | H4 | Timeline with source chips; clicking a chip shows the evidence (transcript line, frame, vitals at that moment) | Every demo event has a chip; the epi event has two |
 | H5 | Agent trace: trigger → plan → tool → result in plain language | Judges can follow one workflow live |
 | H6 | Pre-arrival alert panel, display-only (a typed ER chat is optional) | Alert appears within 20 s of the arrest |

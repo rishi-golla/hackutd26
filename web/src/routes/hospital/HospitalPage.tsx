@@ -27,6 +27,9 @@ const CPR_STALE_MS = 3000;
 const CALLOUT_FRESH_MS = 8000;
 const REPORT_SLOW_MS = 30000;
 const RECORD_SLOW_MS = 15000;
+const TREND_MS = 5 * 60_000;
+const PULSE_MS = 6000;
+const ROW_NEW_MS = 2400;
 
 function useNow(intervalMs = 500) {
   const [now, setNow] = useState(Date.now());
@@ -78,6 +81,7 @@ export default function HospitalPage() {
   const [incidents] = useTable(tables.incident);
   const [hospitals] = useTable(tables.hospital);
   const [vitalsRows] = useTable(tables.vitals);
+  const [waveRows] = useTable(tables.waveform);
   const [cprRows] = useTable(tables.cprState);
   const [events] = useTable(tables.event);
   const [timers] = useTable(tables.timer);
@@ -101,10 +105,24 @@ export default function HospitalPage() {
   // Trace reads top to bottom, oldest first, like the workflow ran.
   const trace = [...steps].filter(s => s.incidentId === incId).sort((a, b) => -byNewest(a, b));
   const lastCallout = [...callouts].filter(c => c.incidentId === incId && c.spokenAt !== undefined).sort(byNewest)[0];
+  const calloutAge = lastCallout?.spokenAt ? now - tsMs(lastCallout.spokenAt) : undefined;
 
   const latestVitals: Vitals | undefined = [...vitalsRows].sort(byNewest)[0];
   const vitalsFresh = latestVitals !== undefined && now - tsMs(latestVitals.ts) < VITALS_STALE_MS;
   const inArrest = incident?.status === 'arrest';
+  // H3: 5-minute trend lines and the pulse waveform (the table keeps 30 s of it; we draw the last 6 s).
+  // This incident's rows only, and nothing at all while the live numbers are stale.
+  const vitalsHistory = vitalsFresh
+    ? [...vitalsRows].filter(r => r.incidentId === incId && now - tsMs(r.ts) < TREND_MS).sort((a, b) => -byNewest(a, b))
+    : [];
+  const pulse = vitalsFresh
+    ? [...waveRows]
+        .filter(w => w.incidentId === incId && now - tsMs(w.ts) < PULSE_MS)
+        .sort((a, b) => -byNewest(a, b))
+        .flatMap(w => w.samples)
+    : [];
+  // SpO₂ is hidden during an arrest, so its trend must not bring those readings back after ROSC.
+  const arrests = arrestWindows(timeline);
 
   const cpr = cprRows.find(c => c.incidentId === incId);
   const cprFresh = cpr !== undefined && (cpr.source === 'override' || now - tsMs(cpr.updatedAt) < CPR_STALE_MS);
@@ -136,6 +154,10 @@ export default function HospitalPage() {
       key="vitals"
       lead={!inArrest}
       v={vitalsFresh ? latestVitals : undefined}
+      history={vitalsHistory}
+      pulse={pulse}
+      arrests={arrests}
+      now={now}
       stale={!vitalsFresh}
       lastStatus={latestVitals?.status}
       inArrest={inArrest}
@@ -207,8 +229,12 @@ export default function HospitalPage() {
             <p className="comms__text muted">No alert yet. The agent posts one at arrest or transport.</p>
           )}
         </div>
-        <div className={`comms__item comms__item--voice${lastCallout?.spokenAt && now - tsMs(lastCallout.spokenAt) < CALLOUT_FRESH_MS ? ' is-fresh' : ''}`}>
+        <div className={`comms__item comms__item--voice${calloutAge !== undefined && calloutAge < CALLOUT_FRESH_MS ? ' is-fresh' : ''}`}>
           <span className="comms__label">Bodycam said</span>
+          {calloutAge !== undefined && calloutAge < CALLOUT_FRESH_MS && (
+            // Drains over the time the callout counts as fresh; a page opened mid-way starts part-drained.
+            <span key={String(lastCallout?.id)} className="comms__drain" style={{ animationDelay: `-${calloutAge}ms` }} aria-hidden="true" />
+          )}
           {lastCallout?.spokenAt ? (
             <p className="comms__text comms__text--voice" role="status">
               “{lastCallout.text}”
@@ -235,7 +261,7 @@ export default function HospitalPage() {
                 ) : (
                   <ol className="timeline">
                     {timeline.map(e => (
-                      <TimelineRow key={String(e.id)} event={e} />
+                      <TimelineRow key={String(e.id)} event={e} isNew={now - tsMs(e.ts) < ROW_NEW_MS} />
                     ))}
                   </ol>
                 )}
@@ -350,30 +376,59 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function VitalsRow(props: { lead: boolean; v?: Vitals; stale: boolean; lastStatus?: string; inArrest: boolean }) {
-  const { lead, v, stale, lastStatus, inArrest } = props;
+function VitalsRow(props: {
+  lead: boolean;
+  v?: Vitals;
+  history: Vitals[];
+  pulse: number[];
+  arrests: [number, number][];
+  now: number;
+  stale: boolean;
+  lastStatus?: string;
+  inArrest: boolean;
+}) {
+  const { lead, v, history, pulse, arrests, now, stale, lastStatus, inArrest } = props;
   const note = stale ? 'relay offline' : lastStatus !== 'pulse' ? lastStatus : undefined;
   const hr = inArrest ? undefined : v?.hr;
   const spo2 = inArrest ? undefined : v?.spo2;
+  const hrAlarm = hr !== undefined && (hr < 50 || hr > 150);
+  const spo2Alarm = spo2 !== undefined && spo2 < 90;
+  // Lines only beside a number we show: none when stale, none for HR/SpO₂ during an arrest.
+  // A row with no reading stays in as a gap, so the line breaks instead of bridging it.
+  const series = (pick: (r: Vitals) => number | undefined, hide: [number, number][] = []): Point[] =>
+    history.map(r => {
+      const t = tsMs(r.ts);
+      return { t, v: hide.some(([a, b]) => t >= a && t < b) ? undefined : pick(r) };
+    });
   return (
     <div className={`tiles${lead ? ' tiles--lead' : ''}`} role="group" aria-label="Vitals">
       <Tile
         label="Heart rate"
         unit="bpm"
         value={hr}
-        alarm={hr !== undefined && (hr < 50 || hr > 150)}
+        alarm={hrAlarm}
         note={inArrest ? 'no pulse expected during CPR' : note}
         simulated={v?.simulated}
+        viz={hr !== undefined && pulse.length > 1 && <Pulse samples={pulse} alarm={hrAlarm} />}
       />
       <Tile
         label="SpO₂ · experimental"
         unit="%"
         value={spo2}
-        alarm={spo2 !== undefined && spo2 < 90}
+        alarm={spo2Alarm}
         note={inArrest ? 'hidden during arrest' : note}
         simulated={v?.simulated}
+        viz={spo2 !== undefined && <Trend points={series(r => r.spo2, arrests)} now={now} alarm={spo2Alarm} label="SpO₂" />}
       />
-      <Tile label="Temperature" unit="°C" digits={1} value={v?.tempC} note={stale ? 'relay offline' : undefined} simulated={v?.simulated} />
+      <Tile
+        label="Temperature"
+        unit="°C"
+        digits={1}
+        value={v?.tempC}
+        note={stale ? 'relay offline' : undefined}
+        simulated={v?.simulated}
+        viz={v?.tempC !== undefined && <Trend points={series(r => r.tempC)} now={now} label="Temperature" />}
+      />
     </div>
   );
 }
@@ -389,13 +444,14 @@ function ResusRow(props: {
 }) {
   const { lead, cpr, inArrest, epi, cycle, now, demo } = props;
   const rate = inArrest && cpr?.compressing ? cpr.rate : undefined;
+  const rateAlarm = rate !== undefined && (rate < 100 || rate > 120);
   return (
     <div className={`tiles${lead ? ' tiles--lead' : ''}`} role="group" aria-label="Resuscitation">
       <Tile
         label="CPR rate · target 100–120"
         unit="/min"
         value={rate}
-        alarm={rate !== undefined && (rate < 100 || rate > 120)}
+        alarm={rateAlarm}
         simulated={cpr?.source === 'override'}
         note={
           !inArrest
@@ -404,9 +460,10 @@ function ResusRow(props: {
               ? 'no data from bodycam'
               : `${cpr.count - cpr.countBase} compressions · pause ${cpr.compressing ? 0 : Math.round(cpr.sinceLastS)} s`
         }
+        viz={inArrest && <CprBand rate={rate} alarm={rateAlarm} />}
       />
-      <TimerTile label="Next epi" timer={epi} now={now} demo={demo} />
-      <TimerTile label="CPR cycle" timer={cycle} now={now} demo={demo} />
+      <TimerTile label="Next epi" kind="epi" timer={epi} now={now} demo={demo} />
+      <TimerTile label="CPR cycle" kind="cycle" timer={cycle} now={now} demo={demo} />
     </div>
   );
 }
@@ -419,8 +476,9 @@ function Tile(props: {
   note?: string;
   alarm?: boolean;
   simulated?: boolean;
+  viz?: React.ReactNode;
 }) {
-  const { label, unit, value, digits = 0, note, alarm, simulated } = props;
+  const { label, unit, value, digits = 0, note, alarm, simulated, viz } = props;
   return (
     <div className={`tile${alarm ? ' tile--alarm' : ''}`}>
       <div className="tile__label">
@@ -437,23 +495,148 @@ function Tile(props: {
           <span className="tile__nodata">no data</span>
         )}
       </div>
-      <div className="tile__note">{note ?? ' '}</div>
+      <div className="tile__note">{note ?? '\u00a0'}</div>
+      {viz && <div className="tile__viz">{viz}</div>}
     </div>
   );
 }
 
-function TimerTile({ label, timer, now, demo }: { label: string; timer?: Timer; now: number; demo: boolean }) {
+/** Full interval per timer, to draw how much is left. Mirrors spacetime/src/helpers.ts (epi 4 min, cycle 2 min; demo 45 s / 30 s). */
+const TIMER_S: Record<string, { normal: number; demo: number }> = {
+  epi: { normal: 240, demo: 45 },
+  cycle: { normal: 120, demo: 30 },
+};
+
+function TimerTile(props: { label: string; kind: string; timer?: Timer; now: number; demo: boolean }) {
+  const { label, kind, timer, now, demo } = props;
   const remaining = timer ? (tsMs(timer.dueAt) - now) / 1000 : undefined;
   const due = !!timer && (timer.state === 'due' || (remaining !== undefined && remaining <= 0));
+  const total = demo ? TIMER_S[kind].demo : TIMER_S[kind].normal;
+  const left = due || remaining === undefined ? 0 : Math.min(1, remaining / total);
   return (
     <div className={`tile${due ? ' tile--alarm' : ''}`}>
       <div className="tile__label">
         {label}
         {demo && timer && <span className="note note--caution">Demo timing</span>}
       </div>
-      <div className="tile__value">{!timer ? <span className="tile__nodata">—</span> : due ? 'Due' : mmss(remaining ?? 0)}</div>
+      <div className="tile__body">
+        <div className="tile__value">{!timer ? <span className="tile__nodata">—</span> : due ? 'Due' : mmss(remaining ?? 0)}</div>
+        {timer && <Ring left={due ? 1 : left} due={due} />}
+      </div>
       <div className="tile__note">{!timer ? 'not running' : due ? 'due now' : 'remaining'}</div>
     </div>
+  );
+}
+
+type Point = { t: number; v: number | undefined };
+const TREND_GAP_MS = 5000; // rows come ~1/s; a longer silence is a break in the line, not a slope
+
+/** Line segments (x 0–100) scaled to their own min–max. `pulse` draws the live waveform brighter than a trend. */
+function Sparkline(props: { segments: { x: number; v: number }[][]; alarm?: boolean; pulse?: boolean; label: string }) {
+  const { segments, alarm, pulse, label } = props;
+  const values = segments.flat().map(p => p.v);
+  if (values.length < 2) return null;
+  const min = Math.min(...values);
+  const span = Math.max(...values) - min || 1;
+  return (
+    <svg
+      className={`spark${pulse ? ' spark--pulse' : ''}${alarm ? ' spark--alarm' : ''}`}
+      viewBox="0 0 100 24"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={label}
+    >
+      {segments.map((seg, i) => (
+        <polyline
+          key={i}
+          points={seg.map(p => `${p.x.toFixed(2)},${(22 - ((p.v - min) / span) * 20).toFixed(2)}`).join(' ')}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
+    </svg>
+  );
+}
+
+/** The live pulse waveform: contiguous samples, evenly spaced. */
+function Pulse({ samples, alarm }: { samples: number[]; alarm: boolean }) {
+  const seg = samples.map((v, i) => ({ x: (i / (samples.length - 1)) * 100, v }));
+  return <Sparkline segments={[seg]} pulse alarm={alarm} label="Pulse waveform, last 6 s" />;
+}
+
+/** 5-minute trend (H3) on a real time axis, broken where readings are missing, with its range as a caption. */
+function Trend({ points, now, alarm, label }: { points: Point[]; now: number; alarm?: boolean; label: string }) {
+  const segments: { x: number; v: number }[][] = [];
+  let last = -Infinity;
+  for (const p of points) {
+    if (p.v === undefined) {
+      last = -Infinity;
+      continue;
+    }
+    if (p.t - last > TREND_GAP_MS) segments.push([]);
+    segments[segments.length - 1].push({ x: (1 - (now - p.t) / TREND_MS) * 100, v: p.v });
+    last = p.t;
+  }
+  const values = segments.flat().map(p => p.v);
+  if (values.length < 2) return null;
+  const fmt = (x: number) => (Number.isInteger(x) ? String(x) : x.toFixed(1));
+  return (
+    <>
+      <Sparkline segments={segments} alarm={alarm} label={`${label}, last 5 min`} />
+      <div className="spark__caption">
+        <span>5 min</span>
+        <span>
+          {fmt(Math.min(...values))}–{fmt(Math.max(...values))}
+        </span>
+      </div>
+    </>
+  );
+}
+
+/** [start, end) of each arrest, from the status events; an arrest still running ends at +∞. */
+function arrestWindows(events: TimelineEvent[]): [number, number][] {
+  const windows: [number, number][] = [];
+  let open: number | undefined;
+  for (const e of [...events].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    if (!e.kind.startsWith('status_')) continue;
+    const t = tsMs(e.ts);
+    if (e.kind === 'status_arrest') open ??= t;
+    else if (open !== undefined) {
+      windows.push([open, t]);
+      open = undefined;
+    }
+  }
+  if (open !== undefined) windows.push([open, Infinity]);
+  return windows;
+}
+
+const BAND_MIN = 60;
+const BAND_MAX = 160;
+const bandPct = (x: number) => `${(Math.min(1, Math.max(0, (x - BAND_MIN) / (BAND_MAX - BAND_MIN))) * 100).toFixed(1)}%`;
+
+/** CPR rate on a 60–160 scale with the 100–120 target band: where the medic is, at a glance. */
+function CprBand({ rate, alarm }: { rate?: number; alarm: boolean }) {
+  return (
+    <div role="img" aria-label={rate !== undefined ? `CPR rate ${Math.round(rate)} per minute, target 100 to 120` : 'CPR target 100 to 120 per minute'}>
+      <div className="band">
+        <span className="band__target" style={{ left: bandPct(100), width: `${(20 / (BAND_MAX - BAND_MIN)) * 100}%` }} />
+        {rate !== undefined && <span className={`band__marker${alarm ? ' is-alarm' : ''}`} style={{ left: bandPct(rate) }} />}
+      </div>
+      <div className="band__ticks" aria-hidden="true">
+        <span style={{ left: bandPct(100) }}>100</span>
+        <span style={{ left: bandPct(120) }}>120</span>
+      </div>
+    </div>
+  );
+}
+
+/** How much of the interval is left, as a ring that drains. */
+function Ring({ left, due }: { left: number; due: boolean }) {
+  const c = 2 * Math.PI * 18;
+  return (
+    <svg className={`ring${due ? ' ring--due' : ''}`} viewBox="0 0 44 44" aria-hidden="true">
+      <circle className="ring__track" cx="22" cy="22" r="18" />
+      <circle className="ring__fill" cx="22" cy="22" r="18" strokeDasharray={c} strokeDashoffset={c * (1 - left)} />
+    </svg>
   );
 }
 
@@ -466,9 +649,9 @@ function Panel(props: { title: string; grow?: boolean; children: React.ReactNode
   );
 }
 
-function TimelineRow({ event }: { event: TimelineEvent }) {
+function TimelineRow({ event, isNew }: { event: TimelineEvent; isNew: boolean }) {
   return (
-    <li className={`timeline__row timeline__row--${event.status}`}>
+    <li className={`timeline__row timeline__row--${event.status}${isNew ? ' is-new' : ''}`}>
       <span className="timeline__time">{clock(event.ts)}</span>
       <span className="timeline__label">
         {event.status === 'flagged' && <span className="timeline__flag">Flagged</span>}
