@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""MVP, Raspberry Pi side (runs at boot as cmx-oximeter.service; no Mac needed).
+"""Finger sensor service on the Pi (cmx-oximeter.service, starts at boot).
 
-finger on the MAX30102 -> heart rate (beat by beat) -> standard BLE Heart Rate (0x180D) sensor "PI-HRM" -> the
-Chromatic connects by itself and shows it. Also sent to the hub. SpO2 is not reported until the sensor is calibrated.
+It reads the MAX30102 every 40 ms and works out the heart rate every 0.25 s. It sends the rate to the Chromatic as
+a standard Bluetooth heart-rate sensor named "PI-HRM", and sends the rate plus the reason for any missing reading
+(state) to the hub. SpO2 is not reported because the sensor is not calibrated.
 
-Sent to the handheld every 0.25 s while connected (so it always knows the state):
-  HR flags 0x04 + HR 0   -> no finger on the sensor
-  HR flags 0x06 + HR 0   -> finger on, measuring / hold still (no valid reading yet)
-  HR flags 0x06 + HR n   -> live heart rate (median of the last estimates; held through <= 3 s glitches)
-Latency: finger seen within 0.25 s; heart rate (HeartPy) ~3 s after the finger is still. A reading is shown only when
-two estimates in a row agree within 10 %, so noise (which HeartPy also turns into a "rate") never shows.
-LED current is fixed: changing it mid-reading restarts the signal, and 0x18-0x3C were all 100 % valid in the trials.
-Log: /home/cmx/vitals.jsonl (state changes + readings), journalctl -u cmx-oximeter.
+Each 0.25 s the handheld gets flags 0x04 with rate 0 when there is no finger, flags 0x06 with rate 0 while measuring,
+and flags 0x06 with the rate once a reading is trusted. The first reading needs 3 estimates in a row that agree
+within 10 %, so noise never shows as a rate. It appears about 3 s after a firm, still finger.
+The LED current is fixed, because changing it mid-reading restarts the signal (0x18-0x3C all worked in the trials).
+Logs go to /home/cmx/vitals.jsonl and journalctl -u cmx-oximeter.
 """
 import json, os, queue, signal, sys, threading, time, urllib.request
 import dbus, dbus.mainloop.glib
@@ -19,12 +17,11 @@ import RPi.GPIO as GPIO
 from gi.repository import GLib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from max30102 import Max30102, estimate, FS          # noqa: E402
+from max30102 import Max30102, estimate, shown, FS, WIN   # noqa: E402
 from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # noqa: E402
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 LED = 0x24
-WIN = int(FS * 4)                          # analysis window
 HOLD_S = 3.0                               # keep showing the last good HR through short glitches
 
 
@@ -53,8 +50,18 @@ def _hub_worker():
 threading.Thread(target=_hub_worker, daemon=True).start()
 
 
+_sent = {}                                          # what -> (value, when it was last queued)
+
+
 def hub(what, value):
-    item = (time.monotonic(), json.dumps({"from": "pi", "what": what, "value": value}).encode())
+    """Queue a message for the hub when the value changes, else at most once a second: each message wakes every
+    viewer, and the repeat is enough for viewers to notice a source that went quiet."""
+    now = time.monotonic()
+    last = _sent.get(what)
+    if last and last[0] == value and now - last[1] < 1:
+        return
+    _sent[what] = (value, now)
+    item = (now, json.dumps({"from": "pi", "what": what, "value": value}).encode())
     while True:
         try:
             return _hubq.put_nowait(item)
@@ -85,10 +92,7 @@ def main():
     hr = Svc(bus, "/cmx/s0", "180D")
     meas = Chr(bus, "/cmx/s0/c0", "2A37", hr.path, ["notify"])
     hr.chrs = [meas, Chr(bus, "/cmx/s0/c1", "2A38", hr.path, ["read"], b"\x03")]      # body location: finger
-    plx = Svc(bus, "/cmx/s1", "1822")
-    cont = Chr(bus, "/cmx/s1/c0", "2A5F", plx.path, ["notify"])
-    plx.chrs = [cont, Chr(bus, "/cmx/s1/c1", "2A60", plx.path, ["read"], b"\x00\x00")]
-    app.svcs = [hr, plx]
+    app.svcs = [hr]
     Adv(bus)
     loop = GLib.MainLoop()
     gm = dbus.Interface(bus.get_object(BUS, ad), GATT_MGR)
@@ -146,22 +150,19 @@ def main():
                 say(True, ev="sensor_error", e=str(e))
             st["err"] += 1
             st["m"], st["I"] = None, []
-        try:
-            pressed = GPIO.input(17) == 0                  # polled every 40 ms, which also debounces
-            if pressed and not st["btn"]:
-                st["marks"] += 1
-                say(True, ev="mark", n=st["marks"])
-                hub("mark", st["marks"])
-            st["btn"] = pressed
-        except Exception as e:
-            say(False, ev="button_error", e=str(e))
+        pressed = GPIO.input(17) == 0                      # polled every 40 ms, which also debounces
+        if pressed and not st["btn"]:
+            st["marks"] += 1
+            say(True, ev="mark", n=st["marks"])
+            hub("mark", st["marks"])
+        st["btn"] = pressed
         return True
 
     def state(s, **k):
         if s != st["state"]:
             st["state"] = s
             say(True, ev="state", state=s, **k)
-        hub("state", s)                                    # every tick, so a lost update heals itself
+        hub("state", s)                                    # repeated each second, so a lost update heals itself
 
     def read_finger(now):
         """None = sensor not readable, False = no finger, True = finger. Thresholds follow the learned no-finger
@@ -179,16 +180,14 @@ def main():
         return dc > 1.6 * st["base"]
 
     def reading(now):
-        """-> (state, hr). A number only after 3 agreeing estimates (then 2), median of the last 2 s; otherwise
-        the reason. A value is held through up to 3 s of noise only, never through movement or saturation."""
+        """Returns (state, rate). The rate is 0 with a reason as the state until a reading is trusted (see shown()).
+        A trusted rate is held through up to 3 s of noise, never through movement or saturation."""
         e = estimate(st["I"])
-        st["recent"] = r = (st["recent"] + [e["hr"]])[-3:]
-        need = r if not st["hist"] else r[-2:]
-        if all(need) and len(need) >= (2 if st["hist"] else 3) and max(need) - min(need) <= 0.1 * min(need):
-            st["hist"] = (st["hist"] + [e["hr"]])[-8:]
+        hr = shown(st["recent"], st["hist"], e["hr"])
+        if hr:
             st["ac_ok"] = (st["ac_ok"] + [e["ac"]])[-20:]          # this person's clean pulse swing
             st["last_ok"] = now
-            return "live", sorted(st["hist"])[len(st["hist"]) // 2]
+            return "live", hr
         if e["why"] in ("noisy", None) and now - st["last_ok"] <= HOLD_S and st["hr"]:
             return "live", st["hr"]
         st["hist"] = []
@@ -218,8 +217,10 @@ def main():
         st["hr"] = hr
         state(s)
         try:
-            # handheld: nothing while the sensor is unreadable (it shows signal lost), else every tick
-            linked = st["linked"] if st["finger"] is None else meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
+            # the handheld gets nothing while the sensor is unreadable (it then shows signal lost), else every tick
+            linked = st["linked"]
+            if st["finger"] is not None:
+                linked = meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
             hub("finger", {None: "error", False: "off", True: "on"}[st["finger"]])
             hub("hr", hr or None)                          # None = no valid reading (never a stale number)
             if linked != st["linked"]:
@@ -227,7 +228,7 @@ def main():
                 say(True, ev="handheld", subscribed=bool(linked))
                 if linked:
                     st["unsub_at"] = None
-            # watchdog: connected but nobody subscribed for > 6 s -> drop the link so the handheld starts over
+            # a handheld connected for over 6 s without subscribing is stuck: drop it so it reconnects
             if not linked and now - st["dev_at"] >= 1:
                 st["dev_at"] = now
                 devs = connected_devices()

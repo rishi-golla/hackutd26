@@ -12,6 +12,7 @@ import smbus
 
 ADDR = 0x57
 FS = 100.0                      # 400 Hz sampling, 4-sample averaging
+WIN = int(FS * 4)               # samples analysed per estimate
 
 
 class Max30102:
@@ -32,7 +33,7 @@ class Max30102:
         self.b.write_byte_data(ADDR, r, v)
 
     def read(self):
-        """All samples waiting in the FIFO -> list of (red, ir)."""
+        """Returns every sample waiting in the FIFO as a list of (red, ir)."""
         wr = self.b.read_byte_data(ADDR, 0x04); rd = self.b.read_byte_data(ADDR, 0x06)
         self.lost = self.b.read_byte_data(ADDR, 0x05)    # samples dropped: we read later than the 32-sample FIFO lasts
         n = (wr - rd) & 0x1F or (32 if self.lost else 0)
@@ -60,17 +61,18 @@ def bandpass(x):
 
 
 def estimate(ir):
-    """Heart rate from the last 3-4 s of IR (finger on) -> {"hr": bpm or None, "why": reason or None, "ac": swing}.
-    why: saturated (press lighter) | settling (finger placed/moved < 3 s ago) | noisy (no clear pulse).
-    ac = pulse swing (std of the band-passed signal), so the caller can tell "moving" from "too weak" for this person.
-    A rate needs (1) a pulse that clearly stands out: spectral peak >= 9x the median power. This is a ratio, so it
-    holds for any LED current, skin or sensor; firm still fingers measured 9-42x, light/moving fingers and pure noise
-    2-8x (2026-11-07). (2) two independent methods that agree within 15 %: HeartPy's beats and the strongest frequency."""
+    """Heart rate from the last 3-4 s of IR with a finger on. Returns {"hr", "why", "ac"}.
+    hr is the rate or None. why is None or the reason there is no rate: "saturated" (press lighter), "settling"
+    (the finger moved less than 3 s ago) or "noisy" (no clear pulse). ac is the pulse swing, which lets the caller
+    tell a moving finger from a weak one for this person.
+    A rate needs a pulse whose spectral peak is at least 9x the median power. That is a ratio, so it holds for any
+    LED current, skin or sensor: firm, still fingers measured 9-42x, light or moving fingers and pure noise 2-8x.
+    HeartPy's beat count and the strongest frequency must also agree within 15 %."""
     ir = np.asarray(ir, float)
     if len(ir) and ir[-25:].max() > 0.95 * 0x3FFFF:             # 18-bit ADC full scale
         return {"hr": None, "why": "saturated", "ac": 0.0}
     jump = np.nonzero(np.abs(ir[10:] - ir[:-10]) > 0.01 * ir[-25:].mean())[0]   # > 1 % within 0.1 s
-    x = (ir[jump[-1] + 11:] if len(jump) else ir)[-int(FS * 4):]
+    x = (ir[jump[-1] + 11:] if len(jump) else ir)[-WIN:]
     if len(x) < FS * 3:
         return {"hr": None, "why": "settling", "ac": 0.0}
     y = bandpass(x)
@@ -92,17 +94,36 @@ def estimate(ir):
     return out
 
 
+def shown(recent, hist, hr):
+    """The number to display from one estimate per 0.25 s tick, or None while it is not trusted yet.
+    The caller keeps the two lists: the first value needs 3 estimates in a row agreeing within 10 %, then 2;
+    the value shown is the median of the last 8 accepted (2 s). Used by pi_oximeter.py and test_sensor.py."""
+    recent[:] = (recent + [hr])[-3:]
+    need = recent if not hist else recent[-2:]
+    if not (all(need) and len(need) >= (2 if hist else 3) and max(need) - min(need) <= 0.1 * min(need)):
+        return None
+    hist[:] = (hist + [hr])[-8:]
+    return sorted(hist)[len(hist) // 2]
+
+
 if __name__ == "__main__":
-    secs = float(sys.argv[1]) if len(sys.argv) > 1 else 20
+    # python3 max30102.py [secs]               one estimate per second
+    # python3 max30102.py record SECS FILE     raw red/IR samples for test_sensor.py's testdata/ (stop the service first)
+    rec = sys.argv[1:2] == ["record"]
+    secs = float(sys.argv[2 if rec else 1]) if len(sys.argv) > (2 if rec else 1) else 20
     m = Max30102()
-    I = []
+    R, I = [], []
     end, nxt = time.time() + secs, time.time() + 1
     try:
         while time.time() < end:
-            I = (I + [i for _, i in m.read()])[-600:]
-            if time.time() >= nxt:
+            for r, i in m.read():
+                R.append(r); I.append(i)
+            if not rec and time.time() >= nxt:
                 nxt += 1
-                print(json.dumps(dict(estimate(I), ir_dc=int(np.mean(I[-100:])) if I else 0)), flush=True)
+                print(json.dumps(dict(estimate(I[-600:]), ir_dc=int(np.mean(I[-100:])) if I else 0)), flush=True)
             time.sleep(0.02)
     finally:
         m.close()
+    if rec:
+        json.dump({"red": R, "ir": I}, open(sys.argv[3], "w"))
+        print(f"saved {len(I)} samples to {sys.argv[3]}")

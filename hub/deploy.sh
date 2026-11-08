@@ -14,12 +14,13 @@ if [ "$1" = wifi ]; then
 fi
 
 $PI 'rm -rf /home/cmx/next && mkdir -p /home/cmx/next/hub /home/cmx/next/testdata /home/cmx/hub'
-scp $SSHO hub.py phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/next/hub/"
-scp $SSHO ../chromatic/pi/{pi_oximeter,max30102,pi_hr_sensor,test_sensor}.py "$DST:/home/cmx/next/"
+scp $SSHO hub.py common.js phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/next/hub/"
+scp $SSHO ../chromatic/pi/{pi_oximeter,max30102,pi_hr_sensor,test_sensor}.py ../chromatic/pi/cmx-oximeter.service "$DST:/home/cmx/next/"
 scp $SSHO ../chromatic/pi/testdata/*.json "$DST:/home/cmx/next/testdata/"
 $PI 'cd /home/cmx/next && python3 -W ignore test_sensor.py' || { echo "Sensor test failed: nothing deployed."; exit 1; }
 $PI 'cp /home/cmx/next/*.py /home/cmx/ && cp -r /home/cmx/next/testdata /home/cmx/ && cp /home/cmx/next/hub/* /home/cmx/hub/ &&
-     rm -rf /home/cmx/next && chmod +x /home/cmx/hub/link.sh && sudo cp /home/cmx/hub/handoff-*.service /etc/systemd/system/ &&
-     sudo systemctl daemon-reload && sudo systemctl enable --now handoff-hub handoff-link &&
+     sudo cp /home/cmx/hub/handoff-*.service /home/cmx/next/cmx-oximeter.service /etc/systemd/system/ &&
+     rm -rf /home/cmx/next && chmod +x /home/cmx/hub/link.sh &&
+     sudo systemctl daemon-reload && sudo systemctl enable --now handoff-hub handoff-link cmx-oximeter &&
      sudo systemctl restart handoff-hub cmx-oximeter && sleep 3 &&
      systemctl is-active handoff-hub cmx-oximeter handoff-link && curl -s localhost:8000/state | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com"'
