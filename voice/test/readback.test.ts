@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseControl, parseIdentity, parseReadback, recognizeDrug, type ReadbackMatch } from '../src/readback.js';
+import { medParts, parseAnswer, parseControl, parseIdentity, parseReadback, recognizeDrug, type ReadbackMatch } from '../src/readback.js';
 import { spoken } from '../src/spoken.js';
 function match(text: string): ReadbackMatch {
   const result = parseReadback(text);
@@ -42,6 +42,31 @@ test('RB3: whole utterance control intent', () => {
   for (const line of ['correction', 'cancel that', 'cancel', 'scratch that', 'disregard.']) assert.equal(parseControl(line), 'correction');
   for (const line of ['confirm', 'confirmed', 'yes confirm']) assert.equal(parseControl(line), 'confirm');
   for (const line of ['no correction needed on the dose', 'please confirm the dose', 'do not cancel']) assert.equal(parseControl(line), undefined);
+});
+test('sound-alike drug names are recognised where a medication is being given, not in ordinary speech', () => {
+  assert.equal(recognizeDrug('A pine fine.'), 'epinephrine');
+  assert.equal((parseReadback('Administering one milligram of a pine fine') as ReadbackMatch).drug, 'epinephrine');
+  assert.equal(recognizeDrug('A pine fine.', false), 'epinephrine', 'mapped as a known mishearing even when strict');
+  for (const line of ['That was a fine line', 'He is doing fine', 'Fine, fine.']) assert.equal(parseReadback(line), undefined, line);
+});
+test('medParts finds the pieces of a medication in any order, without a verb', () => {
+  assert.deepEqual(medParts('One milligram of'), { dose: 1, unit: 'mg' });
+  assert.deepEqual(medParts('Epinephrine IV'), { drug: 'epinephrine', route: 'IV' });
+  assert.deepEqual(medParts('Three hundred milligrams'), { dose: 300, unit: 'mg' });
+  assert.deepEqual(medParts('One.'), { dose: 1 });
+  assert.deepEqual(medParts('Patient is Jordan Avery, born March 14 1968'), {}, 'a date is not a dose');
+  assert.deepEqual(medParts('What dose of epinephrine?'), {}, 'questions carry nothing');
+});
+test('X1: spoken birth dates', () => {
+  assert.deepEqual(parseIdentity('Patient is Jordan Avery, born in March fourteenth nineteen sixty-eight'), { name: 'Jordan Avery', birthDate: '1968-03-14' });
+  assert.deepEqual(parseIdentity('Patient is Maria Delgado, born on the 2nd of November 1955'), { name: 'Maria Delgado', birthDate: '1955-11-02' });
+  assert.deepEqual(parseIdentity('Patient is Priya Raman, born January thirtieth, nineteen eighty six'), { name: 'Priya Raman', birthDate: '1986-01-30' });
+  assert.deepEqual(parseIdentity('Patient is Sam Lee, born June first two thousand five'), { name: 'Sam Lee', birthDate: '2005-06-01' });
+});
+test('answers to "Log it?" are whole-line yes / no only', () => {
+  for (const line of ['Yes.', 'yeah', 'Yep, log it.', 'Yes please', 'log it', 'Go ahead', 'Okay, do it']) assert.equal(parseAnswer(line), 'yes', line);
+  for (const line of ['No.', 'nope', "No, don't log it", "Don't log it.", 'No, that\'s wrong']) assert.equal(parseAnswer(line), 'no', line);
+  for (const line of ['No pulse, starting compressions', 'Yes, and get the pads on', 'no response to pain', 'yeah he is breathing', 'okay so']) assert.equal(parseAnswer(line), undefined, line);
 });
 test('X8: name and valid full date required', () => {
   assert.deepEqual(parseIdentity('Patient is Jordan Avery, born March 14, 1968'), { name: 'Jordan Avery', birthDate: '1968-03-14' });

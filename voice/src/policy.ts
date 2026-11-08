@@ -11,10 +11,10 @@ import { tsMs } from './state';
 export type SpeechKind = 'readback' | 'answer' | 'advisory' | 'record' | 'ask' | 'control' | 'vision';
 
 const SPACING_S = 4;
-const ADVISORY_GAP_S = 20;
+const ADVISORY_GAP_S = 15;
 /** "ask" is a reply to the medic (a clarifying question), not an unprompted advisory, so it gets room.
  *  "vision" is the answer to "Handoff, look": fixed wording from the sampler, never the model's. */
-const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 15, advisory: 8, record: 25, ask: 12, control: 3, vision: 20 };
+const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20 };
 const DECIMAL_OR_INT = /\b\d{1,3}(?:\.\d+)?\b/g;
 
 export class Policy {
@@ -43,6 +43,16 @@ export class Policy {
     // Advisory wording: protocol phrasing, never an order (spec §19). Before the word count, so the cap holds.
     if (kind === 'advisory' && /^(give|push|stop|start|do|administer|shock)\b/i.test(words) && !/^consider\b/i.test(words)) {
       words = `Consider: ${words}`;
+    }
+    // A long answer keeps its leading whole sentences that fit, rather than being lost entirely.
+    if (kind === 'answer' && words.split(' ').length > WORD_LIMIT[kind]) {
+      let kept = '';
+      for (const sentence of words.match(/[^.!?]+[.!?]+/g) ?? []) {
+        const next = `${kept} ${sentence.trim()}`.trim();
+        if (next.split(' ').length > WORD_LIMIT[kind]) break;
+        kept = next;
+      }
+      if (kept) words = kept;
     }
     const count = words.split(' ').length;
     if (count > WORD_LIMIT[kind]) {

@@ -106,6 +106,7 @@ async def main():
     port = site._server.sockets[0].getsockname()[1]
 
     brain_bridge.MAX_TURN_HOLD_SECS = 0.5
+    brain_bridge.LATE_FINAL_SECS = 0.4
     bridge = BrainBridge(f"http://127.0.0.1:{port}", start_timeout=0.5)
     lost: list[str] = []
 
@@ -205,6 +206,47 @@ async def main():
     await worker.queue_frame(UserStoppedSpeakingFrame())
     await brain.expect({"type": "user_speaking", "active": False})
     print("ok  an open turn flushes after the hold cap")
+
+    # The turn ends while the ASR is still on the last word: its late final joins the turn's line.
+    await worker.queue_frame(UserStartedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": True})
+    await worker.queue_frame(TranscriptionFrame("Patient is in cardiac", "medic", "t"))
+    await worker.queue_frame(InterimTranscriptionFrame("arr", "medic", "t"))
+    await worker.queue_frame(UserStoppedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": False})
+    await asyncio.sleep(0.1)
+    assert len(brain.transcripts) == 4, "posted before the late final arrived"
+    await worker.queue_frame(TranscriptionFrame("arrest.", "medic", "t"))
+    await asyncio.sleep(0.2)
+    assert brain.transcripts[4:] == [{"text": "Patient is in cardiac arrest.", "source": "pipecat"}], brain.transcripts
+    print("ok  a final arriving after the turn ended completes that turn's line")
+
+    # No final ever comes: what was heard is still sent, after LATE_FINAL_SECS.
+    await worker.queue_frame(UserStartedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": True})
+    await worker.queue_frame(TranscriptionFrame("Pupils are equal", "medic", "t"))
+    await worker.queue_frame(InterimTranscriptionFrame("and", "medic", "t"))
+    await worker.queue_frame(UserStoppedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": False})
+    await asyncio.sleep(brain_bridge.LATE_FINAL_SECS + 0.3)
+    assert brain.transcripts[5:] == [{"text": "Pupils are equal", "source": "pipecat"}], brain.transcripts
+    print("ok  the late-final wait is capped")
+
+    # Speaking again during the wait: one sentence with a pause stays one line.
+    await worker.queue_frame(UserStartedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": True})
+    await worker.queue_frame(TranscriptionFrame("Giving three hundred milligrams of", "medic", "t"))
+    await worker.queue_frame(InterimTranscriptionFrame("amio", "medic", "t"))
+    await worker.queue_frame(UserStoppedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": False})
+    await worker.queue_frame(UserStartedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": True})
+    await worker.queue_frame(TranscriptionFrame("amiodarone.", "medic", "t"))
+    await worker.queue_frame(UserStoppedSpeakingFrame())
+    await brain.expect({"type": "user_speaking", "active": False})
+    await asyncio.sleep(0.2)
+    assert brain.transcripts[6:] == [{"text": "Giving three hundred milligrams of amiodarone.", "source": "pipecat"}], brain.transcripts
+    print("ok  speech resuming during the wait continues the same line")
 
     # The brain dropping the socket with no reason: reconnect within the grace period, no mouth_lost.
     for code in (1011, 1005):

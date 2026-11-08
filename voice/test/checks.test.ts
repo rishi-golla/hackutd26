@@ -16,8 +16,8 @@ test('RB7: allergies, aliases and absence entries', () => {
 test('RB4 and RB7: exact warnings and allergy priority', () => {
   const amio = parseReadback('Giving three hundred milligrams of amiodarone') as ReadbackMatch;
   const epi = parseReadback('Epi ten milligrams') as ReadbackMatch;
-  assert.deepEqual(composeReadback(amio, checkDoseRange('amiodarone', 300, 'mg'), checkAllergy('amiodarone', ['amiodarone'])), { spoken: 'Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Say confirm or correction.', flagged: true, reason: 'allergy' });
-  assert.deepEqual(composeReadback(epi, checkDoseRange('epinephrine', 10, 'mg'), { allergic: false }), { spoken: 'Epinephrine, ten milligrams. Outside the protocol range. Say confirm or correction.', flagged: true, reason: 'dose' });
+  assert.deepEqual(composeReadback(amio, checkDoseRange('amiodarone', 300, 'mg'), checkAllergy('amiodarone', ['amiodarone'])), { spoken: 'Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Log it anyway?', flagged: true, reason: 'allergy' });
+  assert.deepEqual(composeReadback(epi, checkDoseRange('epinephrine', 10, 'mg'), { allergic: false }), { spoken: 'Epinephrine, ten milligrams. Outside the protocol range. Log it anyway?', flagged: true, reason: 'dose' });
   assert.equal(composeReadback(epi, checkDoseRange('epinephrine', 10, 'mg'), { allergic: true, match: 'epinephrine' }).reason, 'allergy');
-  assert.deepEqual(composeReadback(amio, checkDoseRange('amiodarone', 300, 'mg'), { allergic: false }), { spoken: amio.spoken, flagged: false });
+  assert.deepEqual(composeReadback(amio, checkDoseRange('amiodarone', 300, 'mg'), { allergic: false }), { spoken: `${amio.spoken} Log it?`, flagged: false });
 });
