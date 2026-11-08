@@ -141,6 +141,18 @@ async function pullRecord(conn: Conn, patientRef: string): Promise<EhrRecord | u
       `meds: ${rec.medications.join(', ') || 'none recorded'}; ${rec.codeStatus || 'code status not recorded'}` +
       (rec.source === 'cached' ? ' (cached)' : '')
   );
+  // Timeline (spec §14 mockup): "Patient identified: Jordan Avery; record pulled" with chips ID card · EHR.
+  // Same kind as identify_patient's event, so it merges into that line (the longer label wins).
+  try {
+    await conn.reducers.logEvent({
+      kind: 'patient_identified',
+      label: `Patient identified: ${rec.name}; record pulled${rec.source === 'cached' ? ' (cached copy)' : ''}`,
+      sourceKind: 'EHR',
+      sourceDetail: `${rec.patientRef}${rec.source === 'cached' ? ' from the cached copy' : ''}: allergies ${rec.allergies.join(', ') || 'none recorded'}`,
+    });
+  } catch (err) {
+    console.error('[W6] timeline event failed', err);
+  }
   return rec;
 }
 
