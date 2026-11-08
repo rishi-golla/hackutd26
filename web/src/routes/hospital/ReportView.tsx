@@ -39,14 +39,14 @@ export default function ReportView({ contentJson }: { contentJson: string }) {
   return (
     <div className="report">
       <div className="report__header">
-        <strong>HANDOFF</strong>
+        <h2 className="report__title">Handoff report</h2>
         <span>
           {header.unit} → {header.destination ?? 'destination not set'} · {header.time}
         </span>
-        <span className="tag">Prototype · synthetic data · not for clinical use</span>
-        <span className="tag">
-          {report.generator === 'nemotron' ? 'Nemotron' : 'template from the tables'}
+        <span className="report__meta">
+          Written by {report.generator === 'nemotron' ? 'Nemotron' : 'a template from the tables'}
           {report.dropped > 0 ? ` · ${report.dropped} line${report.dropped > 1 ? 's' : ''} dropped by the self-check` : ''}
+          {' · '}Prototype · synthetic data · not for clinical use
         </span>
       </div>
       <table className="report__table">

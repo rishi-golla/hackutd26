@@ -16,6 +16,16 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~20:00 (Alan): hospital dashboard visual clean-up** (no data or behaviour changes).
+  - **Look:** one font (Geist) on a 12/14/16/20/24/32/48 scale, a graphite base, one accent (cornflower) only on
+    Generate Handoff and a fresh callout, red/amber/green only for alarm/caution/live. No all-caps labels, pill
+    tags or coloured rings; the lead tile row (CPR in an arrest, vitals otherwise) gets the biggest numbers.
+  - **Labels are sentence case:** "Arrest", "Demo timing", "Simulated", "Stale · no video for 3 s", "Handoff
+    report". Spec text in capitals ("ARREST", "DEMO TIMING", "HANDOFF") names the label, not its case.
+  - **States:** the connection dot is gone; the header says "Connecting to the database…" only while
+    disconnected. Generate Handoff reads "Writing report…" while requested and says "No reply from the agent
+    yet" after 30 s (H7). The patient band shows a skeleton while the record is pulled, then "record not
+    available yet" after 15 s (§23).
 - **Sat ~20:15 (Josh): hospital dashboard redesign.**
   - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
   - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
@@ -751,8 +761,8 @@ re-seeds the hospitals; `device` rows stay, so devices stay connected.
 3. Wipe the harness straps with alcohol wipes.
 4. Loosen the harness back to medium.
 5. Phone: bodycam page full screen, volume up, battery above 50% (charge between groups).
-6. `/controls` open on the operator's phone, laptop on `/hospital`, mock EHR and voice agent worker running, all
-   connection dots green.
+6. `/controls` open on the operator's phone, laptop on `/hospital`, mock EHR and voice agent worker running, every
+   page connected (`/hospital` shows "Connecting to the database…" only while it isn't).
 
 ### Packing list
 
@@ -1791,7 +1801,7 @@ report under 30 s.
 | Live video won't connect | "connecting…" on the video tile | Switch to the hotspot, then a TURN relay. No snapshot video |
 | Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Failover trigger [OPEN] |
 | Phone can't reach the voice agent worker (venue Wi-Fi) | No agent voice from the start | Hotspot or TURN; degraded mode meanwhile |
-| Wi-Fi or hotspot drops | Grey connection dots, "stale" on the live view | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); switch networks; demo controls force the next beat |
+| Wi-Fi or hotspot drops | "Connecting to the database…" in the `/hospital` header, "stale" on the live view | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); switch networks; demo controls force the next beat |
 | Finger clip gives no reading | "no data" tiles, amber ring | Switch the relay to simulated vitals |
 | Phone motion misreads CPR | CPR gauge shows "--" | Demo control "CPR slow / CPR good" |
 | Speech-to-text misses words | No voice chips on events | The camera and MARK still log events |
