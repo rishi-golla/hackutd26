@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handoff Voice</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%232563eb' d='M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 4.3 2.4.8-1.3 2.3-2.4 4.4-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --line: #e7e9ee; --line2: #eef0f3; --text: #111827; --dim: #6b7280; --faint: #9ca3af;
+    --blue: #2563eb; --blue-soft: #eaf1ff; --blue-wave: #3b82f6; --green: #16a34a; --green-soft: #e8f7ee; --red: #ef4444; --red-soft: #fdecec;
+    --amber: #b45309; --amber-soft: #fdf3e2; --chip: #eef1f5; --btn: #f1f3f6; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+  }
+  [data-theme="dark"] {
+    --bg: #0b0d12; --card: #12151c; --line: #222733; --line2: #1b1f29; --text: #e8ebf1; --dim: #9aa3b2; --faint: #6b7385;
+    --blue: #4f8cff; --blue-soft: #16223b; --blue-wave: #5b95ff; --green: #34d07b; --green-soft: #12291d; --red: #f05252; --red-soft: #2c1517;
+    --amber: #f0b45a; --amber-soft: #2a2010; --chip: #1c2130; --btn: #1a1f2b; --shadow: none;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { overflow: hidden; background: var(--bg); color: var(--text); font: 14px/1.45 Inter, "Segoe UI", system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  /* header */
+  header { height: 56px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 28px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 16px; }
+  .brand svg { width: 30px; height: 22px; }
+  nav { display: flex; gap: 6px; }
+  nav button { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; color: var(--dim); font-weight: 500; }
+  nav button.on { background: var(--blue-soft); color: var(--blue); }
+  .hright { display: flex; justify-content: flex-end; align-items: center; gap: 14px; }
+  .iconbtn { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; color: var(--dim); }
+  .iconbtn:hover { background: var(--btn); }
+  .connect { background: var(--blue); color: #fff; height: 36px; padding: 0 22px; border: 1px solid transparent; border-radius: 8px; font-weight: 600; min-width: 108px; white-space: nowrap; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+  .connect.live { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  .connect:disabled { opacity: .6; cursor: default; }
+  /* layout */
+  .view { flex: 1; min-height: 0; padding: 0 0 8px; display: none; overflow: auto; }
+  .view.on { display: flex; flex-direction: column; }
+  #v-studio { overflow: hidden; }
+  .studio { display: grid; grid-template-rows: minmax(0, 1fr) 224px; gap: 0; flex: 1; min-height: 0; }
+  .toprow { display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 10px 8px 0; box-shadow: var(--shadow); }
+  .live { position: relative; padding: 22px 26px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); }
+  .livehead { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+  .dot.on { background: #22c55e; box-shadow: 0 0 0 3px #22c55e22; } .dot.busy { background: #f59e0b; } .dot.err { background: var(--red); }
+  .livehead h2 { font-size: 16px; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 12px; margin: 4px 0 0 19px; }
+  .self { position: absolute; top: 22px; right: 26px; width: 200px; height: 112px; border-radius: 10px; background: #2b2f36; overflow: hidden; display: grid; place-items: center; color: #c6cbd3; }
+  [data-theme="dark"] .self { background: #1d2230; }
+  .self video { width: 100%; height: 100%; object-fit: cover; display: none; }
+  .self.has video { display: block; }
+  .self.has .camoff { display: none; }
+  .self .camoff svg { width: 26px; height: 26px; }
+  .self .tag { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 6px; background: #ffffff1a; display: grid; place-items: center; }
+  .self .tag svg { width: 13px; height: 13px; }
+  .self .label { position: absolute; left: 8px; bottom: 6px; font-size: 11px; font-weight: 600; color: #fff; background: #0008; padding: 2px 7px; border-radius: 5px; display: none; }
+  .self.has .label { display: block; }
+  .wave { flex: 1; min-height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  canvas { width: 100%; max-width: 640px; height: 130px; }
+  .state { margin-top: 14px; display: flex; align-items: center; gap: 8px; color: var(--blue); font-weight: 600; font-size: 13px; }
+  .state.idle { color: var(--dim); }
+  .saying { margin-top: 6px; color: var(--dim); font-size: 13px; min-height: 19px; max-width: 560px; text-align: center; }
+  .controls { display: flex; justify-content: center; gap: 22px; margin-top: 10px; padding-bottom: 6px; }
+  .ctl { width: 46px; height: 46px; border-radius: 50%; background: var(--btn); display: grid; place-items: center; color: var(--text); transition: background .15s; }
+  .ctl:hover { filter: brightness(.96); }
+  .ctl svg { width: 19px; height: 19px; }
+  .ctl.off { background: var(--red-soft); color: var(--red); }
+  .ctl.active { background: var(--blue-soft); color: var(--blue); }
+  .ctl.hang { background: var(--red); color: #fff; }
+  .ctl:disabled { opacity: .45; cursor: default; }
+  /* side tabs */
+  .side { display: flex; flex-direction: column; min-height: 0; }
+  .tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .tabs button { display: flex; align-items: center; gap: 7px; padding: 14px 12px 12px; color: var(--dim); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button.on { color: var(--blue); border-bottom-color: var(--blue); }
+  .tabs .grow { flex: 1; }
+  .pane { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px; }
+  .pane.on { display: block; }
+  .tr { display: grid; grid-template-columns: 84px 1fr; gap: 10px; padding: 9px 0; }
+  .tr time { color: var(--faint); font-size: 11.5px; padding-top: 2px; white-space: nowrap; }
+  .tr .who { font-weight: 600; font-size: 13px; }
+  .tr.assistant .who { color: var(--blue); }
+  .tr .txt { font-size: 13px; margin-top: 1px; word-wrap: break-word; }
+  .tr .note { color: var(--faint); font-size: 11.5px; }
+  .tr.interim .txt { color: var(--dim); font-style: italic; }
+  .empty { color: var(--faint); text-align: center; padding: 40px 10px; font-size: 13px; }
+  .composer { margin: 10px 16px 16px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 4px 6px 4px 12px; background: var(--bg); }
+  .composer input { flex: 1; border: 0; background: transparent; outline: none; font: inherit; color: var(--text); padding: 8px 0; }
+  .composer button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--dim); border-radius: 8px; }
+  .composer button:hover { color: var(--blue); }
+  .ov h4 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 14px 0 8px; font-weight: 600; }
+  .ov h4:first-child { margin-top: 0; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 13px; } .kv span { color: var(--dim); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--chip); color: var(--dim); }
+  .badge.g { background: var(--green-soft); color: var(--green); } .badge.r { background: var(--red-soft); color: var(--red); } .badge.a { background: var(--amber-soft); color: var(--amber); } .badge.b { background: var(--blue-soft); color: var(--blue); }
+  .vit { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .vit div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; } .vit small { color: var(--dim); font-size: 11px; } .vit b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .evrow { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line2); font-size: 13px; }
+  .step { display: grid; grid-template-columns: 84px auto 1fr; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; align-items: baseline; }
+  .step time { color: var(--faint); font-size: 11.5px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--blue-soft); color: var(--blue); }
+  /* bottom */
+  .bottom { display: grid; grid-template-columns: 210px minmax(0, 1fr); background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin: 8px 8px 0; min-height: 0; box-shadow: var(--shadow); }
+  .session { padding: 14px 20px; border-right: 1px solid var(--line); overflow: hidden; }
+  .session h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .srow { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 13px; color: var(--dim); }
+  .srow b { color: var(--text); font-weight: 500; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .srow + .sep { border-top: 1px solid var(--line); margin: 6px 0; }
+  .logs { display: flex; flex-direction: column; min-height: 0; }
+  .logs .tabs { padding-right: 12px; align-items: center; }
+  .filter { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--dim); font-size: 13px; }
+  .filter input { border: 0; outline: none; background: transparent; color: var(--text); font: inherit; width: 140px; display: none; }
+  .filter.open input { display: block; }
+  .ev { display: grid; grid-template-columns: 88px 150px 1fr; gap: 14px; padding: 6px 0; font-size: 12.5px; align-items: center; }
+  .ev time { color: var(--dim); font-size: 11.5px; }
+  .ev .t { justify-self: start; }
+  .ev.err .t { background: var(--red-soft); color: var(--red); }
+  .ev .m { word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--dim); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line2); font-variant-numeric: tabular-nums; }
+  select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; }
+  .devgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; } .devgrid label { display: block; color: var(--dim); font-size: 12px; margin-bottom: 6px; }
+  /* sessions + settings */
+  .page { max-width: 960px; width: 100%; margin: 24px auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; box-shadow: var(--shadow); }
+  .page h2 { font-size: 18px; margin-bottom: 4px; } .page p.lead { color: var(--dim); margin-bottom: 18px; }
+  .set { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); gap: 20px; }
+  .set b { display: block; font-weight: 600; } .set span { color: var(--dim); font-size: 13px; }
+  .switch { width: 40px; height: 22px; border-radius: 99px; background: var(--line); position: relative; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 2px #0003; }
+  .switch.on { background: var(--blue); } .switch.on::after { left: 21px; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: #111827; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.on { opacity: .95; }
+  @media (max-width: 1100px) { .toprow { grid-template-columns: 1fr; } .live { border-right: 0; border-bottom: 1px solid var(--line); } .studio { grid-template-rows: auto 260px; } .self { width: 150px; height: 86px; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5zM2 13l10 5 10-5M2 17.5l10 5 10-5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></symbol>
+  <symbol id="i-mic-off" viewBox="0 0 24 24"><path d="M2 2l20 20M9 9v1a3 3 0 0 0 5.1 2.1M15 9.3V5a3 3 0 0 0-5.7-1.3M19 10a7 7 0 0 1-1.2 3.9M5 10a7 7 0 0 0 11 5.7M12 17v5M8 22h8"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></symbol>
+  <symbol id="i-video-off" viewBox="0 0 24 24"><path d="M2 2l20 20M10.7 6H14a2 2 0 0 1 2 2v3.3l1 1 5-3v10M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-phone-off" viewBox="0 0 24 24"><path d="M10.7 13.3a16 16 0 0 0 3.4 2.6l1.3-1.3a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 4.2 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.8 9.7M22 2 2 22"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.5V19l4 2v-8.5z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></symbol>
+</svg>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 30 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h5l3-8 5 15 4-11 2 4h7"/></svg>
+    Handoff Voice
+  </div>
+  <nav>
+    <button data-view="studio" class="on"><svg class="i"><use href="#i-play"/></svg>Studio</button>
+    <button data-view="sessions"><svg class="i"><use href="#i-layers"/></svg>Sessions</button>
+    <button data-view="settings"><svg class="i"><use href="#i-gear"/></svg>Settings</button>
+  </nav>
+  <div class="hright">
+    <button class="iconbtn" id="theme" title="Toggle dark mode"><svg class="i"><use href="#i-moon"/></svg></button>
+    <button class="connect" id="connect">Connect</button>
+  </div>
+</header>
+
+<section class="view on" id="v-studio">
+  <div class="studio">
+    <div class="toprow">
+      <div class="live">
+        <div class="livehead"><span class="dot" id="liveDot"></span><h2 id="liveTitle">Not connected</h2></div>
+        <div class="sub" id="liveSub">RTVI · Small WebRTC</div>
+        <div class="self" id="self">
+          <video id="selfVideo" autoplay playsinline muted></video>
+          <span class="camoff"><svg class="i"><use href="#i-video-off"/></svg></span>
+          <span class="tag"><svg class="i"><use href="#i-video"/></svg></span>
+          <span class="label" id="selfLabel">Camera</span>
+        </div>
+        <div class="wave">
+          <canvas id="wave" width="1280" height="260"></canvas>
+          <div class="state idle" id="state"><svg class="i"><use href="#i-bars"/></svg><span id="stateText">Press Connect to talk to Handoff</span></div>
+          <div class="saying" id="saying"></div>
+        </div>
+        <div class="controls">
+          <button class="ctl" id="mic" title="Mute microphone" disabled><svg class="i"><use href="#i-mic"/></svg></button>
+          <button class="ctl" id="cam" title="Camera" disabled><svg class="i"><use href="#i-video"/></svg></button>
+          <button class="ctl" id="screen" title="Share screen (the camera's eyes see it)" disabled><svg class="i"><use href="#i-monitor"/></svg></button>
+          <button class="ctl hang" id="hang" title="End call" disabled><svg class="i"><use href="#i-phone-off"/></svg></button>
+        </div>
+      </div>
+      <div class="side">
+        <div class="tabs" data-group="side">
+          <button data-pane="transcript" class="on"><svg class="i"><use href="#i-msg"/></svg>Transcript</button>
+          <button data-pane="overview"><svg class="i"><use href="#i-chart"/></svg>Overview</button>
+          <button data-pane="tools"><svg class="i"><use href="#i-sliders"/></svg>Tools</button>
+        </div>
+        <div class="pane on" id="p-transcript"><div class="empty">The conversation shows here: what you say and what Handoff says back.</div></div>
+        <div class="pane ov" id="p-overview"><div class="empty">Waiting for the brain…</div></div>
+        <div class="pane" id="p-tools"><div class="empty">Every step the agent takes shows here.</div></div>
+        <form class="composer" id="composer">
+          <input id="msg" placeholder="Send a message…" autocomplete="off">
+          <button type="submit" title="Send (as if you said it)"><svg class="i"><use href="#i-send"/></svg></button>
+        </form>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="session">
+        <h3><svg class="i"><use href="#i-info"/></svg>Session</h3>
+        <div class="srow">Client <span class="badge" id="sClient">Disconnected</span></div>
+        <div class="srow">Agent <span class="badge" id="sAgent">Disconnected</span></div>
+        <div class="sep"></div>
+        <div class="srow">Transport <b>Small WebRTC</b></div>
+        <div class="srow">Duration <b id="sDuration">00:00:00</b></div>
+        <div class="srow">Model <b id="sBrain">…</b></div>
+      </div>
+      <div class="logs">
+        <div class="tabs" data-group="logs">
+          <button data-pane="events" class="on"><svg class="i"><use href="#i-list"/></svg>Events</button>
+          <button data-pane="metrics"><svg class="i"><use href="#i-chart"/></svg>Metrics</button>
+          <button data-pane="devices"><svg class="i"><use href="#i-monitor"/></svg>Devices</button>
+          <span class="grow"></span>
+          <label class="filter" id="filter"><svg class="i"><use href="#i-filter"/></svg><span id="filterLabel">Filter</span><input id="filterInput" placeholder="type or text"></label>
+        </div>
+        <div class="pane on" id="p-events"></div>
+        <div class="pane" id="p-metrics"><div class="empty">Latency shows here once the agent speaks.</div></div>
+        <div class="pane" id="p-devices">
+          <div class="devgrid">
+            <div><label>Microphone</label><select id="dMic"></select></div>
+            <div><label>Camera</label><select id="dCam"></select></div>
+            <div><label>Speaker</label><select id="dSpk"></select></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="v-sessions">
+  <div class="page">
+    <h2>Sessions</h2>
+    <p class="lead">Calls made from this browser. The full record of each incident is in SpacetimeDB.</p>
+    <table><thead><tr><th>Started</th><th>Duration</th><th>Lines heard</th><th>Handoff spoke</th><th>Ended</th></tr></thead><tbody id="sessRows"></tbody></table>
+  </div>
+</section>
+
+<section class="view" id="v-settings">
+  <div class="page">
+    <h2>Settings</h2>
+    <p class="lead">Saved in this browser. Microphone settings apply on the next Connect.</p>
+    <div class="set"><div><b>Echo cancellation</b><span>Keep on: otherwise the agent hears itself through the speakers and cuts itself off.</span></div><button class="switch" data-set="echo"></button></div>
+    <div class="set"><div><b>Noise suppression</b><span>Helps in a loud room; can clip quiet speech.</span></div><button class="switch" data-set="noise"></button></div>
+    <div class="set"><div><b>Start with the camera on</b><span>The agent's eyes (ID cards, drug labels) see your camera about once a second.</span></div><button class="switch" data-set="camOnStart"></button></div>
+    <div class="set"><div><b>Dark mode</b><span>Also in the header.</span></div><button class="switch" data-set="dark"></button></div>
+    <div class="set"><div><b>Brain</b><span id="brainInfo">…</span></div><span class="badge" id="brainBadge">…</span></div>
+    <div class="set"><div><b>Pipecat's stock client</b><span>The previous page is still at <a href="/classic/">/classic</a>.</span></div></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+<audio id="botAudio" autoplay></audio>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+const hms = (s) => [Math.floor(s / 3600), Math.floor(s / 60) % 60, Math.floor(s % 60)].map((n) => String(n).padStart(2, '0')).join(':');
+
+// ---- settings ------------------------------------------------------------------------------------------------
+const settings = Object.assign({ echo: true, noise: true, camOnStart: false, dark: false }, JSON.parse(localStorage.getItem('handoff.voice.settings') || '{}'));
+const saveSettings = () => localStorage.setItem('handoff.voice.settings', JSON.stringify(settings));
+function applyTheme() {
+  document.documentElement.dataset.theme = settings.dark ? 'dark' : 'light';
+  $('theme').innerHTML = `<svg class="i"><use href="#i-${settings.dark ? 'sun' : 'moon'}"/></svg>`;
+  document.querySelectorAll('[data-set]').forEach((b) => b.classList.toggle('on', !!settings[b.dataset.set]));
+}
+document.querySelectorAll('[data-set]').forEach((b) => b.onclick = () => { settings[b.dataset.set] = !settings[b.dataset.set]; saveSettings(); applyTheme(); });
+$('theme').onclick = () => { settings.dark = !settings.dark; saveSettings(); applyTheme(); };
+applyTheme();
+
+// ---- navigation and tabs -------------------------------------------------------------------------------------
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'v-' + b.dataset.view));
+  if (b.dataset.view === 'sessions') renderSessions();
+});
+document.querySelectorAll('.tabs[data-group]').forEach((group) => group.querySelectorAll('button[data-pane]').forEach((b) => b.onclick = () => {
+  group.querySelectorAll('button[data-pane]').forEach((x) => x.classList.toggle('on', x === b));
+  const panes = [...group.parentElement.querySelectorAll(':scope > .pane')];
+  panes.forEach((p) => p.classList.toggle('on', p.id === 'p-' + b.dataset.pane));
+  $('filter').style.visibility = group.dataset.group === 'logs' && b.dataset.pane !== 'events' ? 'hidden' : '';
+  if (b.dataset.pane === 'devices') listDevices();
+}));
+function toast(text) { $('toast').textContent = text; $('toast').classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => $('toast').classList.remove('on'), 2600); }
+
+// ---- events log ----------------------------------------------------------------------------------------------
+const events = [];
+let filterText = '';
+function logEvent(type, message, err = false) {
+  events.push({ at: Date.now(), type, message, err });
+  if (events.length > 500) events.shift();
+  renderEvents();
+}
+function renderEvents() {
+  const pane = $('p-events');
+  const near = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 40;
+  const shown = events.filter((e) => !filterText || (e.type + ' ' + e.message).toLowerCase().includes(filterText));
+  pane.innerHTML = shown.length ? shown.map((e) => `<div class="ev${e.err ? ' err' : ''}"><time>${clock(e.at)}</time><span class="t chip mono">${esc(e.type)}</span><span class="m">${esc(e.message)}</span></div>`).join('') : '<div class="empty">No events yet.</div>';
+  if (near) pane.scrollTop = pane.scrollHeight;
+}
+$('filter').onclick = (e) => { if (e.target.id !== 'filterInput') { $('filter').classList.add('open'); $('filterInput').focus(); } };
+$('filterInput').oninput = (e) => { filterText = e.target.value.trim().toLowerCase(); $('filterLabel').textContent = filterText ? '' : 'Filter'; renderEvents(); };
+$('filterInput').onblur = () => { if (!filterText) $('filter').classList.remove('open'); };
+
+// ---- call state ----------------------------------------------------------------------------------------------
+const call = { pc: null, dc: null, mic: null, cam: null, screen: null, audioSender: null, videoSender: null, ping: null, startedAt: 0, connected: false, botReady: false, botSpeaking: false, userSpeaking: false, micOn: true, interim: '', lastUserStop: 0, linesAtStart: 0, spokeAtStart: 0 };
+const metrics = {};
+let audioCtx = null, micAnalyser = null, botAnalyser = null;
+
+function setBadge(id, text, kind) { const b = $(id); b.textContent = text; b.className = 'badge' + (kind ? ' ' + kind : ''); }
+function render() {
+  const live = call.connected;
+  $('connect').textContent = call.pc && !live ? 'Connecting…' : live ? 'Disconnect' : 'Connect';
+  $('connect').classList.toggle('live', live);
+  $('connect').disabled = !!call.pc && !live;
+  ['mic', 'cam', 'screen', 'hang'].forEach((id) => $(id).disabled = !live);
+  $('mic').classList.toggle('off', live && !call.micOn);
+  $('mic').innerHTML = `<svg class="i"><use href="#i-${call.micOn ? 'mic' : 'mic-off'}"/></svg>`;
+  $('cam').classList.toggle('off', live && !call.cam && !call.screen);
+  $('cam').innerHTML = `<svg class="i"><use href="#i-${call.cam ? 'video' : 'video-off'}"/></svg>`;
+  $('screen').classList.toggle('active', !!call.screen);
+  $('liveDot').className = 'dot' + (live ? ' on' : call.pc ? ' busy' : '');
+  $('liveTitle').textContent = live ? 'Live Session' : call.pc ? 'Connecting…' : 'Not connected';
+  const state = !live ? (call.pc ? 'Connecting to Handoff…' : 'Press Connect to talk to Handoff')
+    : call.botSpeaking ? 'Agent Speaking…' : call.userSpeaking ? 'Hearing you…' : !call.micOn ? 'Microphone muted' : 'Agent Listening…';
+  $('stateText').textContent = state;
+  $('state').classList.toggle('idle', !live);
+  setBadge('sClient', live ? 'Connected' : call.pc ? 'Connecting' : 'Disconnected', live ? 'g' : call.pc ? 'a' : '');
+  setBadge('sAgent', !live ? 'Disconnected' : call.botSpeaking ? 'Speaking' : call.botReady ? 'Ready' : 'Starting', !live ? '' : call.botReady ? 'g' : 'a');
+  const self = $('self'), track = call.screen || call.cam;
+  self.classList.toggle('has', !!track);
+  $('selfLabel').textContent = call.screen ? 'Screen' : 'Camera';
+}
+setInterval(() => { $('sDuration').textContent = hms(call.connected ? (Date.now() - call.startedAt) / 1000 : 0); }, 500);
+
+function sendRtvi(type, data) {
+  if (call.dc?.readyState !== 'open') return;
+  call.dc.send(JSON.stringify({ label: 'rtvi-ai', type, id: Math.random().toString(36).slice(2, 10), ...(data ? { data } : {}) }));
+}
+function signalTrack(index, enabled) {
+  if (call.dc?.readyState === 'open') call.dc.send(JSON.stringify({ type: 'signalling', message: { type: 'trackStatus', receiver_index: index, enabled } }));
+}
+
+async function connect() {
+  call.pc = {}; render();
+  logEvent('connecting', 'Requesting microphone' + (settings.camOnStart ? ' and camera' : ''));
+  try {
+    const media = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: settings.echo, noiseSuppression: settings.noise, autoGainControl: true, ...(localStorage.getItem('handoff.voice.mic') ? { deviceId: { ideal: localStorage.getItem('handoff.voice.mic') } } : {}) },
+      video: settings.camOnStart ? { width: 1280, height: 720 } : false,
+    });
+    call.mic = media.getAudioTracks()[0];
+    call.cam = media.getVideoTracks()[0] || null;
+    const iceServers = await (await fetch('/api/ice')).json();
+    const pc = call.pc = new RTCPeerConnection({ iceServers });
+    // Transceiver order matters to the worker: 0 = microphone, 1 = camera (the screen share rides on 1 too, so the
+    // agent's eyes see whatever is shared, e.g. an ID card on screen).
+    call.audioSender = pc.addTransceiver(call.mic, { direction: 'sendrecv' }).sender;
+    call.videoSender = pc.addTransceiver(call.cam || 'video', { direction: 'sendrecv' }).sender;
+    showSelf();
+    const dc = call.dc = pc.createDataChannel('chat', { ordered: true });
+    dc.onopen = () => {
+      logEvent('dataChannel', 'open');
+      sendRtvi('client-ready', { version: '2.3.0', about: { library: 'handoff-voice-client', library_version: '1.0.0', platform: navigator.platform } });
+      call.ping = setInterval(() => dc.readyState === 'open' && dc.send('ping: ' + Date.now()), 1000);
+    };
+    dc.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch (_) {} };
+    pc.ontrack = (e) => {
+      logEvent('trackStarted', `${e.track.kind} from the agent`);
+      if (e.track.kind === 'audio') {
+        const stream = new MediaStream([e.track]);
+        $('botAudio').srcObject = stream;
+        botAnalyser = analyser(stream);
+      }
+    };
+    pc.onconnectionstatechange = () => {
+      logEvent('transportState', `Transport state changed: ${pc.connectionState}`, pc.connectionState === 'failed');
+      if (pc.connectionState === 'connected' && !call.connected) {
+        call.connected = true; call.startedAt = Date.now();
+        call.linesAtStart = convo.lines.filter((l) => l.who === 'user').length;
+        call.spokeAtStart = convo.lines.filter((l) => l.who === 'assistant').length;
+        render(); toast('Connected. Say something, or type below.');
+      }
+      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) disconnect(pc.connectionState);
+    };
+    audioCtx = audioCtx || new AudioContext();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    micAnalyser = analyser(new MediaStream([call.mic]));
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise((done) => {
+      if (pc.iceGatheringState === 'complete') return done();
+      pc.onicegatheringstatechange = () => pc.iceGatheringState === 'complete' && done();
+      setTimeout(done, 2000);
+    });
+    logEvent('initialized', 'Sending the offer to the voice worker');
+    const r = await fetch('/api/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }) });
+    if (!r.ok) throw new Error(`offer refused (${r.status})`);
+    const answer = await r.json();
+    await pc.setRemoteDescription({ sdp: answer.sdp, type: answer.type });
+  } catch (err) {
+    logEvent('error', String(err.message || err), true);
+    toast(err.name === 'NotAllowedError' ? 'Allow the microphone for this page, then Connect again.' : 'Could not connect: ' + (err.message || err));
+    disconnect('error');
+  }
+}
+
+function disconnect(reason = 'ended') {
+  if (!call.pc) return;
+  if (call.connected) saveSession(reason);
+  clearInterval(call.ping);
+  try { call.pc.close?.(); } catch (_) {}
+  [call.mic, call.cam, call.screen].forEach((t) => t?.stop());
+  Object.assign(call, { pc: null, dc: null, mic: null, cam: null, screen: null, connected: false, botReady: false, botSpeaking: false, userSpeaking: false, micOn: true, interim: '' });
+  micAnalyser = botAnalyser = null;
+  $('selfVideo').srcObject = null; $('saying').textContent = '';
+  logEvent('disconnected', `Session ended (${reason})`);
+  render(); renderTranscript();
+}
+
+$('connect').onclick = () => (call.connected ? disconnect('user hung up') : connect());
+$('hang').onclick = () => disconnect('user hung up');
+$('mic').onclick = () => {
+  if (!call.mic) return;
+  call.micOn = !call.micOn; call.mic.enabled = call.micOn; signalTrack(0, call.micOn);
+  logEvent('micToggled', call.micOn ? 'Microphone on' : 'Microphone muted'); render();
+};
+$('cam').onclick = async () => {
+  try {
+    if (call.cam) { call.cam.stop(); call.cam = null; if (!call.screen) await call.videoSender.replaceTrack(null); signalTrack(1, !!call.screen); }
+    else {
+      const id = localStorage.getItem('handoff.voice.cam');
+      call.cam = (await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720, ...(id ? { deviceId: { ideal: id } } : {}) } })).getVideoTracks()[0];
+      if (!call.screen) await call.videoSender.replaceTrack(call.cam);
+      signalTrack(1, true);
+    }
+    logEvent('camToggled', call.cam ? 'Camera on: the agent sees it about once a second' : 'Camera off');
+  } catch (err) { logEvent('error', 'Camera: ' + err.message, true); toast('Camera blocked or busy.'); }
+  showSelf(); render();
+};
+$('screen').onclick = async () => {
+  try {
+    if (call.screen) { stopScreen(); return; }
+    call.screen = (await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })).getVideoTracks()[0];
+    call.screen.onended = stopScreen;
+    await call.videoSender.replaceTrack(call.screen); signalTrack(1, true);
+    logEvent('screenShare', 'Sharing the screen with the agent\'s eyes');
+  } catch (err) { logEvent('screenShare', 'Not shared: ' + err.message); }
+  showSelf(); render();
+};
+async function stopScreen() {
+  call.screen?.stop(); call.screen = null;
+  if (call.videoSender) await call.videoSender.replaceTrack(call.cam || null);
+  signalTrack(1, !!call.cam);
+  logEvent('screenShare', 'Stopped'); showSelf(); render();
+}
+function showSelf() { const t = call.screen || call.cam; $('selfVideo').srcObject = t ? new MediaStream([t]) : null; }
+
+// ---- RTVI messages from the worker -----------------------------------------------------------------------------
+const quiet = new Set(['bot-tts-text', 'bot-output', 'bot-llm-text', 'user-llm-text', 'bot-tts-started', 'bot-tts-stopped', 'tts-raw-text', 'bot-transcription', 'vad-user-started-speaking', 'vad-user-stopped-speaking', 'server-message']);
+function onMessage(m) {
+  if (m.type === 'signalling') return logEvent('signalling', JSON.stringify(m.message || {}));
+  if (m.label !== 'rtvi-ai') return;
+  const d = m.data || {};
+  switch (m.type) {
+    case 'bot-ready': call.botReady = true; logEvent('botReady', 'Handoff is ready'); break;
+    case 'user-started-speaking': call.userSpeaking = true; break;
+    case 'user-stopped-speaking': call.userSpeaking = false; call.lastUserStop = Date.now(); break;
+    case 'bot-started-speaking':
+      call.botSpeaking = true;
+      if (call.lastUserStop && Date.now() - call.lastUserStop < 15000) addMetric('Voice to voice', (Date.now() - call.lastUserStop) / 1000);
+      call.lastUserStop = 0;
+      break;
+    case 'bot-stopped-speaking': call.botSpeaking = false; $('saying').textContent = ''; break;
+    case 'user-transcription':
+      call.interim = d.final ? '' : d.text || '';
+      if (d.final && d.text) logEvent('userTranscription', d.text);
+      renderTranscript();
+      break;
+    case 'bot-tts-text': case 'bot-output': if (d.text) $('saying').textContent = d.text; break;
+    case 'metrics': for (const kind of ['ttfb', 'processing']) for (const x of d[kind] || []) addMetric(`${(x.processor || '').replace(/#\d+$/, '')} ${kind === 'ttfb' ? 'TTFB' : 'processing'}`, x.value); break;
+    case 'error': logEvent('error', d.error || d.message || JSON.stringify(d), true); break;
+  }
+  if (!quiet.has(m.type) && !['user-transcription', 'metrics', 'bot-ready', 'error'].includes(m.type)) logEvent(m.type.replace(/-([a-z])/g, (_, c) => c.toUpperCase()), describe(m.type));
+  render();
+}
+const describe = (type) => ({ 'user-started-speaking': 'You started speaking', 'user-stopped-speaking': 'You stopped speaking', 'bot-started-speaking': 'Handoff started speaking', 'bot-stopped-speaking': 'Handoff stopped speaking' }[type] || type);
+
+function addMetric(name, value) {
+  if (!Number.isFinite(value)) return;
+  const m = metrics[name] || (metrics[name] = { last: 0, sum: 0, n: 0, min: Infinity, max: 0 });
+  m.last = value; m.sum += value; m.n++; m.min = Math.min(m.min, value); m.max = Math.max(m.max, value);
+  const rows = Object.entries(metrics).sort(([a], [b]) => (a === 'Voice to voice' ? -1 : b === 'Voice to voice' ? 1 : a.localeCompare(b)));
+  $('p-metrics').innerHTML = `<table><thead><tr><th>Measure</th><th>Last</th><th>Average</th><th>Best</th><th>Worst</th><th>Samples</th></tr></thead><tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${fmtS(v.last)}</td><td>${fmtS(v.sum / v.n)}</td><td>${fmtS(v.min)}</td><td>${fmtS(v.max)}</td><td>${v.n}</td></tr>`).join('')}</tbody></table>`;
+}
+const fmtS = (s) => (s < 1 ? `${Math.round(s * 1000)} ms` : `${s.toFixed(2)} s`);
+
+// ---- waveform ------------------------------------------------------------------------------------------------
+function analyser(stream) {
+  if (!audioCtx) return null;
+  const a = audioCtx.createAnalyser(); a.fftSize = 512; a.smoothingTimeConstant = 0.7;
+  audioCtx.createMediaStreamSource(stream).connect(a);
+  return a;
+}
+const canvas = $('wave'), g = canvas.getContext('2d');
+const BARS = 64, levels = new Float32Array(BARS);
+let buf = new Uint8Array(256);
+function level(a) {
+  if (!a) return 0;
+  if (buf.length !== a.frequencyBinCount) buf = new Uint8Array(a.frequencyBinCount);
+  a.getByteFrequencyData(buf);
+  let sum = 0; for (let i = 2; i < 60; i++) sum += buf[i];
+  return Math.min(1, sum / 58 / 150);
+}
+function draw(t) {
+  const w = canvas.width, h = canvas.height, mid = h / 2;
+  g.clearRect(0, 0, w, h);
+  const source = call.botSpeaking ? botAnalyser : call.micOn ? micAnalyser : null;
+  const loud = call.connected ? Math.max(level(source), call.botSpeaking ? 0.25 : 0) : 0;
+  const colour = getComputedStyle(document.documentElement).getPropertyValue('--blue-wave').trim() || '#3b82f6';
+  const step = w / BARS, bw = Math.max(4, step * 0.42);
+  for (let i = 0; i < BARS; i++) {
+    const x = i / (BARS - 1) - 0.5;
+    const envelope = Math.exp(-x * x * 9);
+    const motion = 0.55 + 0.45 * Math.sin(t / 260 + i * 0.9) * Math.sin(t / 410 + i * 0.37);
+    const idle = 0.05 + 0.03 * Math.sin(t / 700 + i * 0.5);
+    const target = Math.max(idle * (0.4 + envelope), loud * envelope * (0.35 + 0.65 * Math.abs(motion)));
+    levels[i] += (target - levels[i]) * 0.25;
+    const bh = Math.max(6, levels[i] * h * 0.95);
+    g.globalAlpha = 0.25 + 0.75 * envelope;
+    g.fillStyle = colour;
+    const r = bw / 2, y = mid - bh / 2, xx = i * step + (step - bw) / 2;
+    g.beginPath(); g.roundRect ? g.roundRect(xx, y, bw, bh, r) : g.rect(xx, y, bw, bh); g.fill();
+  }
+  g.globalAlpha = 1;
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// ---- the brain: conversation, state, health --------------------------------------------------------------------
+let convo = { incident: null, lines: [], steps: [] }, convoSig = '';
+async function pollConversation() {
+  try {
+    const c = await (await fetch('/api/brain/conversation', { cache: 'no-store' })).json();
+    const sig = `${c.incident?.id}|${c.lines.length}|${c.lines.at(-1)?.id}|${c.lines.filter((l) => l.spoken).length}|${c.steps.at(-1)?.id}`;
+    convo = c;
+    if (sig !== convoSig) { convoSig = sig; renderTranscript(); renderTools(); }
+  } catch (_) {}
+}
+function renderTranscript() {
+  const pane = $('p-transcript');
+  const near = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 60;
+  const rows = convo.lines.map((l) => `<div class="tr ${l.who}"><time>${clock(l.at)}</time><div><div class="who">${l.who === 'assistant' ? 'Assistant' : 'User'}</div><div class="txt">${esc(l.text)}</div>${l.who === 'assistant' && !l.spoken ? '<div class="note">queued, not spoken yet</div>' : ''}</div></div>`);
+  if (call.interim) rows.push(`<div class="tr interim"><time>${clock(Date.now())}</time><div><div class="who">User</div><div class="txt">${esc(call.interim)}…</div></div></div>`);
+  const head = convo.incident ? `<div class="note" style="color:var(--faint);font-size:12px;margin-bottom:4px">${esc(convo.incident.unit)} · incident ${convo.incident.id}${convo.incident.active ? '' : ' (closed)'}</div>` : '';
+  pane.innerHTML = rows.length ? head + rows.join('') : '<div class="empty">The conversation shows here: what you say and what Handoff says back.' + (convo.incident ? '' : '<br><br>No incident yet: start one from /controls so things can be logged.') + '</div>';
+  if (near || call.interim) pane.scrollTop = pane.scrollHeight;
+}
+function renderTools() {
+  const pane = $('p-tools');
+  const near = pane.scrollHeight - pane.scrollTop - pane.clientHeight < 60;
+  // Some writers put JSON in the summary ({"phase", "text"}): show its text.
+  const readable = (s) => { try { const j = JSON.parse(s); return j && typeof j.text === 'string' ? `${j.text}${j.phase ? ` (${j.phase})` : ''}` : s; } catch (_) { return s; } };
+  pane.innerHTML = convo.steps.length ? convo.steps.map((s) => `<div class="step"><time>${clock(s.at)}</time><span class="chip mono">${esc(s.tool)}</span><span>${esc(readable(s.summary))}${s.workflow !== 'voice' ? ` <span class="badge">${esc(s.workflow)}</span>` : ''}</span></div>`).join('') : '<div class="empty">Every step the agent takes shows here.</div>';
+  if (near) pane.scrollTop = pane.scrollHeight;
+}
+const STATUS = { on_scene: ['On scene', 'b'], arrest: ['Cardiac arrest', 'r'], rosc: ['ROSC', 'g'], en_route: ['En route', 'b'], arrived: ['Arrived', 'g'], closed: ['Closed', ''] };
+async function pollState() {
+  try {
+    const s = await (await fetch('/api/brain/state', { cache: 'no-store' })).json();
+    const inc = s.incident, rec = s.record, v = s.vitals, cpr = s.cpr;
+    const st = inc ? STATUS[inc.status] || [inc.status, ''] : null;
+    const evStatus = (e) => ({ confirmed: ['Confirmed', 'g'], flagged: ['Awaiting yes', 'a'], logged: ['Logged', 'g'] }[e.status] || [e.status, '']);
+    const age = rec?.birthDate ? Math.floor((Date.now() - Date.parse(rec.birthDate)) / 3.15576e10) : null;
+    $('p-overview').innerHTML = !inc ? '<div class="empty">No active incident. Start one from /controls; until then nothing can be logged.</div>' : `
+      <h4>Incident</h4>
+      <div class="kv"><span>Unit</span><b>${esc(inc.unit)}</b><span>Status</span><span><span class="badge ${st[1]}">${esc(st[0])}</span></span>${inc.destination ? `<span>Destination</span><b>${esc(inc.destination)}${inc.etaMin != null ? ` · ETA ${inc.etaMin} min` : ''}</b>` : ''}</div>
+      <h4>Patient</h4>
+      ${rec ? `<div class="kv"><span>Name</span><b>${esc(rec.name)}${age != null ? `, ${age}` : ''}</b><span>Allergies</span><span>${rec.allergies.length ? rec.allergies.map((a) => `<span class="badge r">${esc(a)}</span>`).join(' ') : 'none recorded'}</span><span>Medications</span><b>${esc(rec.medications.join(', ') || 'none')}</b><span>Code status</span><b>${esc(rec.codeStatus || '—')}</b><span>Source</span><b>${esc(rec.source)}</b></div>` : '<div class="empty" style="padding:8px 0;text-align:left">Not identified yet. Say "Patient is Jordan Avery, born March 14, 1968".</div>'}
+      <h4>Vitals</h4>
+      <div class="vit"><div><small>HR</small><b>${v?.hr ?? '—'}</b></div><div><small>SpO₂</small><b>${v?.spo2 ?? '—'}</b></div><div><small>CPR rate</small><b>${cpr?.fresh && cpr.rate ? cpr.rate : '—'}</b></div></div>
+      ${s.timers.length ? `<h4>Timers</h4>${s.timers.map((t) => `<div class="evrow"><span>${esc(t.kind)}</span><b>${t.dueInS > 0 ? `${Math.floor(t.dueInS / 60)}:${String(t.dueInS % 60).padStart(2, '0')}` : 'due'}</b></div>`).join('')}` : ''}
+      <h4>Timeline</h4>
+      ${s.events.length ? s.events.slice(-8).reverse().map((e) => { const [t, k] = evStatus(e); return `<div class="evrow"><span>${esc(e.time)} · ${esc(e.label)}</span><span class="badge ${k}">${esc(t)}</span></div>`; }).join('') : '<div class="empty" style="padding:8px 0;text-align:left">Nothing logged yet.</div>'}
+      ${s.pendingCallouts.length ? `<h4>Waiting to be spoken</h4>${s.pendingCallouts.map((c) => `<div class="evrow"><span>${esc(c.text)}</span><span class="badge">P${c.priority}</span></div>`).join('')}` : ''}`;
+  } catch (_) { $('p-overview').innerHTML = '<div class="empty">The brain is not reachable. Start it: cd voice &amp;&amp; npm start</div>'; }
+}
+async function pollHealth() {
+  try {
+    const h = await (await fetch('/api/brain/health', { cache: 'no-store' })).json();
+    const model = h.model ? h.model.replace(/^nvidia\//, '').replace(/-\d+b-a\d+b$/, '').replace(/^nemotron-/, 'Nemotron ') : 'no model';
+    $('sBrain').textContent = model;
+    $('sBrain').title = h.model || '';
+    $('brainInfo').textContent = `${h.db} · model ${h.model || 'none (no NVIDIA key)'} · ${h.mouth ? 'a voice link is attached' : 'no voice link attached'}`;
+    setBadge('brainBadge', 'Online', 'g');
+  } catch (_) { $('sBrain').textContent = 'offline'; $('brainInfo').textContent = 'Not reachable: start it with cd voice && npm start'; setBadge('brainBadge', 'Offline', 'r'); }
+}
+const tick = (fn, ms) => { fn(); setInterval(() => document.visibilityState === 'visible' && fn(), ms); };
+tick(pollConversation, 1000); tick(pollState, 2000); tick(pollHealth, 5000);
+
+// ---- typed messages: handled exactly as if they were said ------------------------------------------------------
+$('composer').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('msg').value.trim();
+  if (!text) return;
+  $('msg').value = '';
+  try {
+    const r = await fetch('/api/brain/transcript', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, source: 'typed' }) });
+    if (!r.ok) throw new Error(r.status);
+    logEvent('typedMessage', text);
+    if (!call.connected) toast('Sent. Connect to hear the reply; it shows in the transcript either way.');
+    setTimeout(pollConversation, 400);
+  } catch (_) { toast('The brain is not reachable.'); }
+};
+
+// ---- devices -------------------------------------------------------------------------------------------------
+async function listDevices() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const fill = (id, kind, key) => {
+    const list = devices.filter((d) => d.kind === kind);
+    const saved = localStorage.getItem(key);
+    $(id).innerHTML = list.length ? list.map((d, i) => `<option value="${esc(d.deviceId)}"${d.deviceId === saved ? ' selected' : ''}>${esc(d.label || `${kind} ${i + 1}`)}</option>`).join('') : '<option>None found (allow access first)</option>';
+  };
+  fill('dMic', 'audioinput', 'handoff.voice.mic'); fill('dCam', 'videoinput', 'handoff.voice.cam'); fill('dSpk', 'audiooutput', 'handoff.voice.spk');
+}
+$('dMic').onchange = async (e) => {
+  localStorage.setItem('handoff.voice.mic', e.target.value);
+  if (!call.connected) return;
+  const track = (await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: e.target.value }, echoCancellation: settings.echo, noiseSuppression: settings.noise } })).getAudioTracks()[0];
+  await call.audioSender.replaceTrack(track); call.mic.stop(); call.mic = track; track.enabled = call.micOn;
+  micAnalyser = analyser(new MediaStream([track])); logEvent('device', 'Microphone switched');
+};
+$('dCam').onchange = (e) => { localStorage.setItem('handoff.voice.cam', e.target.value); logEvent('device', 'Camera choice saved (applies when the camera turns on)'); };
+$('dSpk').onchange = async (e) => {
+  localStorage.setItem('handoff.voice.spk', e.target.value);
+  try { await $('botAudio').setSinkId?.(e.target.value); logEvent('device', 'Speaker switched'); } catch (err) { logEvent('error', 'Speaker: ' + err.message, true); }
+};
+navigator.mediaDevices?.addEventListener?.('devicechange', listDevices);
+if (localStorage.getItem('handoff.voice.spk')) $('botAudio').setSinkId?.(localStorage.getItem('handoff.voice.spk')).catch(() => {});
+
+// ---- sessions --------------------------------------------------------------------------------------------------
+function saveSession(reason) {
+  const list = JSON.parse(localStorage.getItem('handoff.voice.sessions') || '[]');
+  list.unshift({ startedAt: call.startedAt, seconds: Math.round((Date.now() - call.startedAt) / 1000), heard: convo.lines.filter((l) => l.who === 'user').length - call.linesAtStart, spoke: convo.lines.filter((l) => l.who === 'assistant').length - call.spokeAtStart, reason });
+  localStorage.setItem('handoff.voice.sessions', JSON.stringify(list.slice(0, 50)));
+}
+function renderSessions() {
+  const list = JSON.parse(localStorage.getItem('handoff.voice.sessions') || '[]');
+  $('sessRows').innerHTML = list.length ? list.map((s) => `<tr><td>${new Date(s.startedAt).toLocaleString()}</td><td>${hms(s.seconds)}</td><td>${Math.max(0, s.heard)}</td><td>${Math.max(0, s.spoke)}</td><td>${esc(s.reason)}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No sessions yet.</td></tr>';
+}
+
+logEvent('initialized', 'Handoff voice client ready');
+if (!navigator.mediaDevices) logEvent('error', 'The microphone needs https or localhost: open this page through the https link or on this laptop.', true);
+render();
+</script>
+</body>
+</html>
