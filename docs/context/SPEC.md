@@ -16,14 +16,10 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
-- **Sat 19:31 team meeting** (§0.1 decision 19). Build the core flow first: voice feedback, CPR coaching and
-  logging; everything else comes after.
-  - **Allergy:** the demo allergy stays amiodarone (Jordan Avery), not epinephrine.
-  - **QR codes:** they came up again and stay out (decision 8). The need behind them, a way for the hospital to
-    reach the paramedic, is now a §28 question under W3.
-  - **Camera-seen drugs** are a stretch goal (decision 16, RB8–RB10). The voice read-back is the MVP's
-    medication source.
-  - **Parked:** stroke detection from the face, and the ModRetro handheld (§3).
+- **Sat ~20:15 (Josh): hospital dashboard redesign.**
+  - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
+  - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
+  - **Mockup:** the §14 mockup predates this layout; the code in `web/src/routes/hospital/` is the reference.
 - **Sat ~19:40 (Alan): voice agent worker built in `voice/`** (§0.1 decision 18; detailed contract in
   `voice/README.md`). A Node "brain" subscribes to SpacetimeDB and speaks only through `add_callout`, the same
   queue the §15 rules use: one queue, one spacing policy, one audit trail. Deterministic first (read-back with the
@@ -35,6 +31,14 @@ necessarily when the decision was made.
   state-summary format and the audio signaling (§28). Fast voice model: `nvidia/nemotron-3.5-lightning-30b-a3b`,
   verified ~21:30 with a real key: tool calling works, 1–4 s per voice turn (§28). NVIDIA's free tier is about
   40 requests/min per key (forum, unofficial): the 1 frame/s vision sampler would use most of it.
+- **Sat 19:31 team meeting** (§0.1 decision 19). Build the core flow first: voice feedback, CPR coaching and
+  logging; everything else comes after.
+  - **Allergy:** the demo allergy stays amiodarone (Jordan Avery), not epinephrine.
+  - **QR codes:** they came up again and stay out (decision 8). The need behind them, a way for the hospital to
+    reach the paramedic, is now a §28 question under W3.
+  - **Camera-seen drugs** are a stretch goal (decision 16, RB8–RB10). The voice read-back is the MVP's
+    medication source.
+  - **Parked:** stroke detection from the face, and the ModRetro handheld (§3).
 - **Sat ~19:05 (Josh): only Josh runs the workflow agent against Maincloud** (§0.1 decision 17). A second copy, even
   without an NVIDIA key, duplicates alerts and reports. No lock in code; the team stays mindful of it.
 - **Sat ~19:00 (Josh): agent verified with real Nemotron.** `nvidia/nemotron-3-ultra-550b-a55b`, thinking off.
@@ -120,7 +124,8 @@ section and add a change-log line.
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
    (Josh, 17:42) Split by decision 18: the camera lane still identifies the patient (ID card → `identify_patient`);
    the pull, `save_patient_record` and the spoken summary run in `voice/` (`VOICE_W6=on`).
-3. **No ER Acknowledge.** The hospital dashboard's only button is **Generate Handoff**. The pre-arrival alert is
+3. **No ER Acknowledge.** The hospital dashboard's only *action* is **Generate Handoff**. View-only controls are
+   fine, such as expanding the live-video thumbnail or a chip's evidence (Josh, ~20:15). The pre-arrival alert is
    display-only. There is no "ER acknowledged" callout. No demo controls on `/hospital`. (Josh, 17:42)
 4. **The mock EHR is a FHIR R4 server** with five synthetic patients. (Josh, 17:42)
 5. **Keep it simple.** Build the smallest version that meets the "done when" check. Simulated data first: a
@@ -1139,7 +1144,7 @@ is **Generate Handoff**. No demo controls here.
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
-| H1 | Header: unit, status, destination, ETA | — |
+| H1 | Header: unit, status, destination, ETA (hidden once arrived or closed) | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
 | H3 | Vitals tiles with 5-minute trend lines, a pulse waveform, a CPR panel and dose timers | A missing reading shows "no data", never a stale number; "Epi due" matches the bodycam to the second |
 | H4 | Timeline with source chips; clicking a chip shows the evidence (transcript line, frame, vitals at that moment) | Every demo event has a chip; the epi event has two |
@@ -1609,7 +1614,7 @@ its sources. The header always says it's a prototype. No QR code.
 
 Example content from a synthetic run. In the demo, the numbers come from the judge's own CPR (D4). Shown on the
 hospital screen. Stored as JSON in `report.contentJson` (MIST lines with source ids); the format and source ids are
-in `agent/README.md`. The dashboard renders it in place of the video and tiles once it's ready.
+in `agent/README.md`. Once it's ready, the dashboard shows it in place of the vitals and the timeline; the live video stays in the side column.
 
 ## 21. Pre-arrival alert (ER chat optional)
 
