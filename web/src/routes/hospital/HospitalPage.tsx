@@ -4,7 +4,7 @@
 // Layout, in the order the ER needs it:
 //   header (who, where, status, ETA, Generate Handoff) → comms strip (pre-arrival alert, what the bodycam said)
 //   → patient band (allergy first) → vitals (CPR first during an arrest) + timeline | live video thumbnail + trace
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables, type DbConnection } from '../../module_bindings';
@@ -98,7 +98,7 @@ export default function HospitalPage() {
   const timeline = [...events].filter(e => e.incidentId === incId).sort(byNewest);
   // Trace reads top to bottom, oldest first, like the workflow ran.
   const trace = [...steps].filter(s => s.incidentId === incId).sort((a, b) => -byNewest(a, b));
-  const lastCallout = [...callouts].filter(c => c.spokenAt !== undefined).sort(byNewest)[0];
+  const lastCallout = [...callouts].filter(c => c.incidentId === incId && c.spokenAt !== undefined).sort(byNewest)[0];
 
   const latestVitals: Vitals | undefined = [...vitalsRows].sort(byNewest)[0];
   const vitalsFresh = latestVitals !== undefined && now - tsMs(latestVitals.ts) < VITALS_STALE_MS;
@@ -187,11 +187,11 @@ export default function HospitalPage() {
         <div className="comms__item comms__item--alert">
           <span className="comms__label">Pre-arrival alert</span>
           {alert ? (
-            <p className="comms__text">
+            <p className="comms__text comms__text--clamp" title={alert.text}>
               <span className="comms__time">{clock(alert.ts)}</span> {alert.text}
             </p>
           ) : (
-            <p className="comms__text muted">No alert yet. The agent posts one when the arrest starts.</p>
+            <p className="comms__text muted">No alert yet. The agent posts one at arrest or transport.</p>
           )}
         </div>
         <div className={`comms__item comms__item--voice${lastCallout?.spokenAt && now - tsMs(lastCallout.spokenAt) < CALLOUT_FRESH_MS ? ' is-fresh' : ''}`}>
@@ -323,7 +323,7 @@ function VitalsRow(props: { v?: Vitals; stale: boolean; lastStatus?: string; inA
         unit="%"
         value={spo2}
         alarm={spo2 !== undefined && spo2 < 90}
-        note={inArrest ? 'not measured during CPR' : note}
+        note={inArrest ? 'hidden during arrest' : note}
         simulated={v?.simulated}
       />
       <Tile label="Temperature" unit="°C" digits={1} value={v?.tempC} note={stale ? 'relay offline' : undefined} simulated={v?.simulated} />
@@ -434,6 +434,11 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
 }
 
 function Trace({ steps }: { steps: AgentStep[] }) {
+  // Chronological, and it follows the newest step so W4 stays in view at the Generate Handoff beat.
+  const end = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'nearest' });
+  }, [steps.length]);
   if (steps.length === 0) return <p className="muted">The agent hasn't run yet.</p>;
   return (
     <ol className="trace">
@@ -446,6 +451,7 @@ function Trace({ steps }: { steps: AgentStep[] }) {
           </span>
         </li>
       ))}
+      <li ref={end} className="trace__end" aria-hidden="true" />
     </ol>
   );
 }

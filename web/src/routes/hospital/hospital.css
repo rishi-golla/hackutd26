@@ -81,7 +81,7 @@
   .handoff__button:not(:disabled):hover { background-color: #7cc1ff; }
 }
 
-/* ---- Comms strip: fixed height, so nothing jumps when a callout arrives ---- */
+/* ---- Comms strip: always present (alert clamped to 2 lines), so nothing jumps when a callout arrives ---- */
 .comms {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
@@ -116,7 +116,9 @@
   color: var(--muted);
 }
 .comms__text { margin: 0; line-height: 1.4; }
-.comms__text--voice { font-size: 20px; font-weight: 700; }
+.comms__text--voice { font-size: 22px; font-weight: 700; }
+/* Long alerts stay inside the strip (full text on hover) so the screen still fits without scrolling. */
+.comms__text--clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .comms__time { color: var(--muted); font-size: 13px; font-weight: 400; }
 
 /* ---- Patient band: identity, then the allergy, then the rest ---- */
@@ -222,6 +224,7 @@
 .timeline__chips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 
 .trace li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; padding: 4px 0; font-size: 13px; }
+.trace li.trace__end { padding: 0; }
 .trace__time { color: var(--muted); }
 .trace code { color: var(--accent); font-size: 12px; margin-right: 4px; }
 
