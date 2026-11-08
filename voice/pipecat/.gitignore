@@ -1,0 +1,4 @@
+.venv/
+__pycache__/
+# self-signed cert for --ssl (generated on first use)
+.certs/

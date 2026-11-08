@@ -1,0 +1,27 @@
+{
+  "name": "handoff-voice",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Handoff voice agent worker: the Nemotron brain (read-back + checks, W2, W6, proactive speech), with a terminal bodycam and a relay pusher for local testing",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "mock:bodycam": "tsx mock/bodycam.ts",
+    "mock:relay": "tsx mock/relay.ts",
+    "scenario": "tsx mock/scenario.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "generate": "spacetime generate --lang typescript --out-dir src/module_bindings --module-path ../spacetime"
+  },
+  "dependencies": {
+    "spacetimedb": "2.14.*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.2"
+  }
+}
