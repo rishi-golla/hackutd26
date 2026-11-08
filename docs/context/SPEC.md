@@ -318,7 +318,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 
 | Caller | Reducers it calls | Subscribes to |
 | --- | --- | --- |
-| Relay (HTTP) | `push_vitals`, `push_waveform`, `mark`, `toggle_incident` (2 s hold) | `incident` (optional) |
+| Relay (HTTP) | `push_vitals`, `push_waveform`, `mark`, `toggle_incident` (2 s hold). Today the caller is `bridge/`, which makes only `push_vitals` and `mark` | `incident` (optional) |
 | Bodycam (TS SDK) | `push_cpr`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; `add_transcript` (degraded mode; see the voice row); `identify_patient` after reading the ID card (the pull runs in `voice/`) | `callout` (unspoken; spoken by the phone only while the audio link to the voice worker is down), `rtc_signal`, `patient_record`, `incident` |
 | Controls `/controls` (TS SDK) | `demo_control` | `incident`, `cpr_state`, `timer`, `patient_record` |
 | Hospital + agent (TS SDK) | `send_rtc_signal`, `set_destination`, `er_message_out`, `log_agent_step`, `request_report`, `save_report` | everything |
@@ -1868,8 +1868,8 @@ curl -X POST $B/v1/database/$DB/sql -H "Authorization: Bearer $TOKEN" \
 
 - About 25 Hz. `ir`/`red` are the mean of `n` raw samples, so the pulse **waveform** is `ir` over time.
 - `hr` and `spo2_exp` are `null` unless a beat was seen in the last 5 s. `status`: `calibrating`, `no finger`,
-  `saturated`, `acquiring`, `pulse`, `sensor error` (the sensor isn't answering; sent by `bridge/`). Only `pulse`
-  means `hr` is valid.
+  `saturated`, `acquiring`, `pulse`, `sensor error` (the sensor isn't answering). The same vocabulary applies to the
+  HTTP `push_vitals` calls in §22.2a. Only `pulse` means `hr` is valid.
 - `event` is `press`, `release` or `hold`. Short press = MARK; hold 2 s = start or end the incident.
 - `ts` is the **Pi's monotonic clock**, not wall time. Stamp arrival time on the receiver for anything that must
   line up with video or transcript. `seq` lets you detect drops.

@@ -23,7 +23,14 @@ Every message is sent with `"simulated": false`; the raw hub state is included a
 
 **Never a stale number:** if the hub goes quiet for 3 s, the bridge stops sending, and the dashboard shows
 "no data" by itself. It doesn't forward the hub's catch-up replays (old values after a restart), and it doesn't
-re-send old MARK presses. The hub carries no pulse waveform or temperature, so neither is forwarded.
+re-send old MARK presses. The sensor publishes `mark` only on a press, so every live `mark` message is forwarded
+as at least one press, including the first one ever and the first one after the sensor service restarts (its counter
+goes back to 1).
+
+**Not forwarded:** the pulse waveform and temperature (the hub doesn't carry them), and the 2 s hold that should call
+`toggle_incident` (spec R5): `pi_oximeter.py` detects presses, not holds. That needs a hub `hold` message from the
+chromatic lane first. Also note the module ignores `mark` while no incident is active, so `"mark", "forwarded": true`
+in the log means the call was accepted, not that a timeline event exists.
 
 ## Run
 
@@ -59,7 +66,9 @@ Tested against kgand's real `hub.py` and a local SpacetimeDB, with the oximeter'
 - **Status sequence:** measuring → 3 `acquiring` rows with no HR; live 74/97 → 7 `pulse` rows; finger off → 5
   `no finger` rows. One a second, all `simulated: false`.
 - **Hub quiet:** sending stopped after 3 s.
-- **MARK:** two presses were forwarded, and the boot counter value wasn't.
+- **MARK:** the first press ever, a press after the sensor service restarted (counter back to 1), and a counter jump
+  of two (two presses forwarded) all reached `mark`.
 - **Hub restart:** replayed values weren't forwarded and old presses weren't re-sent; a new press after the restart was.
+- **Sensor not answering (`sensor_error`):** `sensor error` rows with no numbers; nothing in `tick_rules` depends on that word.
 
 Not tested yet: on the real Pi against Maincloud.

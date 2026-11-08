@@ -6,14 +6,15 @@ long-polls the hub and forwards them to SpacetimeDB, so the hospital dashboard, 
 see the real vitals:
 
   hub "hr" / "spo2" / "state"  →  push_vitals(device, json)   once a second, only while the hub data is fresh
-  hub "mark" (press counter)    →  mark(device, "{}")          once per new press
+  hub "mark" (press counter)    →  mark(device, '{"source":"MARK"}')   once per press
 
 Hub state → relay status (spacetime/README.md; hr/spo2 are kept only when the status is "pulse"):
   live → pulse · no_finger → no finger · saturated → saturated · sensor_error → sensor error
   measuring / settling / moving / weak / noisy (anything else) → acquiring
 
 Never forwards a stale number: if the hub goes quiet for more than STALE_S, nothing is sent and the dashboard shows
-"no data" by itself. The hub doesn't carry the pulse waveform or temperature, so neither is forwarded.
+"no data" by itself. The hub doesn't carry the pulse waveform or temperature, so neither is forwarded. Nor is the
+2 s hold (toggle_incident): the sensor publishes presses only.
 
 Run it on the Pi next to the hub (default), or on the laptop with HUB_URL=http://<pi>:8000:
   python3 hub_bridge.py
@@ -93,11 +94,14 @@ def poll_hub():
             for m in d["msgs"]:
                 what, value = m.get("what"), m.get("value")
                 if what == "mark" and isinstance(value, int):
-                    if m.get("replay") or mark_seen is None or value < mark_seen:
-                        mark_seen = value              # baseline: bridge start, hub restart, or the Pi's counter reset
-                    elif value > mark_seen:
+                    if m.get("replay"):
+                        mark_seen = value              # baseline: what the hub already had (bridge start, hub restart)
+                    else:
+                        # The sensor publishes "mark" only on a press, so every live message is at least one press.
+                        # A counter jump means presses were missed; a drop means the sensor restarted (still a press).
+                        n = value - mark_seen if mark_seen is not None and value > mark_seen else 1
                         with lock:
-                            marks.extend([now] * (value - mark_seen))
+                            marks.extend([now] * n)
                         mark_seen = value
                     continue
                 if m.get("replay") or what not in ("hr", "spo2", "state"):
