@@ -1,0 +1,42 @@
+web/src/routes/controls/ControlsPage.tsx
+  h_f876d4e77222e2 88-90,244-260
+web/src/routes/hospital/CareLog.tsx
+  h_f876d4e77222e2 1-67
+web/src/routes/hospital/HospitalApp.tsx
+  h_f876d4e77222e2 47
+web/src/routes/hospital/LiveVideo.tsx
+  h_f876d4e77222e2 46
+web/src/routes/hospital/LogsPage.tsx
+  h_f876d4e77222e2 5,7,13,69-70
+web/src/routes/hospital/OpsPage.tsx
+  h_f876d4e77222e2 3-5,8,10-18,21-26,28-29,31-34,36-51,53-54
+web/src/routes/hospital/PatientPage.tsx
+  h_f876d4e77222e2 10,41-59,88,95
+web/src/routes/hospital/TracingPage.tsx
+  h_f876d4e77222e2 5,51
+web/src/routes/hospital/hospital.css
+  h_f876d4e77222e2 158-212,394-396,428-435
+web/src/routes/hospital/recordings.ts
+  h_f876d4e77222e2 1-18
+web/src/routes/hospital/ui.tsx
+  h_f876d4e77222e2 6,94-104
+web/src/routes/hospital/useHospital.ts
+  h_f876d4e77222e2 9-10,44,61-62,78-79,100-103,159-160
+web/src/routes/hospital/vitals.ts
+  h_f876d4e77222e2 71-76
+web/test/recordings.test.ts
+  h_f876d4e77222e2 1-24
+web/test/vitals.test.ts
+  h_f876d4e77222e2 3,48-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "73b04133439248edac05bf021891e11b826d082f",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
