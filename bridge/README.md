@@ -107,4 +107,15 @@ Tested against kgand's real `hub.py` and a local SpacetimeDB, with the oximeter'
 - **Hub restart:** replayed values weren't forwarded and old presses weren't re-sent; a new press after the restart was.
 - **Sensor not answering (`sensor_error`):** `sensor error` rows with no numbers; nothing in `tick_rules` depends on that word.
 
-Not tested yet: on the real Pi against Maincloud.
+On the real Pi against Maincloud (Sun Nov 8, ~01:00, the service installed with the same steps as `deploy.sh`, over
+Tailscale from Windows):
+- **Service:** `hub_up` at start; all four Pi services active (`cmx-oximeter`, `handoff-hub`, `handoff-link`,
+  `handoff-bridge`).
+- **Status sequence:** finger on → `acquiring` → `pulse` with HR 75–102; finger off → `no finger`. One row a second,
+  every call `"ok": true`, every row `simulated: false`.
+- **SpO2:** 35 of 54 `pulse` rows carried it (98–100); the rest were pulse stretches of 2–6 s, too short for the
+  sensor to publish a steady SpO2.
+- **`check_vitals.py`:** LIVE (newest row under 1.5 s old). It also caught 3 `sim-seizure` rows marked simulated,
+  from a short synthetic-scenario run in the shared database, and said NOT REAL for them.
+
+Not tested on the Pi yet: MARK during an incident, the stale pause (sensor service stopped), and a reboot.
