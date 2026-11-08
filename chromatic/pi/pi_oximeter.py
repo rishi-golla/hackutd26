@@ -92,7 +92,10 @@ def main():
     hr = Svc(bus, "/cmx/s0", "180D")
     meas = Chr(bus, "/cmx/s0/c0", "2A37", hr.path, ["notify"])
     hr.chrs = [meas, Chr(bus, "/cmx/s0/c1", "2A38", hr.path, ["read"], b"\x03")]      # body location: finger
-    app.svcs = [hr]
+    plx = Svc(bus, "/cmx/s1", "1822")                                   # standard Pulse Oximeter service
+    cont = Chr(bus, "/cmx/s1/c0", "2A5F", plx.path, ["notify"])
+    plx.chrs = [cont, Chr(bus, "/cmx/s1/c1", "2A60", plx.path, ["read"], b"\x00\x00")]
+    app.svcs = [hr, plx]
     Adv(bus)
     loop = GLib.MainLoop()
     gm = dbus.Interface(bus.get_object(BUS, ad), GATT_MGR)
@@ -225,6 +228,8 @@ def main():
             linked = st["linked"]
             if st["finger"] is not None:
                 linked = meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
+                if o2:                                     # flags 0, then SpO2 and pulse rate as whole numbers
+                    cont.notify(bytes([0]) + o2.to_bytes(2, "little") + min(hr, 250).to_bytes(2, "little"))
             hub("finger", {None: "error", False: "off", True: "on"}[st["finger"]])
             hub("hr", hr or None)                          # None = no valid reading (never a stale number)
             hub("spo2", o2)
