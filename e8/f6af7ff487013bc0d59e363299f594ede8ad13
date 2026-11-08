@@ -1,0 +1,16 @@
+web/src/routes/hospital/vitals.ts
+  h_f876d4e77222e2 1-111
+web/test/vitals.test.ts
+  h_f876d4e77222e2 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e8f6af7ff487013bc0d59e363299f594ede8ad13",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
