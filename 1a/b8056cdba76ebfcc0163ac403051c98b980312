@@ -1,0 +1,28 @@
+voice/pipecat/config.py
+  s_01faa73c301f81::t_4b05e9e0fc1690 25
+voice/pipecat/README.md
+  s_01faa73c301f81::t_ea6a1d4a983f80 121
+voice/README.md
+  s_01faa73c301f81::t_3ed83959bddf58 176-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1ab8056cdba76ebfcc0163ac403051c98b980312",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
