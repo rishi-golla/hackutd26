@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~18:30 (Alan): vision samples the live stream.** The vision model takes about one frame a second from
+  the live video on the laptop (skipping a frame while the previous call is still running), instead of the phone
+  sending a still every ~5 s. "Handoff, look" still grabs a frame at once. The phone uploads nothing extra and
+  vision frames don't go through SpacetimeDB. ID-card target tightened to about 5 s. See §0.1 decision 1, §4,
+  §10 (B2, B6), §16, §17, §19 Vision, §26, §28.
 - **Sat ~18:20 (Alan): the camera logs drugs it sees being given.** If the vision model sees a medication
   being given (the vial or syringe label plus the push, injection or nebuliser), it logs a medication event with
   the frame as evidence, even when nobody says it. Inside the merge window it fuses with the spoken read-back.
@@ -76,8 +81,8 @@ These override anything else in this file that seems to disagree. If you find a 
 section and add a change-log line.
 
 1. **Video to the hospital is live WebRTC only.** No low-frame or snapshot video mode. If the link can't be made:
-   phone hotspot, then a TURN relay. Frames sent to the vision model (every ~5 s and on "Handoff, look") are
-   separate from the video and still exist. (Josh, 17:42)
+   phone hotspot, then a TURN relay. (Josh, 17:42) The vision model samples this same live stream on the laptop,
+   about one frame a second; the phone sends no separate frames. (Alan, ~18:30)
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
    (Josh, 17:42)
 3. **No ER Acknowledge.** The hospital dashboard's only button is **Generate Handoff**. The pre-arrival alert is
@@ -141,7 +146,7 @@ Conflicts resolved when this file was created (for the record):
 | --- | --- | --- | --- |
 | **Hospital node** | Josh | `spacetime/` (module, seed, `tick_rules`), `web/` scaffold + `web/src/db/` (connection + bindings) + `web/src/routes/hospital/`, `ehr/` (mock FHIR R4 server), `agent/` (W1, W4), report route | H1–H5, H7, H9, W1, W4, X2, E1 (display-only; H6 is the same panel), §15 rules, §22 |
 | **Relay** | relay owner | `relay/` (Pi sender, LCD1602 with OLED fallback, temperature probe), hardware | R1–R8, L1–L3 |
-| **Chest camera** | camera owner | `web/src/routes/bodycam/`, WebRTC video sender, vision frames, W6 (ID card or spoken name → EHR search) | B1–B11, RB1–RB7 (phone side), X1, X3–X8, W6 |
+| **Chest camera** | camera owner | `web/src/routes/bodycam/`, WebRTC video sender, vision sampler (frames from the live stream, on the laptop), W6 (ID card or spoken name → EHR search) | B1–B11, RB1–RB7 (phone side), X1, X3–X8, W6 |
 | **Voice agent worker** | unassigned | folder **[OPEN]** | §19 voice agent, the agent side of B3/B5/B10, §15 when-to-speak policy, RB4/RB7 as tools |
 | **Unassigned** | team decides | `/controls` demo-controls page (`web/src/routes/controls/`; the code still has it as `web/src/routes/monitor/`, rename pending, §28), Devpost/video | D1, H8; W2 and W3 (optional) have no owner yet |
 
@@ -323,7 +328,7 @@ flowchart LR
 | – | Relay → its own LCD | I2C, 4 wires | The Pi draws HR, SpO₂, temperature and link status on the LCD1602 on its lid. Works with no network. |
 | 1 | Bodycam ↔ SpacetimeDB | TypeScript SDK (wss) | ↑ CPR state twice a second, MARK/LOOK, identify/read-back events, WebRTC handshake messages, transcript lines in degraded mode · ↓ callouts to speak in degraded mode, handshake replies, patient record |
 | – | Bodycam → hospital dashboard | WebRTC video, handshake through SpacetimeDB | Continuous live video, peer to peer. SpacetimeDB carries only the handshake (offer, answer, ICE, request). |
-| – | Bodycam → vision model | frames | A frame every ~5 s and at once on "Handoff, look", separate from the video. The path is **[OPEN]** (no frame table is built, §28). |
+| – | Live video → vision sampler (laptop) | frames | About one frame a second taken from the live WebRTC stream on the laptop, skipped while the previous vision call is still running; one at once on "Handoff, look". No extra upload from the phone; not stored in SpacetimeDB. Where it taps the stream is **[OPEN]** (§28). |
 | 2 | Relay → SpacetimeDB | HTTP reducer calls | ↑ vitals once a second, waveform batches 5 times a second, MARK, incident start/stop |
 | 3 | Demo controls ↔ SpacetimeDB | TypeScript SDK | ↑ start, simulated arrest, CPR overrides, epi due now, identify patient, reset |
 | 4 | Med kit ↔ SpacetimeDB (stretch) | HTTP (reducers + SQL) | ↑ slot changes, storage temperature every 10 s · ↓ epi countdown, read once a second |
@@ -343,8 +348,8 @@ the web page).
 **Live video** is WebRTC straight from the bodycam page to the hospital page: about 480p–720p, 15–30 fps, a few
 hundred milliseconds of delay. SpacetimeDB carries only the handshake, in the `rtc_signal` table, so the
 database is still the backbone. If the link can't be made (venue Wi-Fi often blocks device-to-device traffic),
-switch to the phone hotspot, then a TURN relay. There is no low-frame or snapshot video mode. Separately, the
-phone sends a frame every ~5 s (and on "Handoff, look") to the vision model.
+switch to the phone hotspot, then a TURN relay. There is no low-frame or snapshot video mode. The vision sampler
+on the laptop takes about one frame a second from this same stream (§19); the phone uploads nothing extra.
 
 **Voice.** The bodycam streams mic audio to the voice agent worker on the laptop and plays back its voice, over
 WebRTC. The worker runs STT → Nemotron → TTS and decides what to say from the live data (§19). If the pipeline
@@ -368,7 +373,7 @@ buffering.
 | Callouts (CPR, timers, vitals) | The voice agent decides when to speak, inside the §15 policy. `tick_rules` in SpacetimeDB is the safety net and the degraded-mode source. Mac speakers are the last fallback |
 | Patient identification | Vision model reads the ID card (name + birth date), or the medic says them; the agent decides to search the EHR. Fallback: "Identify patient" on `/controls` |
 | Patient record | W6 (bodycam lane) pulls it from the mock FHIR R4 EHR; every field marked "from EHR" (or "cached") |
-| Scene understanding | Vision on a frame every ~5 s and on "Handoff, look": AED pads, airway device, IV/IO, a medication being given (label + action), ID card. Logged only at confidence ≥ 0.7 |
+| Scene understanding | Vision on about one frame a second from the live stream, and at once on "Handoff, look": AED pads, airway device, IV/IO, a medication being given (label + action), ID card. Logged only at confidence ≥ 0.7 |
 | Timeline marks | Relay MARK button, voice "Handoff, mark" |
 | Destination, ETA, pre-arrival alert | Agent W1 (`choose_hospital` from the seeded hospitals); the alert is display-only |
 | Handoff report | Agent W4, MIST format; drops any sentence without a source; template fallback |
@@ -513,14 +518,15 @@ Works when: Reset clears every screen in under 10 seconds.
 1. Make a synthetic ID card like a driver's licence: printed name, birth date and a photo. Print it, or show it
    on a spare phone like a digital ID. No QR code.
 2. Tuck it in the patient teammate's pocket.
-3. The bodycam sends a frame to the vision model about every 5 s, and at once on "Handoff, look". The model reads
+3. The vision sampler on the laptop takes about one frame a second from the live video, and one at once on
+   "Handoff, look". The model reads
    the name and birth date, and the agent decides to search the EHR. Fallbacks: the medic says the name and birth
    date, or the demo operator picks the patient with "Identify patient" on `/controls`.
 4. On the laptop, a small FHIR R4 server holds five synthetic patients: Patient, AllergyIntolerance,
    MedicationStatement and Condition records.
 
 Works when: holding the card 20–50 cm from the chest camera shows "Jordan Avery, 58" with the allergy on the
-hospital screen within about 8 seconds (about 3 s after "Handoff, look" or the spoken name).
+hospital screen within about 5 seconds of showing the card (or of the spoken name).
 
 #### Temperature probe (18B20; 3 jumpers; code: ~20 lines in the relay sender)
 
@@ -694,7 +700,7 @@ Bonus lines:
 | --- | --- | --- |
 | D1 | Hidden demo controls page (`/controls`) on the demo operator's phone: Start, simulated arrest, CPR slow / CPR good override, epi due now, identify patient manually, **Reset for the next judge** | Reset clears every screen in under 10 s, devices stay connected |
 | D2 | Every spoken callout (rules and voice agent) also appears in big text on the hospital screen | Readable in a noisy hall |
-| D3 | The agent identifies the patient from the ID card or the spoken name and pulls the record (§17) | Record on the hospital screen within about 8 s of showing the card (about 3 s after "Handoff, look" or the spoken name) |
+| D3 | The agent identifies the patient from the ID card or the spoken name and pulls the record (§17) | Record on the hospital screen within about 5 s of showing the card (or of the spoken name) |
 | D4 | The report uses the judge's own run (average CPR rate, longest pause, compressions, doses) plus the record's history | Numbers match what the hospital screen showed |
 | D5 | Demo timing switch: epi every 45 s, cycle 30 s, with a DEMO TIMING tag | Visible on every timer |
 
@@ -785,7 +791,7 @@ agent.
 
 | Phone part | On the phone | Goes to |
 | --- | --- | --- |
-| Camera | Live video (WebRTC, peer to peer to `/hospital`); a frame every ~5 s and on "Handoff, look" for vision | Video: the hospital page, handshake in `rtc_signal`. Frames: the vision model (path [OPEN]) |
+| Camera | Live video (WebRTC, peer to peer to `/hospital`); vision uses the same stream | Video: the hospital page, handshake in `rtc_signal`. Vision: the sampler on the laptop takes ~1 frame/s from the stream (§19) |
 | Microphone | WebRTC audio to the voice agent worker, echo cancellation on. Degraded mode: Web Speech API, continuous, restarts itself on end or error, one row per sentence | Voice agent worker → `transcript`. Degraded mode: `add_transcript` from the phone |
 | Motion sensor | CPR detector (existing, self-tested): band-pass, peak timing → rate, count, paused | `cpr_state`, written twice a second (`push_cpr`) |
 | Speaker | Plays the voice agent's audio. Degraded mode: phone read-backs first, then `callout` rows by priority, one at a time, with on-device TTS or cached audio | `callout_spoken` after a rule callout is spoken |
@@ -802,11 +808,11 @@ agent.
 | ID | Requirement | Done when |
 | --- | --- | --- |
 | B1 | Tap-to-start grants camera, mic and motion, then holds a screen wake lock | One tap; screen stays on 10 min |
-| B2 | Streams continuous live video to the hospital (WebRTC); sends a frame for vision every 5 s and on "Handoff, look" | Video plays on the dashboard within 3 s of tap-to-start; under 1 s delay |
+| B2 | Streams continuous live video to the hospital (WebRTC). Vision samples this same stream on the laptop (§19); the phone sends no separate frames | Video plays on the dashboard within 3 s of tap-to-start; under 1 s delay |
 | B3 | Mic audio goes to the voice agent worker over WebRTC with echo cancellation on; its streaming STT writes transcript lines. Degraded mode: continuous Web Speech STT with auto-restart on the phone | A sentence appears on the dashboard within 3 s (both paths) |
 | B4 | CPR rate, count and pause from the rescuer's own motion, so mimed compressions count. If the mimed motion is too small to detect, the demo operator uses the CPR override on `/controls` | Within ±5/min of a 110 metronome |
 | B5 | Plays the voice agent's speech. Degraded mode: speaks unspoken `callout` rows (lowest priority number first) with on-device TTS or cached audio, then calls `callout_spoken` | "Push faster" heard within 2 s of the rule firing |
-| B6 | Voice shortcuts "Handoff, mark" and "Handoff, look" (heard by the voice agent; by the phone in degraded mode) | Creates a MARK event or a vision frame |
+| B6 | Voice shortcuts "Handoff, mark" and "Handoff, look" (heard by the voice agent; by the phone in degraded mode) | Creates a MARK event, or makes the vision sampler grab a frame at once |
 | B7 | Glanceable screen (mockup above) | Readable at arm's length |
 | B8 | Rear camera (decided 15:00); front camera stays as a fallback | The case is set up for rear |
 | B9 | Survives network drops: queues writes, reconnects | 30 s with Wi-Fi off loses no transcript lines |
@@ -1048,7 +1054,7 @@ is **Generate Handoff**. No demo controls here.
 | H6 | Pre-arrival alert panel, display-only (a typed ER chat is optional) | Alert appears within 20 s of the arrest |
 | H7 | Generate Handoff opens the report (§20) | Full report within 30 s |
 | H8 | Demo controls (the `/controls` page, not this dashboard): start, simulated arrest or deterioration, ROSC, en route, arrived, reset | Every demo beat can be forced if a sensor fails |
-| H9 | Patient record panel: name, age, allergies (highlighted), medications, history, code status, each marked "from EHR" (or "cached") | Fills within about 8 s of showing the ID card |
+| H9 | Patient record panel: name, age, allergies (highlighted), medications, history, code status, each marked "from EHR" (or "cached") | Fills within about 5 s of showing the ID card |
 
 ---
 
@@ -1234,8 +1240,8 @@ Medications are logged from what the camera sees as well as from what the medic 
 - **Safety checks still run:** a drug the camera sees goes through the same deterministic `check_allergy` and
   `check_dose_range` tools. Seeing amiodarone given to a patient with an amiodarone allergy triggers the RB7
   warning even if nobody spoke.
-- **Timing:** a push lasts a few seconds and frames come every ~5 s, so a frame can miss it. "Handoff, look"
-  forces a frame at once. Raising the frame rate during `arrest` is [OPEN] (cost and latency, §28).
+- **Timing:** vision samples the live stream about once a second, so a push that lasts a few seconds is caught.
+  "Handoff, look" grabs a frame at once.
 - **Props:** dummy vials and syringes carry large printed labels, e.g. "EPINEPHRINE 1 mg · DEMO", so the camera
   can read them at chest distance.
 
@@ -1248,7 +1254,7 @@ Medications are logged from what the camera sees as well as from what the medic 
 | RB5 | Echo guard | The read-back never creates a second event |
 | RB6 | Shows a big read-back card on the bodycam screen and a "read back" chip on the hospital timeline | Visible on both within 1 s |
 | RB7 | Allergy check against the pulled record, deterministic (`check_allergy` tool; the same check on the phone): if the drug matches a recorded allergy, the read-back says so and asks for confirm or correction | The amiodarone line triggers the warning |
-| RB8 | Logs a medication the camera sees being given (label + action, confidence ≥ 0.7), with the frame as evidence, even if nobody says it | Giving the "EPINEPHRINE 1 mg · DEMO" syringe in silence, then "Handoff, look", logs an epinephrine event with a `seen` chip within about 3 s |
+| RB8 | Logs a medication the camera sees being given (label + action, confidence ≥ 0.7), with the frame as evidence, even if nobody says it | Giving the "EPINEPHRINE 1 mg · DEMO" syringe in silence logs an epinephrine event with a `seen` chip within about 3 s |
 | RB9 | Seen but not said: logged as `flagged` with no guessed dose; the agent asks "Saw epinephrine. What dose?" once; a spoken dose within 30 s merges and confirms it | Report shows "dose not stated" until a dose is spoken; never an invented number |
 | RB10 | Drugs the camera sees run the same deterministic allergy and dose checks (RB4, RB7) | The camera seeing amiodarone given to Jordan Avery triggers the allergy warning with no words spoken |
 
@@ -1273,7 +1279,7 @@ sequenceDiagram
   participant S as SpacetimeDB
   participant H as Hospital screen
   J->>J: holds the ID card 20-50 cm from the chest camera
-  J->>W: frame (every ~5 s, or at once on "Handoff, look")
+  J->>W: live video frame (sampled about 1 per second on the laptop, or at once on "Handoff, look")
   W->>W: vision finding "ID card: Jordan Avery, 1968-03-14"; decides to search the EHR
   W->>X: ehr_search (Jordan Avery, 1968-03-14)
   X-->>W: one match: pt-0001
@@ -1300,7 +1306,8 @@ card).
 
 **How the patient is identified:**
 
-1. **ID card seen by the camera:** a frame goes to the vision model, which reads the printed name and birth date.
+1. **ID card seen by the camera:** the vision sampler takes a frame from the live video (about once a second) and
+   the vision model reads the printed name and birth date.
 2. **Name and birth date spoken** ("Patient is Jordan Avery, born March 14, 1968"): the words arrive in the
    transcript.
 3. **Manual backup:** "Identify patient" on the `/controls` page.
@@ -1311,7 +1318,7 @@ From either of the first two, the agent decides to call `ehr_search`. No QR code
 | --- | --- | --- |
 | X1 | The vision model reads a printed name and birth date from a card held 20–50 cm from the chest camera, or the spoken name and birth date are parsed from the transcript | Name and birth date found within about 5 s of showing the card (at once on "Handoff, look") |
 | X2 | The mock EHR answers FHIR R4 queries for Patient, AllergyIntolerance, MedicationStatement and Condition; five synthetic patients | Responds locally in under 300 ms |
-| X3 | The agent (W6) pulls and summarizes the record into `patient_record`, every field marked "from EHR" | Record on the hospital screen within about 8 s of showing the card (about 3 s after "Handoff, look" or the spoken name) |
+| X3 | The agent (W6) pulls and summarizes the record into `patient_record`, every field marked "from EHR" | Record on the hospital screen within about 5 s of showing the card (or of the spoken name) |
 | X4 | Spoken summary: name, age, allergies, one key medication; facts only, under 12 words after the name | Heard on the bodycam |
 | X5 | The read-back checks each drug against the allergy list (RB7) | Amiodarone triggers the warning |
 | X6 | The report's history lines cite the EHR as their source | "EHR" chips in the report |
@@ -1382,7 +1389,7 @@ There are two parts:
 | --- | --- | --- | --- |
 | W1 | Status becomes arrest or en route | `get_incident` → `choose_hospital` (capability, ETA, beds) → `set_destination` → `post_er_message` | The alert appears on the hospital dashboard within 20 s |
 | W2 | Every 5 s of new transcript | `get_recent_transcript` → pull out procedures and findings (medications come from the read-back and from vision, RB8) → `log_event` (fuses with vision and the kit if built) | "One milligram epi in" becomes one event, not a duplicate |
-| W6 | A vision finding of an ID card, a spoken name and birth date in the transcript, or `incident.patientRef` set by "Identify patient"; the agent decides to search | `ehr_search` (name + birth date; several matches → ask for confirmation, never guess) → `identify_patient` → `ehr_get_record` (allergies, medications, conditions, code status) → summarize → `save_patient_record` → `add_callout` ("Record found…") | Record on screens within about 8 s of showing the card (about 3 s after "Handoff, look" or the spoken name); spoken summary is facts only |
+| W6 | A vision finding of an ID card, a spoken name and birth date in the transcript, or `incident.patientRef` set by "Identify patient"; the agent decides to search | `ehr_search` (name + birth date; several matches → ask for confirmation, never guess) → `identify_patient` → `ehr_get_record` (allergies, medications, conditions, code status) → summarize → `save_patient_record` → `add_callout` ("Record found…") | Record on screens within about 5 s of showing the card (or of the spoken name); spoken summary is facts only |
 | W3 | Optional: the ER doctor types a question in the ER chat | `get_timeline`, `get_vitals_summary` → answer in two sentences, facts and times only → `post_er_message`; unknown → "Not documented yet, asking crew" + `add_callout` | Answer within 20 s; nothing invented |
 | W4 | Generate Handoff (a `report` row with status `requested`), or status arrived | gather → draft MIST → self-check drops any sentence without a source → `save_report` → `post_er_message` | No uncited claims in the report |
 | W5 | After the MVP, with Photon | The same alerts and answers to a real phone; then a 30-second spoken MIST report → `place_er_call` | The phone rings and hears it |
@@ -1458,14 +1465,17 @@ sequenceDiagram
 
 ### Vision
 
-- Checks a frame every 5 s and on "Handoff, look".
+- Takes about one frame a second from the live video on the laptop, and skips a frame while the previous call is
+  still running, so it never falls behind. "Handoff, look" grabs a frame at once. The phone uploads nothing extra.
 - Looks for AED pads on, an airway device, IV/IO, a medication being given (the label's drug, and dose if
   printed, plus the push, injection or nebuliser), vial label text, and an ID card (it reads the printed name and
   birth date).
 - Returns a finding and a confidence; only 0.7 or higher is logged, with the frame kept as evidence.
 - A medication finding becomes `log_event({kind: "med_<drug>", sourceKind: "seen"})`, runs `check_allergy` and
   `check_dose_range`, and fuses with the read-back inside the merge window (RB8–RB10, §18).
-- Model: prefer a Nemotron vision model; exact slug [OPEN]. Frame path and evidence storage [OPEN] (§28).
+- Model: prefer a Nemotron vision model; exact slug [OPEN]. Where the sampler taps the stream and where evidence
+  frames are kept are [OPEN] (§28).
+- Cost: about 300 vision calls in a 5-minute demo. Check the NVIDIA key's rate limit.
 
 ## 20. Handoff report
 
@@ -1566,8 +1576,8 @@ active get `incidentId = 0`.
 
 **Not built** (in the earlier spec sketch, deliberately left out or not yet needed):
 
-- `frame` / `snapshot` tables and `push_frame` / `save_snapshot`: no snapshot video. Vision frames still exist
-  but have no table; their path and evidence storage are [OPEN] (§28).
+- `frame` / `snapshot` tables and `push_frame` / `save_snapshot`: not needed. There is no snapshot video, and the
+  vision sampler takes frames from the live stream on the laptop (§19). Evidence storage is [OPEN] (§28).
 - `er_message_in`: only needed for the optional ER chat.
 - `kit_slot` / `kit_update`: only if the med kit is built.
 - `timer_fire` is part of `tick_rules`; `agent_step` the reducer is `log_agent_step`.
@@ -1847,7 +1857,8 @@ Rows are in priority order.
 | Package | What "done" means | Needs first |
 | --- | --- | --- |
 | **SpacetimeDB module and seed data** | Tables, reducers, rules and timers run; hospitals are seeded; one client syncs live. (Built, published 17:26) | Nothing. Start here. |
-| **Bodycam page (live video sender, WebRTC audio link, CPR, frames for vision; on-device STT, TTS and read-back only as the degraded-mode fallback)** | Streams video and audio, detects CPR, sends frames for vision, plays the agent's voice, and falls back to on-device speech; each works on the Pixel. | SpacetimeDB module |
+| **Bodycam page (live video sender, WebRTC audio link, CPR; on-device STT, TTS and read-back only as the degraded-mode fallback)** | Streams video and audio, detects CPR, plays the agent's voice, and falls back to on-device speech; each works on the Pixel. | SpacetimeDB module |
+| **Vision sampler (laptop)** | Takes about one frame a second from the live stream and skips when busy; logs findings at confidence ≥ 0.7 (ID card, drugs given, airway, AED pads); "Handoff, look" grabs a frame at once. | Live video |
 | **Voice agent worker** | Voice-to-voice ≤ ~1.2 s; barge-in works; the fallback engages when the pipeline drops. | SpacetimeDB module, bodycam audio link, STT/TTS choice [OPEN] |
 | **Live video (WebRTC + SpacetimeDB handshake + fallback)** | Video plays on the dashboard within 3 s of tap-to-start, under 1 s delay; falls back to the hotspot, then a TURN relay. | SpacetimeDB module (`rtc_signal`), bodycam page |
 | **Hospital dashboard (live view, record panel, alert, report)** | Shows live video, timeline, patient record, pre-arrival alert and the report. (First version built) | SpacetimeDB module, live video |
@@ -1946,7 +1957,6 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | **Exact Nemotron model slugs** for the agent (voice and workflows) and for the vision step (prefer a Nemotron vision model over Gemini) | Team |
 | **Voice agent design:** the tool list (and reconciling names with the workflow tools; who owns the EHR search given W6 is the bodycam lane's), the state-summary format, the when-to-speak policy (how agent speech and `tick_rules` rows combine without double-speaking), and whether workflows share its process | Voice agent owner, with Alan |
 | **Read-back first hop:** keep the phone parser's instant "Copy" before the agent's checks? | Alan |
-| **Vision frame rate during `arrest`:** raise it from one every ~5 s to one every ~2 s so a drug push isn't missed (RB8)? Costs more vision calls and latency | Camera lane |
 | **Voice failover trigger:** what makes the bodycam switch to on-device mode, and back | Voice agent and camera lanes |
 | **Voice agent worker folder and owner** (unassigned lane) | Team |
 | **Audio-link signaling:** the framework's own, or `rtc_signal` with a new sender (contract change, hospital lane) | Voice agent owner, Josh |
@@ -1956,7 +1966,7 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | **Relay `simulated` flag:** the module requires `"simulated"` in every `push_vitals`/`push_waveform` JSON (§22.2a). Keep it required, or default it to false? Until decided, the relay sends it | Josh, relay lane |
 | Built code still has a `/monitor` placeholder route and a `monitor_tap` reducer from the dropped monitor page — hospital lane to rename/remove. | Josh |
 | **D1 list gap:** ROSC, Transport and Arrived (in H8 and the lifecycle, and needed for the storyboard's "Transport" beat and "Status ARRIVED") are missing from the D1 button list. The `demo_control` reducer already supports `rosc`, `en_route` and `arrived` | Team |
-| **Vision frame path:** no `frame`/`snapshot` table exists yet. Josh's proposal: the hospital lane adds a `frame` table + `push_frame` for the vision ID-card read (§17, B2, B6). Also decide where the vision step runs and where evidence frames live for H4 chips and report "frame" sources | Josh, camera lane |
+| **Vision sampler:** settled that it takes ~1 frame/s from the live stream on the laptop, so no `frame` table or `push_frame` is needed. Open: where it taps the stream (the hospital page drawing its video to a canvas is simplest, but vision stops if that page is closed; or the sampler joins the WebRTC call as a second receiver), and where evidence frames are kept for H4 chips and report "frame" sources | Camera lane, Josh |
 | **Who calls `synthesize_seizure`** (a `/controls` button, the agent, a hotkey) and whether its hardcoded numbers change. The relay LCD keeps showing the real pulse while it's on unless the relay reads `vitals_override` | Team |
 | Owner of `/controls` (`web/src/routes/controls/`), W2 and the optional W3/ER chat (needs an inbound ER message reducer) | Team |
 | Do MLH prizes count toward the 3-track limit? (General tracks don't.) | Team, help desk |
