@@ -19,7 +19,7 @@ type Page = 'ops' | 'patients' | 'patient' | 'tracing' | 'logs';
 const PAGES: { page: Page; path: string; label: string; icon: string }[] = [
   { page: 'ops', path: '/hospital', label: 'Live Operations', icon: 'grid' },
   { page: 'patients', path: '/hospital/patients', label: 'Patients', icon: 'user' },
-  { page: 'tracing', path: '/hospital/tracing', label: 'Tracing', icon: 'trace' },
+  { page: 'tracing', path: '/hospital/tracing', label: 'Tracing', icon: 'pulse' },
   { page: 'logs', path: '/hospital/logs', label: 'Logs', icon: 'file' },
 ];
 
