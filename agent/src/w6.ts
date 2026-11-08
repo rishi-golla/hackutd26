@@ -25,10 +25,13 @@ export function claimPull(incidentId: bigint, patientRef: string): boolean {
   return true;
 }
 
-/** A transcript line worth checking for a patient's identity: a name intro, "born", a date of birth or a year. */
+/**
+ * A transcript line worth checking for a patient's identity: a name intro, "born", or a date
+ * (ISO, 3/14/1968, "March 14", "14th of March"). A bare number such as "2000 units" is not enough.
+ */
 const MONTHS = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
 export const IDENTITY_HINT = new RegExp(
-  String.raw`\b(patient(?:'s)?(?: name)? is|name is|identified as|born|date of birth|dob|d\.o\.b)\b|\b(19|20)\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b|\b(${MONTHS})\.? \d{1,2}\b`,
+  String.raw`\b(patient(?:'s)?(?: name)? is|name is|identified as|born|date of birth|dob|d\.o\.b)\b|\b(19|20)\d{2}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}/\d{2,4}\b|\b(${MONTHS})\.? \d{1,2}\b|\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(${MONTHS})\b`,
   'i'
 );
 
@@ -40,6 +43,18 @@ const MONTH_NUM: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may:
 const pad = (n: number) => String(n).padStart(2, '0');
 const iso = (y: number, m: number, d: number) => (m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(m)}-${pad(d)}` : undefined);
 const NAME_STOP = new Set(['born', 'dob', 'date', 'age', 'aged', 'and', 'birth', 'he', 'she', 'they', 'who', 'is', 'was']);
+/**
+ * Words that mean "patient is …" describes a state, not a name ("patient is breathing", "patient is not
+ * responding", "patient is a 58 year old"). A name also needs at least two words (given + family).
+ */
+const NOT_A_NAME = new Set([
+  'not', 'no', 'a', 'an', 'the', 'in', 'on', 'at', 'still', 'now', 'very', 'really', 'being', 'having', 'getting',
+  'breathing', 'apneic', 'pulseless', 'unresponsive', 'responsive', 'responding', 'conscious', 'unconscious',
+  'awake', 'alert', 'oriented', 'stable', 'unstable', 'talking', 'moving', 'seizing', 'vomiting', 'bleeding',
+  'cyanotic', 'pale', 'sweaty', 'diaphoretic', 'down', 'up', 'out', 'back', 'here', 'there', 'fine', 'ok', 'okay',
+  'male', 'female', 'man', 'woman', 'about', 'around', 'approximately', 'old', 'older', 'elderly', 'young', 'year',
+  'years', 'sick', 'hurt', 'injured', 'unknown', 'dead', 'alive', 'gone', 'coding', 'crashing', 'intubated',
+]);
 
 /** Name and birth date from what the medic said, e.g. "Patient is Jordan Avery, born March 14, 1968". */
 export function parseIdentity(text: string): { name?: string; birthDate?: string } {
@@ -52,7 +67,7 @@ export function parseIdentity(text: string): { name?: string; birthDate?: string
       if (NAME_STOP.has(w.toLowerCase())) break;
       words.push(w);
     }
-    if (words.length) name = words.join(' ');
+    if (words.length >= 2 && !words.some(w => NOT_A_NAME.has(w.toLowerCase()))) name = words.join(' ');
   }
   let birthDate: string | undefined;
   let m: RegExpExecArray | null;
@@ -351,6 +366,17 @@ export async function runW6Transcript(conn: Conn, incidentId: bigint) {
         return JSON.stringify({ error: `unknown tool ${name}` });
     }
   };
+
+  // Fast path for X3 (record on screen ~3 s after the spoken name): when the fixed parser already has a name and a
+  // birth date, search at once. Nemotron (2–3 calls, ~5–8 s) is only for phrasing the parser can't read.
+  const quick = latestIdentity(lines.map(l => l.text));
+  if (quick.name && quick.birthDate) {
+    await step(conn, W, 'parse', `Heard ${quick.name}, born ${quick.birthDate} (rule, no model call needed)`);
+    const matches = await search(quick.name, quick.birthDate, 'rule');
+    if (matches.length === 1) await identifyAndPull(matches[0], 'rule');
+    else await askCrew(conn, incidentId, matches.length ? 'multiple_matches' : 'no_match', 'rule');
+    return;
+  }
 
   if (llmConfigured()) {
     await step(conn, W, 'plan', 'Look for a name and birth date; search the EHR only with both, ask instead of guessing');

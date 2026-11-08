@@ -73,8 +73,13 @@ python3 -c 'import json,urllib.request as u; d=json.load(open("src/ehr-cache.jso
     checks. Otherwise the template speaks.
   - If the EHR doesn't answer within `EHR_TIMEOUT_MS`, search and record come from `src/ehr-cache.json`, the
     record is saved with source `cached` and the callout ends "Cached record." (X7).
-  - Without a key, or if the model fails or stops, a fixed parser (`parseIdentity`) applies the same policy. W6's
-    model budget is 8 s; the summary call gets 6 s.
+  - **Fast path (X3):** when the fixed parser (`parseIdentity`) already hears a full name and a birth date, W6
+    searches at once with no model call (record on screen in about 0.5 s locally). Nemotron decides only for
+    phrasing the parser can't read; without a key, or if the model fails, the parser applies the same policy.
+    W6's model budget is 8 s; the summary call gets 6 s.
+  - **Names:** the parser needs at least two words and refuses state words ("patient is breathing", "not
+    responding", "a 58 year old"), so it never asks for a birth date after a non-name. A bare number ("2000 units")
+    doesn't trigger W6; a date or "born" does.
   - Vision (an ID card in the camera) isn't wired yet: when it exists, it can call `identify_patient` or add the
     words to the transcript and W6 picks it up.
 - **Self-check (W4):** a drafted line is dropped if it:
