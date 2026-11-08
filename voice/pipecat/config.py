@@ -33,6 +33,12 @@ TTS_FUNCTION_ID = "877104f7-e885-42b9-8de8-f6e4c6303969"  # magpie-tts-multiling
 TTS_MODEL = "magpie-tts-multilingual"
 DEFAULT_VOICE = "Magpie-Multilingual.EN-US.Aria"
 
+# Vision (spec §19 Vision): a hosted Nemotron vision model on the same key, through NVIDIA's OpenAI-compatible
+# endpoint. The Nano Omni is the model Devin's PR #6 ran self-hosted with this prompt; `nvidia/nemotron-3.5-super-vl-120b-a12b`
+# also read the synthetic ID card correctly (both about 1.4 s a frame, Sat ~23:05). VISION_MODEL overrides.
+NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+VISION_MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+
 
 @dataclass
 class Config:
@@ -45,6 +51,15 @@ class Config:
     boost_words: list[str] = field(default_factory=list)
     # WebRTC ICE servers for both peers, e.g. a TURN relay when the venue Wi-Fi blocks device-to-device traffic
     ice_servers: list[dict] = field(default_factory=list)
+    # Vision: off = audio only. VISION defaults to on; it needs the key like everything else.
+    vision: bool = True
+    vision_model: str = VISION_MODEL
+    vision_base_url: str = NVIDIA_BASE_URL
+    vision_api_key: str = ""  # defaults to api_key; set VISION_API_KEY for a second key (rate limit, §28)
+    vision_interval_s: float = 1.0
+    # The Pi hub (hub/hub.py), for vision frames when no WebRTC video arrives, and to serve the phone page's
+    # hub calls from the worker's own origin (one https URL for the phone). Empty = off.
+    hub_url: str = ""
 
     @property
     def has_key(self) -> bool:
@@ -74,6 +89,13 @@ def load_config() -> Config:
         assert isinstance(ice_servers, list) and all(isinstance(s, dict) and "urls" in s for s in ice_servers)
     except (ValueError, AssertionError):
         raise SystemExit(f"ICE_SERVERS must be a JSON list of {{urls, username?, credential?}}, got {ice!r}")
+    # The short form for one TURN relay (coturn): TURN_URL=turn:host:3478 TURN_USER=u TURN_PASS=p
+    if get("TURN_URL"):
+        ice_servers.append({"urls": get("TURN_URL"), "username": get("TURN_USER"), "credential": get("TURN_PASS")})
+    try:
+        vision_interval = float(get("VISION_INTERVAL_S", "1.0"))
+    except ValueError:
+        raise SystemExit(f"VISION_INTERVAL_S must be a number of seconds, got {get('VISION_INTERVAL_S')!r}")
     return Config(
         api_key=get("NVIDIA_API_KEY"),
         voice=get("RIVA_VOICE", DEFAULT_VOICE),
@@ -83,4 +105,10 @@ def load_config() -> Config:
         tts_function_id=get("RIVA_TTS_FUNCTION_ID", TTS_FUNCTION_ID),
         boost_words=[w.strip() for w in boost.split(",") if w.strip()],
         ice_servers=ice_servers,
+        vision=get("VISION", "on").lower() not in ("off", "0", "false", "no"),
+        vision_model=get("VISION_MODEL", VISION_MODEL),
+        vision_base_url=get("VISION_BASE_URL", get("NVIDIA_BASE_URL", NVIDIA_BASE_URL)).rstrip("/"),
+        vision_api_key=get("VISION_API_KEY"),
+        vision_interval_s=vision_interval,
+        hub_url=get("HUB_URL").rstrip("/"),
     )

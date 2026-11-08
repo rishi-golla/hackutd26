@@ -1,17 +1,25 @@
 # Handoff voice agent worker (the Nemotron brain)
 
-The voice agent from spec §19: it listens to the medic, speaks back, and does the judgement work the rules don't
-(read-back with deterministic dose and allergy checks, W2 transcript → events, W6 EHR pull, answering the medic,
-proactive advisories). It runs on the laptop as a Node process. Josh's `agent/` (W1 alert, W4 report) is a
-separate process and stays untouched; this worker never runs W1 or W4.
+The voice agent from spec §19: it listens to the medic, watches the bodycam, speaks back, and does the judgement
+work the rules don't (read-back with deterministic dose and allergy checks, W2 transcript → events, W6 EHR pull
+from the spoken name or the ID card, camera-seen drugs, answering the medic, proactive advisories). It runs on the
+laptop as a Node process plus a Python audio/vision worker. Josh's `agent/` (W1 alert, W4 report) is a separate
+process and stays untouched; this worker never runs W1 or W4.
 
 ```
 voice/
   src/            the brain (TypeScript, Node 22.18+)
   mock/           a terminal bodycam and a relay pusher, so the brain can be tested with no phone and no Pi
-  pipecat/        the real-time audio front end (Python): WebRTC or laptop mic → Riva STT → brain → Riva TTS
-  test/           node --test unit tests (read-back parser, checks, policy)
+  pipecat/        the ears, mouth and eyes (Python): WebRTC or laptop mic → Riva STT → brain → Riva TTS,
+                  plus ~1 frame/s of the phone's video → Nemotron vision → brain (POST /seen)
+  test/           node --test unit tests (read-back parser, checks, policy, camera findings)
 ```
+
+History: two voice-agent PRs were built in parallel on Saturday. This tree is PR #5 (the TypeScript brain and the
+Riva Pipecat worker, live-tested with a real mic) plus the parts of Devin's PR #6 it lacked: the vision sampler,
+the phone page's WebRTC link (`hub/phone.html?voice=`), `GET /api/ice`, the phone page served from the worker,
+the Pi-hub frame fallback and `test_client.py`. PR #6's self-hosted Omni and Kokoro (an H100 behind a tunnel) were
+not adopted: everything here runs on NVIDIA's hosted API with the one `nvapi-` key.
 
 ## Run it locally (no phone, no Pi, no key needed for the deterministic parts)
 
@@ -47,13 +55,14 @@ would read back and log everything twice).
 
 ```mermaid
 flowchart LR
-  subgraph phone[Bodycam phone]
-    MIC[mic] -->|WebRTC audio| PC
+  subgraph phone[Bodycam phone: hub/phone.html?voice=]
+    MIC[mic + camera] -->|WebRTC audio + video| PC
     PC -->|agent voice| SPK[speaker]
   end
   subgraph laptop[Laptop]
-    PC[pipecat/ worker<br/>Riva STT · Riva TTS] -->|POST /transcript| B
+    PC[pipecat/ worker<br/>Riva STT · Riva TTS · vision sampler] -->|POST /transcript, POST /seen| B
     B[voice/src brain<br/>Nemotron + tools + policy] -->|WS /mouth: speak| PC
+    PC -->|~1 frame/s| V[hosted Nemotron vision model]
     B <-->|TS SDK| S[(SpacetimeDB)]
     B -->|FHIR R4| E[ehr/ mock EHR]
     R[mock/relay.ts] -->|push_vitals HTTP| S
@@ -79,8 +88,10 @@ when it drops. That is the whole failover trigger.
 | Input | What the brain does | Speaks (priority) |
 | --- | --- | --- |
 | Transcript line (from Pipecat, the terminal bodycam, or a `transcript` row the bodycam wrote in degraded mode) | 1. **Echo guard:** drop it if it matches something the brain itself said in the last few seconds, unless it is confirm / correction / cancel. 2. **Read-back fast path (no model):** parser (§16) → `check_allergy` + `check_dose_range` → speak → `log_event` (kind `med_<drug>`, source `read-back`). 3. **Correction / cancel / confirm** within 10 s of the last read-back → `set_event_status`. 4. **Spoken identity** ("Patient is Jordan Avery, born March 14, 1968") → W6 search. 5. Otherwise a **Nemotron turn** with the state summary and tools; the model may stay silent | Read-back P0; answers to the medic P1 |
-| `incident.patientRef` set (ID card via the bodycam, spoken name, or `/controls` Identify) and no record yet | **W6:** `GET Patient/<id>/$everything` → `save_patient_record` (source `EHR`, or `cached` from the built-in copy of pt-0001 if the EHR is down, X7) | "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." (P2, X4) |
-| `event` with a `seen` source and no read-back source (the camera saw a drug given; the camera lane just calls `log_event` with source `seen`, label = the drug, plus the printed dose if it read one) | **RB9/RB10:** the event is flagged (seen but not said) and `check_allergy` → warning (P0); a printed dose gets `check_dose_range` → out-of-range warning (P0) or "Saw epinephrine, one milligram. Confirm?" (P2); no dose → "Saw epinephrine. What dose?" (P2). A spoken dose within 30 s (a full read-back, or just "one milligram") merges in and the brain marks the event `confirmed`; "confirm" confirms a printed or allergy-flagged dose but is not enough when no dose is known | "Saw epinephrine. What dose?" (P2) |
+| `POST /seen` from the vision sampler (`pipecat/vision.py`): an ID card with a readable name and birth date | **X1 by camera:** the same W6 search as the spoken name, `identify_patient` with method `ID card`, then the pull below. The same card again (patient already identified, record saved) does nothing | the record summary (P2) |
+| `POST /seen`: a drug being given (label read, push seen), AED pads, an airway device, IV/IO | `log_event` with source `seen`: `med_<drug>` with the printed dose in the label and never a guessed one (the drug name goes through the read-back aliases: "epi" → epinephrine; an unknown name is not logged), or `procedure` / `airway` rows. The medication row then comes back through the `event` path below | — |
+| `incident.patientRef` set (ID card, spoken name, or `/controls` Identify) and no record yet | **W6:** `GET Patient/<id>/$everything` → `save_patient_record` (source `EHR`, or `cached` from the built-in copy of pt-0001 if the EHR is down, X7) | "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." (P2, X4) |
+| `event` with a `seen` source and no read-back source (the camera saw a drug given: the vision sampler, or any other client calling `log_event` with source `seen`, label = the drug, plus the printed dose if it read one) | **RB9/RB10:** the event is flagged (seen but not said) and `check_allergy` → warning (P0); a printed dose gets `check_dose_range` → out-of-range warning (P0) or "Saw epinephrine, one milligram. Confirm?" (P2); no dose → "Saw epinephrine. What dose?" (P2). A spoken dose within 30 s (a full read-back, or just "one milligram") merges in and the brain marks the event `confirmed`; "confirm" confirms a printed or allergy-flagged dose but is not enough when no dose is known | "Saw epinephrine. What dose?" (P2) |
 | `transcript` row the bodycam wrote itself (degraded mode) | The phone's parser already spoke the read-back and logged the event, so the brain skips the read-back and control paths for that line and only does W6 / Nemotron | — |
 | State change (status, ROSC, timers), at most every 20 s, `VOICE_PROACTIVE=on` | Nemotron decides whether an advisory helps; the policy layer clamps it to 8 words, protocol wording, never an order | P2 |
 
@@ -129,6 +140,8 @@ Never raw waveforms. Numbers are copied from the tables; missing readings say so
 | Call | Body / messages | Notes |
 | --- | --- | --- |
 | `POST /transcript` | `{"text": "...", "source": "pipecat" \| "repl" \| "webspeech"}` → `202 {"id": "..."}` | The brain writes `add_transcript` and processes the line. Final utterances only, one sentence per call |
+| `POST /seen` | `{"type": "id_card", "name": "AVERY, JORDAN", "birthDate": "1968-03-14"}` · `{"type": "medication", "drug": "epinephrine", "dose": "1 mg"}` (dose optional, as printed) · `{"type": "aed_pads" \| "airway_device" \| "iv_io"}`; all with optional `"confidence"` and `"detail"` (where the evidence frame is) → `202` | One vision finding at confidence ≥ 0.7. The sampler dedupes (same card or drug within 60 s, procedures within 10 min); the brain also ignores a card for the patient already identified. `400` for anything else |
+| `POST /say` | `{"text": "...", "priority": 1-3, "kind": "vision" \| "ask"}` → `202` | Fixed words from the worker (the answer to "Handoff, look": "AED pads on.", "Nothing I recognise."), through the policy layer (20 words, never a number the state doesn't have) and the shared queue |
 | `GET /state` | → the state summary as JSON and text | debugging |
 | `GET /health` | → `{ok, db, mouth: true\|false, model}` | |
 | `WS /mouth` | server → `{"type":"speak","id":"<calloutId>","text":"...","priority":0}` · client → `{"type":"spoken","id":"..."}` when playback finished, with optional `"interrupted": true` (the medic talked over it: it is retried once) or `"error": "..."` (not played: it stays unspoken; two errors in a row and the brain closes the mouth so the bodycam takes over) · client → `{"type":"user_speaking","active":true\|false}` | One `speak` at a time: the next is sent only after `spoken`. While `user_speaking` is true the brain holds (never talk over the medic), except that after 10 s of continuous "speaking" (hall noise) P0/P1 callouts go through. One mouth at a time; a second connection replaces the first (close 1000 "replaced by a new mouth": don't reconnect) |

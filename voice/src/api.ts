@@ -6,6 +6,7 @@ import { CONFIG, llmConfigured } from './config';
 import type { Conn } from './db';
 import { modelInUse } from './llm';
 import { readState, stateJson } from './state';
+import { parseSeen } from './seen';
 import type { Brain } from './brain';
 import type { Speaker } from './speaker';
 
@@ -47,6 +48,26 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
         brain.handleUtterance(text, String(body.source ?? 'api')).catch(err => console.error('[voice] utterance failed', err));
         return;
       }
+      if (req.method === 'POST' && url.pathname === '/seen') {
+        // One vision finding (voice/pipecat/vision.py): {"type": "id_card", "name", "birthDate"} or
+        // {"type": "medication", "drug", "dose"?} or {"type": "aed_pads" | "airway_device" | "iv_io"}, plus
+        // optional "confidence" and "detail" (where the evidence frame is).
+        const finding = parseSeen(await readJson(req));
+        if (!finding) return send(res, 400, { error: 'not a finding: type id_card (name, birthDate YYYY-MM-DD), medication (drug, dose?), aed_pads, airway_device or iv_io' });
+        send(res, 202, { ok: true });
+        brain.handleSeen(finding).catch(err => console.error('[voice] seen failed', err));
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/say') {
+        // Fixed words from the worker (the answer to "Handoff, look"): {"text", "priority"?: 1-3, "kind"?: "ask"|"vision"}.
+        const body = await readJson(req);
+        const text = String(body.text ?? '').trim();
+        if (!text) return send(res, 400, { error: 'text required' });
+        const kind = body.kind === 'ask' ? 'ask' : 'vision';
+        send(res, 202, { ok: true });
+        brain.say(text, Number(body.priority ?? 2), kind).catch(err => console.error('[voice] say failed', err));
+        return;
+      }
       send(res, 404, { error: 'not found' });
     } catch (err) {
       send(res, 500, { error: String((err as Error).message) });
@@ -57,7 +78,7 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
   wss.on('connection', ws => speaker.attach(ws));
 
   server.listen(CONFIG.apiPort, '127.0.0.1', () => {
-    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, GET /state, WS /mouth)`);
+    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, GET /state, WS /mouth)`);
   });
   return server;
 }

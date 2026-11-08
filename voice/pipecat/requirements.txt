@@ -1,12 +1,17 @@
 # Handoff voice worker (Pipecat). Install: see README.md.
 # nvidia  = NVIDIA hosted speech over gRPC (nvidia-riva-client): Nemotron streaming ASR + Magpie TTS
-# webrtc  = SmallWebRTCTransport (aiortc)
+# webrtc  = SmallWebRTCTransport (aiortc); also brings av + numpy for test_client.py
 # Silero VAD and the turn processors are in the base package (onnxruntime), no extra needed.
 pipecat-ai[nvidia,webrtc]==1.15.0
 # the browser test client served at /client
 pipecat-ai-small-webrtc-prebuilt==2.5.0
-# the small signaling server in run.py
+# the small signaling server in run.py, and the proxy to the Pi hub (HUB_URL)
 fastapi>=0.115.6,<1
 uvicorn>=0.32.0,<1
+httpx>=0.27,<1
+# vision.py: JPEG encoding of the video frames and the calls to the model and the brain (both already pulled in
+# by pipecat-ai; listed so the versions are pinned by this file)
+pillow>=10
+aiohttp>=3.9
 # --transport local also needs PyAudio, which needs PortAudio (brew install portaudio), so it is not listed
 # here: `uv pip install -p .venv "pipecat-ai[local]==1.15.0"` after installing PortAudio.

@@ -1,19 +1,46 @@
-# voice/pipecat: the ears and mouth
+# voice/pipecat: the ears, mouth and eyes
 
-The real-time audio front end of the voice agent (spec §19, §22.6). It hears the medic, sends what they say to the
-brain (`voice/src`) and speaks whatever the brain sends back. There is no LLM here: the brain is
-the LLM. The contract is the "Local API" section of [`../README.md`](../README.md).
+The real-time front end of the voice agent (spec §19, §22.6). It hears the medic, sends what they say to the
+brain (`voice/src`), speaks whatever the brain sends back, and looks at the phone's video about once a second.
+There is no LLM in the audio path: the brain is the LLM. The contract is the "Local API" section of
+[`../README.md`](../README.md).
 
 ```
-transport.input() → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → NVIDIA Magpie TTS → transport.output()
-                                                                         │  POST /transcript       ▲ WS /mouth: speak
-                                                                         └──────────► brain (voice/src, :8787)
+transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → NVIDIA Magpie TTS → transport.output()
+                        │ ~1 frame/s → Nemotron vision (hosted)            │  POST /transcript       ▲ WS /mouth: speak
+                        └── POST /seen, POST /say ─────────────────────────┴──────────► brain (voice/src, :8787)
 ```
 
 Pipecat 1.15.0 has NVIDIA speech built in (`pipecat.services.nvidia.stt.NvidiaSTTService`,
 `pipecat.services.nvidia.tts.NvidiaTTSService`; the old `riva` module names are gone), so one `nvapi-` key covers
-ASR, TTS and the brain's Nemotron. The Deepgram + Cartesia fallback (spec §19) is not built: it is only needed if
-Magpie turns out to sound poor, and nobody has heard it yet.
+ASR, TTS, vision and the brain's Nemotron. The Deepgram + Cartesia fallback (spec §19) is not built: it is only
+needed if Magpie turns out to sound poor.
+
+## Vision (spec §19 Vision, RB8–RB10, X1)
+
+`vision.py` sits right after the transport input and eats the video frames (nothing downstream wants them). About
+once a second (`VISION_INTERVAL_S`), and never while a call is still running, it sends one JPEG (≤ 960 px wide) to
+a hosted Nemotron vision model through NVIDIA's OpenAI-compatible endpoint, with Devin's PR #6 prompt: ID card
+(name + birth date), a medication being given (label + the push), AED pads, airway device, IV/IO, each with a
+confidence. Findings at ≥ 0.7 go to the brain's `POST /seen`, which does the database work (W6 search for the card,
+`log_event` with source `seen` for the rest); the frame is saved under `evidence/` and its file name goes into the
+event's source detail. The same card or drug is not reported again for 60 s, procedures for 10 min.
+
+- **"Handoff, look"** (B6): the sampler sees the transcript go by, grabs the next frame at once, and says what it
+  found through the brain's `POST /say` ("AED pads on.", "Nothing I recognise.", "Camera check failed."). For an
+  ID card it says nothing itself: the brain's "Record found…" is the answer.
+- **No WebRTC video?** With `HUB_URL` set, after 3 s without a frame it long-polls the Pi hub's newest camera
+  frame (`GET /frame.jpg?after=`), which the phone page uploads at 10 fps anyway. So vision works even while the
+  phone only talks to the hub.
+- **Model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` by default (the same Nano Omni Devin ran self-hosted,
+  now hosted); `nvidia/nemotron-3.5-super-vl-120b-a12b` also works. Verified Sat ~23:20 with a real key: a
+  synthetic Texas ID card for "AVERY, JORDAN · DOB 03/14/1968" → `{"type": "id_card", "name": "AVERY, JORDAN",
+  "birth_date": "1968-03-14", "confidence": 0.99}` in 1.4–2.2 s; an empty frame → no findings in 0.6 s. Real
+  bodycam frames (glare, angle, a syringe in a hand) are **not tested yet**.
+- **Rate limit:** 1 frame/s is up to 60 calls/min on the free tier's ~40/min (§28). Options: `VISION_INTERVAL_S=2`,
+  a second key in `VISION_API_KEY`, or `VISION=off` when only the audio matters.
+- `test_vision.py`: offline checks against a stub model and a stub brain (parsing, mapping, dedupe, confidence,
+  one call at a time, look, failures).
 
 ## Install
 
@@ -23,6 +50,7 @@ uv venv -p 3.12 .venv
 uv pip install -p .venv -r requirements.txt
 .venv/bin/python run.py --check            # builds every pipeline with a dummy key; no audio, no network
 .venv/bin/python test_bridge.py            # BrainBridge against a stub brain on 127.0.0.1
+.venv/bin/python test_vision.py            # VisionSampler against a stub model and a stub brain
 ```
 
 `--transport local` also needs PortAudio, which is **not installed on this laptop**:
@@ -40,10 +68,23 @@ session ends when it can't reach the brain within 1.5 s (see "No mouth, no link"
 | `.venv/bin/python run.py --ssl-cert c.pem --ssl-key k.pem` | Your own cert instead (e.g. `mkcert <lan-ip> localhost`; the phone must trust mkcert's root CA). Or front plain `run.py` with `ngrok http 7860` and open the ngrok https URL; media still flows directly over the LAN |
 | `.venv/bin/python run.py --transport local` | Laptop mic and speakers (PortAudio). There is no echo cancellation, so use headphones, or the agent hears itself and cuts itself off. `--no-barge-in` avoids that on laptop speakers, but then the agent talks over the medic (§15): never use it for the demo |
 | `.venv/bin/python run.py --list-voices` | Ask the hosted TTS which voices it has (needs the key) |
+| `.venv/bin/python test_client.py --image idcard.jpg a.wav b.wav` | A whole session over real WebRTC without a phone: WAV files as the mic, an image as the camera; prints the time from the end of each utterance to the first reply audio and saves the agent's audio under `test-out/` |
+
+**The bodycam phone page.** `hub/phone.html` (the Pi hub's page) connects to this worker when opened with
+`?voice=https://<laptop>:7860`: it fetches `GET /api/ice`, sends its mic and camera over one WebRTC connection to
+`POST /api/offer`, and plays the agent's voice; a "Voice" dot shows the link. Without the parameter the page is
+unchanged. Two ways to get there:
+
+- **Phone → hub as today, plus the worker:** open the hub's page with `?voice=https://<laptop-ip>:7860` (the
+  worker on `--ssl`; accept its cert once at `https://<laptop-ip>:7860`).
+- **One URL (`HUB_URL=http://<pi>:8000`):** the worker serves the page itself at `/phone.html` and proxies the
+  page's hub calls (`/common.js`, `/poll`, `/send`, `/frame`, `/audio`), so one https address, or one tunnel
+  (`ngrok http 7860`), carries the whole bodycam. `run.py` prints the exact address. The page then connects its
+  voice link to its own origin, no `?voice=` needed.
 
 Network: the phone must reach the laptop directly. If the venue Wi-Fi blocks device-to-device traffic, join the
-laptop to the phone's hotspot, or set `ICE_SERVERS` to a TURN relay. One bodycam at a time: a new connection ends
-the previous session.
+laptop to the phone's hotspot, or set a TURN relay (`TURN_URL`/`TURN_USER`/`TURN_PASS`, or `ICE_SERVERS`), which
+both peers then use. One bodycam at a time: a new connection ends the previous session.
 
 **No mouth, no link (spec §23 B11).** The phone stays silent while its audio link to the worker is up, so the
 worker only keeps the link up while it can actually speak. The session ends, and the phone takes over the
@@ -57,10 +98,12 @@ callouts, when any of these happen:
 Transient TTS errors (rate limit, network) are reported to the brain as failed playback, which leaves the row
 unspoken. They end the session through the second case.
 
-**For the bodycam page:** it can connect the same way the test client does (`@pipecat-ai/client-js` with the small
-WebRTC transport, `startBotParams: { endpoint: "https://<laptop>:7860/start" }`). The routes match Pipecat's dev
-runner: `POST /start` → `{sessionId}`, then `POST`/`PATCH /sessions/<id>/api/offer`. CORS is open. An https page
-needs the worker on `--ssl`, and the phone must have accepted the cert once (open `https://<laptop>:7860`).
+**For another bodycam page** (the planned `web/src/routes/bodycam/`): connect the way `hub/phone.html` does
+(`GET /api/ice`, `POST /api/offer` with `{sdp, type}`, add the mic and camera tracks, play the returned audio
+track), or the way the prebuilt client does (`@pipecat-ai/client-js` with the small WebRTC transport,
+`startBotParams: { endpoint: "https://<laptop>:7860/start" }`; `POST /start` → `{sessionId}`, then
+`POST`/`PATCH /sessions/<id>/api/offer`). CORS is open. An https page needs the worker on `--ssl`, and the phone
+must have accepted the cert once (open `https://<laptop>:7860`).
 
 ## Settings (environment first, then `voice/.env.local`)
 
@@ -72,7 +115,13 @@ needs the worker on `--ssl`, and the phone must have accepted the cert once (ope
 | `RIVA_ASR_FUNCTION_ID` | `bb0837de-8c7b-481f-9ec8-ef5663e9c1fa` (nemotron-asr-streaming, Pipecat's default) |
 | `RIVA_TTS_FUNCTION_ID` | `877104f7-e885-42b9-8de8-f6e4c6303969` (magpie-tts-multilingual, Pipecat's default) |
 | `RIVA_BOOST_WORDS` | empty. Comma list for ASR word boosting, e.g. `epinephrine,amiodarone,naloxone,i-gel,ROSC`. Untested on the hosted ASR |
-| `ICE_SERVERS` | empty. A JSON list such as `[{"urls":"turn:host:3478","username":"u","credential":"p"}]`, used by both peers (the browser gets it from `/start`) |
+| `ICE_SERVERS` | empty. A JSON list such as `[{"urls":"turn:host:3478","username":"u","credential":"p"}]`, used by both peers (the browser gets it from `/start` or `/api/ice`) |
+| `TURN_URL`, `TURN_USER`, `TURN_PASS` | empty. The short form of one TURN entry, appended to `ICE_SERVERS` |
+| `VISION` | `on`. `off` = audio only (no video track requested) |
+| `VISION_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`; alternative `nvidia/nemotron-3.5-super-vl-120b-a12b` |
+| `VISION_INTERVAL_S` | `1.0` |
+| `VISION_API_KEY`, `VISION_BASE_URL` | the main key and `https://integrate.api.nvidia.com/v1`. A second key, or another OpenAI-compatible endpoint (e.g. Devin's self-hosted Omni on vLLM) |
+| `HUB_URL` | empty. `http://<pi>:8000`: vision frames when no WebRTC video arrives, and `/phone.html` + the hub proxy |
 
 NVIDIA changes a function id when it redeploys a model. If ASR or TTS fails with NOT_FOUND, take the current id
 from the model's build.nvidia.com page (API tab). One report, unverified: Parakeet CTC 1.1B is
@@ -108,9 +157,25 @@ differs between releases, so run `--list-voices` for what the hosted endpoint ac
   with a reason (`1000 "replaced by a new mouth"`, `1011 "tts failing"`) or with a code in 4000–4999 is final for
   the session, so the worker and the terminal bodycam don't keep replacing each other.
 
-## Verified vs not (7 Nov 2026, no NVIDIA key on this laptop)
+## Verified vs not (7 Nov 2026)
 
-Verified by running:
+Verified by running (Sat ~23:20, after the merge of the two voice PRs):
+
+- `test_vision.py` (6 checks): an ID card → `/seen` once with the evidence frame, video frames stop at the
+  sampler, dedupe and the 0.7 confidence floor, one model call at a time during a burst of frames, "Handoff, look"
+  → forced frame → the result spoken through `/say`, "Nothing I recognise." and "Camera check failed.", and a
+  forced look at the card that leaves the speaking to the brain.
+- The hosted vision model with a real key (synthetic ID card and an empty frame; numbers in "Vision" above).
+- `run.py --check` with the sampler in the pipeline and the new routes (`/api/ice`, `/phone.html`).
+- The brain's `POST /seen` path (`cd voice && npm test`, 37 tests): camera-seen epinephrine → flagged + "Saw
+  epinephrine. What dose?", a printed dose → "Confirm?", amiodarone seen → the allergy warning with no words
+  spoken, an ID card → `identify_patient` (method `ID card`) → record saved and spoken, the same card again → nothing.
+
+Not verified yet: a real phone on `hub/phone.html?voice=` (the camera track into the sampler, Chrome's echo
+cancellation with the agent's voice from the chest speaker), real bodycam frames of the printed card and of a
+syringe in a hand, and the hub proxy from a phone.
+
+Verified earlier (PR #5, before the key was on the laptop):
 
 - The install from `requirements.txt` into a fresh venv; `--check` (both NVIDIA services, Silero VAD, turn
   processor, bridge and the WebRTC transport build and link; the signaling app builds).

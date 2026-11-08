@@ -8,10 +8,16 @@
 
 Pipeline:
 
-    transport.input() → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → NVIDIA Magpie TTS → transport.output()
+    transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → NVIDIA Magpie TTS → transport.output()
 
 There is no LLM here. The brain (Nemotron, tools, policy) gets each final transcript over POST /transcript and
-says things through WS /mouth; BrainBridge (brain_bridge.py) is the glue.
+says things through WS /mouth; BrainBridge (brain_bridge.py) is the glue. VisionSampler (vision.py) takes about
+one video frame a second from the same WebRTC link (or the Pi hub's frames), asks a hosted Nemotron vision model
+what it sees, and posts findings to the brain's POST /seen.
+
+The phone page (hub/phone.html) connects with ?voice=<this server>: GET /api/ice, then POST /api/offer. With
+HUB_URL set, the page is also served from here (GET /phone.html) and its hub calls are proxied, so one https URL
+carries the whole bodycam.
 """
 
 import argparse
@@ -21,6 +27,7 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from importlib.metadata import version
+from pathlib import Path
 
 from loguru import logger
 
@@ -41,6 +48,9 @@ from pipecat.workers.runner import WorkerRunner
 
 from brain_bridge import BrainBridge
 from config import ASR_MODEL, NVIDIA_SPEECH_SERVER, TTS_MODEL, Config, load_config
+from vision import VisionConfig, VisionSampler
+
+HUB_PHONE_PAGE = Path(__file__).resolve().parent.parent.parent / "hub" / "phone.html"
 
 # How long the medic may pause before the turn ends and the brain may speak again (after VAD's own 0.2 s). Short,
 # because a read-back waits for it. BrainBridge joins the ASR finals of one turn, so "epi ... one milligram"
@@ -48,7 +58,25 @@ from config import ASR_MODEL, NVIDIA_SPEECH_SERVER, TTS_MODEL, Config, load_conf
 USER_SPEECH_TIMEOUT = 0.5
 
 
-def build_pipeline(transport: BaseTransport, cfg: Config, *, barge_in: bool = True) -> tuple[Pipeline, BrainBridge]:
+def make_vision(cfg: Config) -> VisionSampler | None:
+    """The eyes (spec §19 Vision), or None with VISION=off. Needs the WebRTC transport's video or HUB_URL."""
+    if not cfg.vision:
+        return None
+    return VisionSampler(
+        VisionConfig(
+            api_key=cfg.vision_api_key or cfg.api_key,
+            model=cfg.vision_model,
+            base_url=cfg.vision_base_url,
+            brain_url=cfg.brain_url,
+            interval_s=cfg.vision_interval_s,
+            hub_url=cfg.hub_url,
+        )
+    )
+
+
+def build_pipeline(
+    transport: BaseTransport, cfg: Config, *, barge_in: bool = True, vision: VisionSampler | None = None
+) -> tuple[Pipeline, BrainBridge]:
     stt = NvidiaSTTService(
         api_key=cfg.api_key,
         server=NVIDIA_SPEECH_SERVER,
@@ -83,7 +111,9 @@ def build_pipeline(transport: BaseTransport, cfg: Config, *, barge_in: bool = Tr
     # 6 s grace: a brain restart (about 1 s) must not end the phone's session.
     bridge = BrainBridge(cfg.brain_url, mouth_grace_secs=6.0)
 
-    return Pipeline([transport.input(), vad, stt, turns, bridge, tts, transport.output()]), bridge
+    # The sampler sits first: it eats the video frames and sees "Handoff, look" in the transcripts going by.
+    eyes = [vision] if vision else []
+    return Pipeline([transport.input(), *eyes, vad, stt, turns, bridge, tts, transport.output()]), bridge
 
 
 def make_worker(pipeline: Pipeline) -> PipelineWorker:
@@ -116,7 +146,9 @@ def local_transport():
 
 
 async def run_local(cfg: Config, barge_in: bool):
-    pipeline, bridge = build_pipeline(local_transport(), cfg, barge_in=barge_in)
+    # No camera on the laptop mic path; vision only through the Pi hub's frames, when HUB_URL is set.
+    vision = make_vision(cfg) if cfg.hub_url else None
+    pipeline, bridge = build_pipeline(local_transport(), cfg, barge_in=barge_in, vision=vision)
 
     @bridge.event_handler("on_mouth_lost")
     async def on_mouth_lost(bridge, reason):
@@ -131,17 +163,20 @@ async def run_local(cfg: Config, barge_in: bool):
 # ---- webrtc: a phone (or laptop) browser -------------------------------------------------------------------
 
 
-def webrtc_params() -> TransportParams:
-    return TransportParams(audio_in_enabled=True, audio_out_enabled=True)
+def webrtc_params(cfg: Config) -> TransportParams:
+    # Video in only when the sampler will consume it; a client without a camera track is still fine.
+    return TransportParams(audio_in_enabled=True, audio_out_enabled=True, video_in_enabled=cfg.vision)
 
 
 def make_app(cfg: Config, barge_in: bool):
     """Signaling for SmallWebRTCTransport, speaking the same routes as Pipecat's dev runner so the prebuilt
     client works unchanged: POST /start, then POST/PATCH /sessions/<id>/api/offer (also plain /api/offer).
-    One bodycam at a time: a new connection ends the previous session."""
-    from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+    The phone page (hub/phone.html?voice=) uses GET /api/ice then POST /api/offer. One bodycam at a time: a new
+    connection ends the previous session."""
+    import httpx
+    from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import RedirectResponse
+    from fastapi.responses import FileResponse, RedirectResponse
     from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
 
     from pipecat.transports.smallwebrtc.connection import IceServer, SmallWebRTCConnection
@@ -164,18 +199,23 @@ def make_app(cfg: Config, barge_in: bool):
         if previous := active["worker"]:
             logger.info("new bodycam connection; ending the previous session")
             await previous.cancel()
-        transport = SmallWebRTCTransport(webrtc_connection=connection, params=webrtc_params())
-        pipeline, bridge = build_pipeline(transport, cfg, barge_in=barge_in)
+        transport = SmallWebRTCTransport(webrtc_connection=connection, params=webrtc_params(cfg))
+        vision = make_vision(cfg)
+        pipeline, bridge = build_pipeline(transport, cfg, barge_in=barge_in, vision=vision)
         worker = make_worker(pipeline)
         active["worker"] = worker
 
         @transport.event_handler("on_client_connected")
         async def on_connected(transport, client):
-            logger.info("bodycam connected")
+            logger.info("bodycam connected" + (f"; vision {cfg.vision_model} every {cfg.vision_interval_s:g} s" if vision else "; vision off"))
 
         @transport.event_handler("on_client_disconnected")
         async def on_disconnected(transport, client):
-            logger.info("bodycam disconnected")
+            if vision:
+                avg = sum(vision.latencies_ms) / len(vision.latencies_ms) if vision.latencies_ms else 0
+                logger.info(f"bodycam disconnected; vision calls {vision.calls} ({vision.failures} failed), findings {vision.findings}, avg {avg:.0f} ms")
+            else:
+                logger.info("bodycam disconnected")
             await worker.cancel()
 
         # A link without a working mouth would keep the phone silent while nobody speaks the callouts (B11):
@@ -193,19 +233,37 @@ def make_app(cfg: Config, barge_in: bool):
             if active["worker"] is worker:
                 active["worker"] = None
 
+    hub = httpx.AsyncClient(base_url=cfg.hub_url, timeout=20) if cfg.hub_url else None
+
     @asynccontextmanager
     async def lifespan(app):
         yield
         await handler.close()
+        if hub:
+            await hub.aclose()
 
     app = FastAPI(lifespan=lifespan)
-    # The real bodycam page is served from another origin (Vite, or the deployed site).
+    # The real bodycam page is served from another origin (the Pi hub, Vite, or the deployed site).
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
     app.mount("/client", SmallWebRTCPrebuiltUI)
 
     @app.get("/", include_in_schema=False)
     async def root():
-        return RedirectResponse(url="/client/")
+        return RedirectResponse(url="/phone.html" if hub else "/client/")
+
+    # ICE servers for the phone page (RTCPeerConnection config): the same list the worker uses, plus STUN.
+    ice_for_browser = cfg.ice_servers or [{"urls": ["stun:stun.l.google.com:19302"]}]
+
+    @app.get("/api/ice")
+    async def api_ice():
+        return ice_for_browser
+
+    @app.get("/phone.html", include_in_schema=False)
+    async def phone_page():
+        """The hub's phone page from this origin, so one https URL (or tunnel) carries the whole bodycam."""
+        if not HUB_PHONE_PAGE.exists():
+            raise HTTPException(404, f"{HUB_PHONE_PAGE} not found")
+        return FileResponse(HUB_PHONE_PAGE, media_type="text/html", headers={"Cache-Control": "no-store"})
 
     @app.post("/start")
     async def start(request: Request):
@@ -261,6 +319,23 @@ def make_app(cfg: Config, barge_in: bool):
             return await ice_candidates(data)
         return await offer(data, background_tasks)
 
+    if hub:
+        # Everything else the phone page calls (/common.js, /poll, /send, /frame, /audio, /state) goes to the
+        # Pi hub. Registered last, so the routes above win.
+        @app.api_route("/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+        async def hub_proxy(path: str, request: Request):
+            try:
+                r = await hub.request(
+                    request.method,
+                    "/" + path,
+                    params=request.query_params,
+                    content=await request.body(),
+                    headers={k: v for k, v in request.headers.items() if k.lower() == "content-type"},
+                )
+            except httpx.HTTPError as e:
+                raise HTTPException(502, f"hub unreachable: {e!r}")
+            return Response(r.content, r.status_code, media_type=r.headers.get("content-type"), headers={"Cache-Control": "no-store"})
+
     return app
 
 
@@ -279,10 +354,15 @@ def run_webrtc(cfg: Config, args):
 
     ip = lan_ip()
     print(f"\n  Handoff voice worker (WebRTC). Brain: {cfg.brain_url}. Voice: {cfg.voice}")
+    print(f"  Vision:       {f'{cfg.vision_model}, every {cfg.vision_interval_s:g} s' if cfg.vision else 'off'}" + (f", hub frames from {cfg.hub_url}" if cfg.vision and cfg.hub_url else ""))
     print(f"  This laptop:  {scheme}://localhost:{args.port}/client")
     if ip:
         print(f"  Phone:        {scheme}://{ip}:{args.port}/client", end="")
         print("" if ssl else "   (needs --ssl: phones only allow the mic on https)")
+        if cfg.hub_url:
+            print(f"  Bodycam page: {scheme}://{ip}:{args.port}/phone.html?voice={scheme}://{ip}:{args.port}   (hub calls proxied to {cfg.hub_url})")
+        else:
+            print(f"  Bodycam page: open the hub's phone page with ?voice={scheme}://{ip}:{args.port}")
     print()
     uvicorn.run(make_app(cfg, not args.no_barge_in), host=args.host, port=args.port, **ssl)
 
@@ -303,11 +383,13 @@ async def check(cfg: Config, barge_in: bool) -> int:
         print(f"ASR word boost: {', '.join(cfg.boost_words)}")
     if cfg.ice_servers:
         print(f"ICE servers: {', '.join(str(s.get('urls')) for s in cfg.ice_servers)}")
+    print(f"vision: {f'{cfg.vision_model} at {cfg.vision_base_url}, every {cfg.vision_interval_s:g} s' if cfg.vision else 'off'}" + (f", hub {cfg.hub_url}" if cfg.hub_url else ""))
+    print(f"phone page: {HUB_PHONE_PAGE} ({'found' if HUB_PHONE_PAGE.exists() else 'MISSING'})")
     dummy = replace(cfg, api_key="nvapi-check-dummy-key")
 
     connection = SmallWebRTCConnection()
-    transport = SmallWebRTCTransport(webrtc_connection=connection, params=webrtc_params())
-    pipeline, _ = build_pipeline(transport, dummy, barge_in=barge_in)
+    transport = SmallWebRTCTransport(webrtc_connection=connection, params=webrtc_params(dummy))
+    pipeline, _ = build_pipeline(transport, dummy, barge_in=barge_in, vision=make_vision(dummy))
     make_worker(pipeline)
     print("webrtc pipeline: " + " → ".join(p.name for p in pipeline.processors))
     app = make_app(dummy, barge_in)

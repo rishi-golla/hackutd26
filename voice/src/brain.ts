@@ -17,6 +17,7 @@ import type { Policy } from './policy';
 import type { Speaker } from './speaker';
 import { runTool, toolsFor, type ToolContext } from './tools';
 import { spoken, spokenUnit } from './spoken';
+import { seenEvent, type SeenFinding } from './seen';
 import type { Event, Incident, Transcript } from './module_bindings/types';
 
 /** "Correction" / "confirm" apply to the last read-back for 10 s (spec RB3); a flagged one stays open. */
@@ -223,7 +224,7 @@ export class Brain {
 
     // X1: "Patient is Jordan Avery, born March 14, 1968"
     const who = parseIdentity(text);
-    if (who && CONFIG.w6) return this.identifyFromSpeech(who.name, who.birthDate, gen);
+    if (who && CONFIG.w6) return this.identifyFromNameAndDob(who.name, who.birthDate, gen, 'voice');
 
     if (!llmConfigured()) {
       await step(this.conn, 'nemotron', `Skipped (no NVIDIA_API_KEY): "${text.slice(0, 60)}"`);
@@ -336,9 +337,10 @@ export class Brain {
 
   // ---- W6: who is the patient -------------------------------------------------------------------------------
 
-  private async identifyFromSpeech(name: string, birthDate: string, gen: number) {
+  /** X1: the medic said the name and birth date ("voice"), or the camera read them off the ID card ("ID card"). */
+  private async identifyFromNameAndDob(name: string, birthDate: string, gen: number, method: 'voice' | 'ID card') {
     const inc = activeIncident(this.conn);
-    await step(this.conn, 'search_ehr', `heard "${name}, born ${birthDate}"`);
+    await step(this.conn, 'search_ehr', `${method === 'voice' ? 'heard' : 'ID card read'} "${name}, born ${birthDate}"`);
     let matches;
     try {
       matches = await searchPatients(name, birthDate);
@@ -368,12 +370,70 @@ export class Brain {
       await step(this.conn, 'identify_patient', 'No active incident; record not pulled');
       return;
     }
+    if (inc.patientRef === matches[0].id && [...this.conn.db.patientRecord.iter()].some(r => r.incidentId === inc.id && r.patientRef === inc.patientRef)) {
+      // The card stays in view for a while: the same patient again is not news.
+      await step(this.conn, 'identify_patient', `${matches[0].id} already identified (${method}); nothing to do`);
+      return;
+    }
     try {
-      await this.conn.reducers.identifyPatient({ patientRef: matches[0].id, method: 'voice' });
+      await this.conn.reducers.identifyPatient({ patientRef: matches[0].id, method });
     } catch (err) {
       await step(this.conn, 'identify_patient', `failed: ${(err as Error).message.slice(0, 80)}`);
     }
-    await this.pullRecord(matches[0].id, 'voice');
+    await this.pullRecord(matches[0].id, method);
+  }
+
+  /**
+   * POST /say: fixed words from the ear-and-eyes worker (the answer to "Handoff, look"), through the policy and
+   * the shared queue like everything else. Only the two reply kinds; never read-backs or advisories.
+   */
+  say(text: string, priority: number, kind: 'ask' | 'vision'): Promise<boolean> {
+    const p = Math.min(3, Math.max(1, Math.round(priority)));
+    return this.policy.say(text, p, kind);
+  }
+
+  // ---- what the camera saw (POST /seen from voice/pipecat/vision.py) -------------------------------------------
+
+  /**
+   * One vision finding. An ID card runs the W6 search with method "ID card"; a drug being given is logged with
+   * source "seen" (the printed dose in the label, never a guessed one) and then handled by onEvent like any
+   * camera-seen drug (RB9/RB10); AED pads, airway and IV/IO become procedure rows. Returns a short trace note.
+   */
+  async handleSeen(f: SeenFinding): Promise<string> {
+    const gen = this.gen;
+    const inc = activeIncident(this.conn);
+    const conf = f.confidence !== undefined ? ` (confidence ${f.confidence.toFixed(2)})` : '';
+    if (f.type === 'id_card') {
+      if (!CONFIG.w6) {
+        await step(this.conn, 'seen', `ID card ${f.name}, ${f.birthDate}${conf}: VOICE_W6 is off, the bodycam lane identifies`);
+        return 'w6 off';
+      }
+      if (!inc) {
+        await step(this.conn, 'seen', `ID card ${f.name}, ${f.birthDate}${conf}: no active incident`);
+        return 'no active incident';
+      }
+      await step(this.conn, 'seen', `ID card: ${f.name}, born ${f.birthDate}${conf}${f.detail ? ` · ${f.detail}` : ''}`);
+      await this.identifyFromNameAndDob(f.name, f.birthDate, gen, 'ID card');
+      return 'identified';
+    }
+    const ev = seenEvent(f);
+    if (!ev) {
+      await step(this.conn, 'seen', `camera saw a drug it can't name ("${f.type === 'medication' ? f.drug : f.type}"); not logged`);
+      return 'unknown drug';
+    }
+    if (!inc) {
+      await step(this.conn, 'seen', `camera saw ${ev.label}${conf}: no active incident, not logged`);
+      return 'no active incident';
+    }
+    try {
+      // The row comes back through onEvent (status "logged", source "seen"), which asks for or checks the dose.
+      await this.conn.reducers.logEvent({ kind: ev.kind, label: ev.label, sourceKind: 'seen', sourceDetail: (f.detail ?? 'vision frame').slice(0, 200) });
+    } catch (err) {
+      await step(this.conn, 'log_event', `seen ${ev.label}: failed: ${(err as Error).message.slice(0, 80)}`);
+      return 'log_event failed';
+    }
+    if (!this.stale(gen, inc.id)) await step(this.conn, 'log_event', `${ev.kind}: ${ev.label} (seen${conf})`);
+    return 'logged';
   }
 
   /**

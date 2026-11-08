@@ -2,3 +2,6 @@
 __pycache__/
 # self-signed cert for --ssl (generated on first use)
 .certs/
+# vision evidence frames and test_client recordings
+evidence/
+test-out/
