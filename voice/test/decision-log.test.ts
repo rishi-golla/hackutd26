@@ -323,7 +323,7 @@ test('vitals words in an advisory need a valid reading (clip off: "SpO2 dropping
   const noFinger = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)\nVITALS no valid reading (no finger)';
   const valid = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)\nVITALS (relay, 1 s ago) HR 96 · SpO2 92 (experimental)';
   assert.equal(ungroundedTerm('Note: SpO2 dropping to zero. Consider airway and oxygen.', noFinger), 'SpO2');
-  assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', valid), undefined);
+  assert.equal(ungroundedTerm('Note: oxygen saturation is low. Consider airway and oxygen.', valid), undefined);
 });
 
 test('sensor-state sentences and ungrounded airway advice are never advisories (live Sun ~05:41, clip off during the arrest)', async () => {
