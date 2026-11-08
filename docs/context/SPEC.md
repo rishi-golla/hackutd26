@@ -16,6 +16,10 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Rishi): explicit New patient and supported vitals** (decision 27). Patients offers a confirmed,
+  atomic switch to a fresh unidentified encounter, retaining prior records and cancelling prior care timers.
+  The modern live vitals panels show HR and experimental SpO₂; unsupported temperature is removed.
+  CPR rate/epi countdown appear separately only when available and applicable.
 - **Sun (Rishi): local patient recording** (decision 26 extended). User supplied `1000039274.mp4` and chose
   serving it from the demo laptop. `/recordings/<filename>.mp4|webm` is allowed as a strict same-origin
   reference; media files stay gitignored. A video-only import creates a closed, unidentified encounter,
@@ -675,6 +679,23 @@ section and add a change-log line.
       attachment to an existing encounter. Starting a real call with the reserved unit label is rejected.
     - **Log layout:** a date/time rail with event categories and confirmation badges, separate Vitals,
       Transcript and Agent activity categories, and bounded batches for long histories.
+
+27. **Starting a new patient is explicit; the dashboard reflects the actual sensor capabilities** (Rishi, Sun).
+    - Patients has a **New patient** action. If a call is active, confirm ending that named encounter while
+      keeping its history. `demo_control("new_patient", JSON {requestId, expectedIncidentId})` atomically closes
+      the expected active call through the existing lifecycle cleanup and opens a fresh unidentified call.
+      Empty expected ID means no active call. A changed active patient rejects the operation; repeated request
+      IDs are no-ops, so retries cannot close the patient just created. Preserve the unit and demo-timing
+      configuration; never copy EHR,
+      vitals, medications, timers or overrides into the new encounter. Subsequent relay readings use the new ID.
+    - The action is an explicit exception to the earlier hospital-only-Generate-Handoff restriction. Other demo
+      controls stay on `/controls`. The UI opens the created encounter from its request-correlated start event.
+    - Modern live vitals panels show **heart rate and experimental SpO₂**. There is no temperature sensor in
+      the current harness, so do not reserve a temperature tile. CPR rate is shown only with a valid current
+      rate during arrest; overrides are labelled simulated. Epi countdown is shown only with a real timer during
+      arrest. Both appear under Care timing, rather than as permanently empty vital tiles. Elapsed remains a
+      session attribute. Historical Logs show a temperature column only if that encounter actually has stored
+      temperature values (including explicitly labelled simulated rows). The classic fallback keeps its layout.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1598,8 +1619,8 @@ facing the medic. The `kit_slot` table and `kit_update` reducer are not built (�
 ## 14. Hospital dashboard
 
 What the ER sees, on the Mac and any second screen. Judges see the agent act and read its public decision
-updates through the event timeline. Its only action is **Generate Handoff**; expanding a decision is view-only.
-No demo controls here.
+updates through the event timeline. Actions are **Generate Handoff** and **New patient** on Patients (decision
+27; confirmation is required before ending an active encounter). Other demo controls stay on `/controls`.
 
 **Layout (decision 25):** pages with a narrow sidebar, light lavender surfaces, DM Sans, and a persisted
 dark-mode switch. The original dark five-panel dashboard is kept at `/hospital/classic` for fallback. Its
@@ -1608,7 +1629,7 @@ original Inter typography, video, status, vitals, timeline and patient panels re
 | Page | Content |
 | --- | --- |
 | **Live Operations**, `/hospital` | Current harness camera, relay vitals, patient context, care timeline and recent conversation. Camera preview is available before an encounter starts. The session header opens the active patient's details; no fleet counters or calls table. |
-| **Patients**, `/hospital/patients` | Selectable list of patient encounters, newest first, with name and age when known, record source, unit, status and call start date. Unknown patients appear as "Not identified"; each encounter opens its own detail page. |
+| **Patients**, `/hospital/patients` | Selectable list of encounters, with name/age when known, source, unit and dates. New patient confirms ending any active encounter, then opens a fresh unidentified one. Existing encounters remain readable. |
 | **Patient**, `/hospital/patient` | Name, age, actual record reference, unit, status and ETA. Three columns: live video and latest medic transcripts above the care timeline; vitals and EHR clinical details; ER communication log and handoff report. A ready report opens in the video panel with a Live / Report switch. |
 | **Tracing**, `/hospital/tracing` | Selected call, unit, start and duration; live video or an explicitly attached recording, and a phase bar from recorded status events. Transcript / Overview / Logs tabs show spoken or queued lines, counts, and decisions. Native playback controls apply only to an attached recording. |
 | **Logs**, `/hospital/logs` | Patient encounter picker and Care events / Vitals / Transcript / Agent activity tabs, filtered to the selected incident. Care events have date separators, event categories and confirmation labels; vitals show recorded timestamps and sources. Includes a link back to that patient's details. |
@@ -1618,14 +1639,15 @@ the newest call is shown. Historical or closed calls never show another incident
 Live view retains the halftone heart before the first frame, stale badge after 3 s, click to enlarge and Escape
 to minimize. A closed call can play only its explicitly attached hosted recording; the UI labels it as recorded.
 
-Vitals retain H3: HR, SpO₂, temperature, CPR rate, next epi and elapsed; measuring dots while settling, dimmed
-last-good values for at most 6 s, then dots or "—". During arrest the real clip is blank; simulated HR 0 is
-allowed (decision 15). CPR rate and epi timing appear only during arrest. Alarm thresholds are unchanged.
+Modern vitals panels show HR and experimental SpO₂, with measuring dots while settling, dimmed last-good
+values for at most 6 s, then dots or "—". Temperature is absent from the live panels because the current harness
+cannot measure it. During arrest the real clip is blank; simulated HR 0 is allowed (decision 15). CPR rate and
+epi timing appear separately only during arrest when their source exists. Alarm thresholds are unchanged.
 The record is labelled "from EHR" or "cached copy", and allergies are highlighted. Flagged events use amber
 "awaiting confirmation" labels. Up to two live decision lines precede the timeline and completed decisions
 expand into their recorded updates; reduced motion disables their transitions.
 
-Generate Handoff remains the only clinical write action. It is enabled only for the newest clinical incident
+Generate Handoff is enabled only for the newest clinical incident
 (closed video-only imports are excluded) because
 the reducer has no incident argument. Existing reports for older calls remain readable with their source
 chips. Failed, queued and overdue requests are labelled without claiming success.
@@ -1634,7 +1656,7 @@ chips. Failed, queued and overdue requests are labelled without claiming success
 | --- | --- | --- |
 | H1 | Status, coloured by state, top right | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5). Today the source is the Pi hub's frame feed (decision 22) | Shows stale after 3 s without video |
-| H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed; measuring dots while the sensor settles | A missing reading shows "—"; a dropout keeps the last good HR/SpO₂ dimmed for at most 6 s, never longer; "Epi due" matches the bodycam to the second |
+| H3 | Modern vitals: heart rate and experimental SpO₂; available CPR/epi data separately under Care timing. Classic retains its legacy grid | Missing readings stay blank; short HR/SpO₂ holds last at most 6 s; no temperature placeholder or empty CPR/timer tiles in modern panels |
 | H4 | Event timeline and public decision rows, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
 | H5 | Live decision log (decision 24): brief progress, outcomes and keep-monitoring decisions; up to two current lines, expandable history | A real request is visible before completion; silent outcomes appear without speech; errors and missing completions never imply success; overlapping decisions and fixed code keep separate source labels |
 | H6 | Pre-arrival alert, display-only, as a timeline row (a typed ER chat is optional) | Alert appears within 20 s of the arrest |

@@ -162,7 +162,7 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
   return {
     isActive, now, incident, open, canShowLive, hasLiveCall: isActive && activeId !== undefined, canGenerate, record, report, destination, thoughts, live, liveSet, timeline, spoken,
     events: incEvents, messages: incMessages, steps: incSteps, recording, recordingOnly, recordedVitals,
-    hr, spo2, tempC: v?.tempC, vitalsAt, sensorStatus: v?.status, vitalsSimulated: !!v?.simulated, cprRate, epi, inArrest, elapsedS, etaMin,
+    hr, spo2, tempC: v?.tempC, vitalsAt, sensorStatus: v?.status, vitalsSimulated: !!v?.simulated, cprRate, cprSimulated: cpr?.source === 'override', epi, inArrest, elapsedS, etaMin,
     reportReady, writing, generate, reportProblem, calls, activity, unitOf: (id: bigint) => sorted.find(i => i.id === id)?.unit,
   };
 }

@@ -80,6 +80,10 @@
 .ha .page__head { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: calc(54 * var(--u)); }
 .ha--ops .page__head { min-height: calc(36 * var(--u)); }
 .ha .page__head h1 { font-size: calc(27 * var(--u)); font-weight: 700; letter-spacing: -.045em; line-height: 1.05; }
+.ha .page__actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.ha .form-error { color: var(--red); font-size: calc(12 * var(--u)); }
+.ha .care-timing { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.ha .care-timing h3 { font-size: calc(10 * var(--u)); color: var(--text-3); font-weight: 500; margin-bottom: 8px; }
 .ha .eyebrow { font-size: calc(10 * var(--u)); color: var(--text-2); text-transform: uppercase; }
 .ha .sub { font-size: calc(12 * var(--u)); color: var(--text-3); margin-top: calc(3 * var(--u)); }
 .ha .conn { display: inline-flex; align-items: center; gap: 6px; font-size: calc(10 * var(--u)); color: var(--text-3); }

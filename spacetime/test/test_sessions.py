@@ -94,6 +94,50 @@ class SessionIntegrationTest(unittest.TestCase):
             self.call("demo_control", ["start", "Recorded session"])
         self.assertEqual(self.rows("SELECT id FROM incident"), [])
 
+    def test_new_patient_preserves_history_clears_care_state_and_is_retry_safe(self):
+        self.call("start_bodycam_session", ["bodycam-test", "patient-a", "Test Unit"])
+        old = self.rows("SELECT id FROM incident")[0][0]
+        self.call("demo_control", ["identify", "pt-0001"])
+        self.call("push_vitals", ["relay-test", json.dumps({"hr": 77, "status": "pulse", "simulated": True})])
+        self.call("demo_control", ["cpr_start", ""])
+        self.call("monitor_tap", ["EPI"])
+        self.call("demo_control", ["demo_timing", "off"])
+        self.call("demo_control", ["import_recording", json.dumps({"url": "/recordings/history.mp4"})])
+        request = json.dumps({"requestId": "patient-next", "expectedIncidentId": str(old)})
+        self.call("demo_control", ["new_patient", request])
+        self.call("demo_control", ["new_patient", request])
+        self.assertEqual(len(self.rows("SELECT id FROM incident")), 3)
+        self.assertEqual(self.rows(f"SELECT status FROM incident WHERE id = {old}"), [["closed"]])
+        current = self.rows("SELECT id, patient_ref FROM incident WHERE status = 'on_scene'")
+        self.assertEqual(len(current), 1)
+        new_id = current[0][0]
+        self.assertNotEqual(new_id, old)
+        self.assertEqual(current[0][1], [1, []], "new patient has no inherited identity")
+        self.assertEqual(self.rows(f"SELECT demo_mode, unit FROM incident WHERE id = {new_id}"), [[False, "Test Unit"]])
+        self.assertTrue(self.rows(f"SELECT id FROM vitals WHERE incident_id = {old}"))
+        self.assertEqual(self.rows(f"SELECT id FROM vitals WHERE incident_id = {new_id}"), [])
+        old_timers = self.rows(f"SELECT state FROM timer WHERE incident_id = {old}")
+        self.assertTrue(old_timers)
+        self.assertTrue(all(row == ["cancelled"] for row in old_timers))
+        self.assertEqual(self.rows("SELECT key FROM vitals_override"), [])
+        self.call("push_vitals", ["relay-test", json.dumps({"hr": 81, "status": "pulse", "simulated": True})])
+        self.assertTrue(self.rows(f"SELECT id FROM vitals WHERE incident_id = {new_id}"))
+        self.call("demo_control", ["close", ""])
+        self.call("demo_control", ["new_patient", json.dumps({"requestId": "after-close", "expectedIncidentId": ""})])
+        self.assertEqual(self.rows("SELECT unit, demo_mode FROM incident WHERE status = 'on_scene'"), [["Test Unit", False]])
+
+    def test_new_patient_rejects_stale_confirmation_without_ending_the_current_call(self):
+        self.call("demo_control", ["new_patient", json.dumps({"requestId": "first", "expectedIncidentId": ""})])
+        active = self.rows("SELECT id FROM incident")[0][0]
+        with self.assertRaises(HTTPError):
+            self.call("demo_control", ["new_patient", json.dumps({"requestId": "stale", "expectedIncidentId": ""})])
+        self.assertEqual(self.rows("SELECT id, status FROM incident"), [[active, "on_scene"]])
+        self.call("demo_control", ["new_patient", json.dumps({"requestId": "second", "expectedIncidentId": str(active)})])
+        with self.assertRaises(HTTPError):
+            self.call("demo_control", ["new_patient", json.dumps({"requestId": "old-confirmation", "expectedIncidentId": str(active)})])
+        self.assertEqual(len(self.rows("SELECT id FROM incident")), 2)
+        self.assertEqual(len(self.rows("SELECT id FROM incident WHERE status = 'on_scene'")), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

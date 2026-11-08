@@ -47,17 +47,18 @@ export function CareLog({ events, compact = false }: { events: CareEvent[]; comp
 
 export function VitalsLog({ rows }: { rows: Vitals[] }) {
   const [limit, setLimit] = useState(100);
+  const hasTemperature = rows.some(row => row.tempC !== undefined);
   if (!rows.length) return <p className="empty">No saved vitals for this encounter.</p>;
   return <>
     <p className="log-caption">Recorded readings · newest first. A dash means no reading was captured.</p>
     <div className="vitals-history">
       <table>
-        <thead><tr><th>Captured</th><th>Heart rate</th><th>SpO₂ <small>experimental</small></th><th>Temperature</th><th>Source</th></tr></thead>
+        <thead><tr><th>Captured</th><th>Heart rate</th><th>SpO₂ <small>experimental</small></th>{hasTemperature && <th>Temperature</th>}<th>Source</th></tr></thead>
         <tbody>{rows.slice(0, limit).map(row => <tr key={String(row.id)}>
           <td><time dateTime={new Date(tsMs(row.ts)).toISOString()}>{new Date(tsMs(row.ts)).toLocaleDateString([], { month: 'short', day: 'numeric' })}<small>{time(tsMs(row.ts))}</small></time></td>
           <td>{row.hr === undefined ? '—' : `${Math.round(row.hr)} bpm`}</td>
           <td>{row.spo2 === undefined ? '—' : `${Math.round(row.spo2)}%`}</td>
-          <td>{row.tempC === undefined ? '—' : `${row.tempC.toFixed(1)} °C`}</td>
+          {hasTemperature && <td>{row.tempC === undefined ? '—' : `${row.tempC.toFixed(1)} °C`}</td>}
           <td><span className={`tag tag--${row.simulated ? 'amber' : 'grey'}`}>{row.simulated ? 'Simulated' : 'Relay'}</span><small>{row.status}</small></td>
         </tr>)}</tbody>
       </table>

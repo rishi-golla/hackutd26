@@ -34,7 +34,7 @@ import {
   writeSyntheticFrame,
 } from './helpers';
 import { runRules } from './rules';
-import { attachRecording, importRecording, shouldPruneVitals, startCameraSession } from './sessions';
+import { attachRecording, importRecording, shouldPruneVitals, startCameraSession, startNewPatient } from './sessions';
 
 export default spacetimedb;
 
@@ -371,12 +371,15 @@ export const monitorTap = spacetimedb.reducer({ button: t.string() }, (ctx, { bu
 
 /**
  * Hidden demo controls (D1). action:
- *  start | arrest | rosc | en_route | arrived | close | reset |
+ *  start | new_patient (JSON requestId, expectedIncidentId) | arrest | rosc | en_route | arrived | close | reset |
  *  cpr_start | cpr_slow | cpr_good | cpr_clear | epi_due_now | identify (arg = patient id) | demo_timing (arg = on|off)
  * Arrest doesn't start CPR: cpr_start does (so do cpr_slow / cpr_good during an arrest, and the medic saying so).
  */
 export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.string() }, (ctx, { action, arg }) => {
   switch (action) {
+    case 'new_patient':
+      startNewPatient(ctx, arg);
+      return;
     case 'attach_recording':
       attachRecording(ctx, arg);
       return;

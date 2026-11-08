@@ -5,10 +5,10 @@ import { flushSync } from 'react-dom';
 import LiveVideo from './LiveVideo';
 import ReportView from './ReportView';
 import { go } from './HospitalApp';
-import { Card, HandoffButton, Icon, Metric, PatientFacts, StatusPill, Timeline, time } from './ui';
+import { Card, HandoffButton, Icon, PatientFacts, SessionVitals, StatusPill, Timeline, time } from './ui';
 import type { HospitalData } from './useHospital';
 import type { Recording } from './recordings';
-import { ageOn, epiText, isDue, mmss } from './vitals';
+import { ageOn } from './vitals';
 
 /** Expand or minimize with a view transition where the browser has one (the thumbnail morphs into place). */
 export function withViewTransition(update: () => void) {
@@ -58,7 +58,7 @@ export function SessionVideo({ data }: { data: HospitalData }) {
 }
 
 export default function PatientPage({ data }: { data: HospitalData }) {
-  const { incident, record, now } = data;
+  const { incident, record } = data;
   const [showReport, setShowReport] = useState(false);
   const age = record ? ageOn(record.birthDate) : undefined;
   const heard = data.spoken.filter(l => l.who === 'medic').slice(-2);
@@ -105,14 +105,7 @@ export default function PatientPage({ data }: { data: HospitalData }) {
 
         <div className="col">
           <Card title="Vital Signs" icon="pulse" right={<span className="muted small">{data.vitalsAt ? `Updated ${time(data.vitalsAt)}` : 'No live readings'}</span>}>
-            <div className="vitals">
-              <Metric label="Heart rate" icon="heart" unit="bpm" reading={data.hr} alarm={!data.inArrest && data.hr.value !== undefined && (data.hr.value < 50 || data.hr.value > 150)} />
-              <Metric label="SpO₂" icon="lungs" unit="%" reading={data.spo2} alarm={!data.inArrest && data.spo2.value !== undefined && data.spo2.value < 90} />
-              <Metric label="Temperature" icon="thermo" unit="°C" digits={1} value={data.tempC} />
-              <Metric label="CPR rate" icon="pulse" unit="/min" value={data.cprRate} alarm={data.cprRate !== undefined && (data.cprRate < 100 || data.cprRate > 120)} />
-              <Metric label="Next epi" icon="clock" text={data.inArrest ? epiText(data.epi, now) : undefined} alarm={data.inArrest && isDue(data.epi, now)} />
-              <Metric label="Elapsed" icon="clock" text={incident && data.open ? mmss(data.elapsedS) : undefined} />
-            </div>
+            <SessionVitals data={data} />
           </Card>
           <Card title="Clinical Details" icon="clipboard" right={record && <span className="small muted">{record.source === 'cached' ? 'Cached copy' : 'From EHR'}</span>}>
             {data.recordingOnly && !record ? <p className="empty">No patient identity or clinical record was supplied with this video.</p>

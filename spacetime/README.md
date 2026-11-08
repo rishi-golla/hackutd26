@@ -43,6 +43,17 @@ spacetime publish handoff-local --server local --module-path . --yes
 #   VITE_SPACETIMEDB_DB_NAME=handoff-local
 ```
 
+## Starting a new patient
+
+The Patients page calls `demo_control` action `new_patient` with JSON argument
+`{requestId, expectedIncidentId}`. Both fields are strings; an empty expected ID means no active encounter.
+The request ID must contain 1–128 letters, digits, underscores or hyphens (the UI uses a UUID).
+The module validates the expected active call, closes it through the normal timer/override cleanup, then starts
+a fresh unidentified encounter with the same unit and demo-timing setting. It retains all old records.
+Repeating a request ID is a no-op; a stale confirmation fails with the stable `PATIENT_CHANGED:` prefix without
+closing a different patient. The new `status_on_scene` event includes the
+request ID as a manual source detail so the client can open the exact created encounter.
+
 ## Hosted patient recordings
 
 Publish the updated module before using `/controls` → Patient recording. Choose an existing encounter and
@@ -163,7 +174,7 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Bodycam (W6) | `savePatientRecord({...})`, `addCallout({text, priority})`, `logAgentStep({workflow, tool, summary})` | |
 | Bodycam / hospital | `sendRtcSignal({sessionId, sender, kind, payload})` | WebRTC handshake, below |
 | Monitor | `monitorTap({button})` | `EPI` `AMIO` `SHOCK` `AIRWAY` `ROSC` `MARK`. A tap carries no dose: it logs "Epinephrine (tap)" and the read-back adds the dose when they merge |
-| Monitor | `demoControl({action, arg})` | `start` `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_slow` `cpr_good` `cpr_clear` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS or scoped local `url`, optional `label`; empty URL removes it), `import_recording` (arg JSON: `url`, optional `label`; creates a separate closed video-only encounter) |
+| Monitor / Patients | `demoControl({action, arg})` | `start` `new_patient` (arg JSON: `requestId`, `expectedIncidentId`) `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_start` `cpr_slow` `cpr_good` `cpr_clear` `normal` `sim_off` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS or scoped local `url`, optional `label`; empty URL removes it), `import_recording` (arg JSON: `url`, optional `label`; creates a separate closed video-only encounter) |
 | Any (caller not decided) | `synthesizeSeizure({active})` / HTTP `synthesize_seizure` `[true]` or `[false]` | Overrides the relay's sensor data with a hardcoded seizure. See "Synthetic seizure" below |
 | Hospital | `requestReport()` | the Generate Handoff button; works on the newest clinical incident even after close; ignores closed video-only imports |
 | Agent | `setDestination({hospitalId, etaMin})`, `erMessageOut({text})`, `saveReport({incidentId, contentJson})`, `logAgentStep(...)` | |

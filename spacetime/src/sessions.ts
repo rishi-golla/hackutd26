@@ -1,6 +1,30 @@
 import { SenderError } from 'spacetimedb/server';
 import type { Ctx } from './schema';
-import { beginIncident, parseJson, recordEvent, RECORDED_UNIT, touchDevice } from './helpers';
+import { activeIncident, applyStatus, beginIncident, latestIncident, parseJson, recordEvent, RECORDED_UNIT, touchDevice } from './helpers';
+
+/** Explicit patient turnover, atomic and retry-safe. The confirmation must refer to the current encounter. */
+export function startNewPatient(ctx: Ctx, json: string) {
+  const data = parseJson(json);
+  if (typeof data.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(data.requestId)) {
+    throw new SenderError('a valid requestId is required');
+  }
+  if (typeof data.expectedIncidentId !== 'string' || !/^\d*$/.test(data.expectedIncidentId)) {
+    throw new SenderError('expectedIncidentId must identify the confirmed encounter, or be empty');
+  }
+  const key = `patient_start:${data.requestId}`;
+  if (ctx.db.ruleState.key.find(key)) return;
+  const current = activeIncident(ctx);
+  if (String(current?.id ?? '') !== data.expectedIncidentId) {
+    throw new SenderError('PATIENT_CHANGED: The active patient changed. Please try again.');
+  }
+  const previous = current ?? latestIncident(ctx);
+  const unit = previous?.unit ?? 'Medic 12';
+  if (current) applyStatus(ctx, 'closed', 'manual', 'New patient');
+  const incident = beginIncident(ctx, unit, 'manual');
+  if (previous) ctx.db.incident.id.update({ ...incident, demoMode: previous.demoMode });
+  recordEvent(ctx, incident.id, 'status_on_scene', 'On scene', 'manual', data.requestId);
+  ctx.db.ruleState.insert({ key, since: ctx.timestamp, lastFiredAt: ctx.timestamp });
+}
 
 /** Persisted deduplication makes bridge reconnects safe, including after a call has closed. */
 export function startCameraSession(ctx: Ctx, device: string, sessionId: string, unit: string) {
