@@ -16,6 +16,15 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~01:20 (Rishi): the bridge runs on the real Pi against Maincloud** (`bridge/`; no contract changes).
+  - **What's running:** the `handoff-bridge` service on the Pi, next to the hub and the sensor service. Real
+    finger-sensor readings reach `handoff-hackutd26` once a second as `relay-1`: HR 75–102, and the experimental SpO2
+    98–100 once the sensor holds it steady; every row `simulated: false`.
+  - **New check:** `bridge/check_vitals.py` answers "is the feed live and real?" in one command, from the laptop or
+    the Pi. It exits 0 only when the newest `relay-1` row is at most 3 s old and there are no simulated rows, no rows
+    from another device and no synthetic scenario (R4, §24).
+  - **Still to test on the Pi:** MARK during an incident, the stale pause, a reboot. Test steps for PowerShell and
+    bash are in `bridge/README.md`.
 - **Sun ~01:00 (Alan): `/controls` built** (D1, H8, §5). A hidden phone page for the demo operator that forces
   any beat through the existing `demo_control` and `synthesize_seizure` reducers on Maincloud (the one source of
   truth): Start, Arrest, ROSC, En route, Arrived, Close; CPR slow / good / live; Epi due now; Seizure on/off;
@@ -376,7 +385,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
 | Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
 | Voice agent worker | Built and merged to `main` (Sat ~23:30, decision 20): `voice/` brain with read-back + checks, corrections, W6 (spoken name, ID card and `patientRef`), camera-seen drugs, Nemotron turns with tools, local API; `voice/mock/` terminal bodycam, relay pusher and §7 storyboard runner; `voice/pipecat/` Riva STT/TTS worker with the vision sampler (hosted Nemotron Omni), `/api/ice`, the phone page served and the hub proxied. Live-tested with a real mic (~22:15); vision verified on a synthetic ID card with a key; a real phone on `hub/phone.html?voice=` is the next test |
-| Relay → SpacetimeDB | `bridge/hub_bridge.py` forwards the Pi hub's vitals (1/s) and MARK presses. Tested against the real `hub.py` and a local SpacetimeDB; not yet on the Pi against Maincloud. No waveform, temperature or 2 s hold yet |
+| Relay → SpacetimeDB | `bridge/hub_bridge.py` forwards the Pi hub's vitals (1/s) and MARK presses. Running on the Pi against Maincloud (Sun ~01:20): real HR and experimental SpO2 at 1/s; `bridge/check_vitals.py` checks it's live and real. MARK during an incident, the stale pause and a reboot still to test on the Pi. No waveform, temperature or 2 s hold yet |
 | Not started | the `web/` bodycam page (today the Pi hub's `hub/phone.html` is the bodycam: hub uploads, voice link, no WebRTC video to `/hospital` yet), W3 |
 | Pre-event prep | Enclosures were designed and printed and parts bought before the event; all software is built at the event. Say so plainly (§27) |
 
