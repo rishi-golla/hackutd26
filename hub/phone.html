@@ -53,7 +53,7 @@
 
 <div class="vitals">
   <div class="card vital hr off" id="vHr"><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div></div>
-  <div class="card vital o2 off" id="vO2"><div class="label">Oxygen · experimental</div><div class="big"><b id="o2">—</b><span>%</span></div></div>
+  <div class="card vital o2" id="vO2"><div class="label">Sensor</div><div class="big"><b id="o2" style="font-size:22px;letter-spacing:-.01em;line-height:1.6">—</b></div></div>
 </div>
 
 <div class="card said"><div class="label">Last spoken</div><p id="said">Nothing yet</p></div>
@@ -65,8 +65,11 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const video = $('video'), canvas = $('canvas');
-const vitalAt = { hr: 0, spo2: 0 };
-let stream = null, recorder = null, facing = 'environment', running = false, lastMsg = 0, es = null;
+const status = {
+  live: 'Reading', no_finger: 'Place finger', settling: 'Hold still…', moving: 'Hold still', weak: 'Press firmer',
+  noisy: 'Hold still, press firmly', measuring: 'Measuring…', saturated: 'Press lighter', sensor_error: 'Check sensor',
+};
+let stream = null, recorder = null, facing = 'environment', running = false, lastMsg = 0, hrAt = 0;
 
 const dot = (id, state) => { $(id).className = 'dot ' + state; };
 const hint = (text, err) => { $('hint').hidden = !text; $('hint').textContent = text || ''; $('hint').classList.toggle('err', !!err); };
@@ -79,27 +82,29 @@ function speak(text) {
   $('said').textContent = text;
 }
 
-// Live messages from the hub. Replays (sent when the page connects) are history, never live values.
-function connect() {
-  es = new EventSource('/events');
-  es.onmessage = (e) => {
-    lastMsg = Date.now();
-    const m = JSON.parse(e.data);
-    if (m.replay) return;
-    if (m.what === 'say' && running) { speak(m.value); send('said', m.value); }
-    if (m.what === 'hr' || m.what === 'spo2') { $(m.what === 'hr' ? 'hr' : 'o2').textContent = m.value || '—'; vitalAt[m.what] = Date.now(); }
-  };
-}
-connect();
+// Live messages: long-poll, so each answer is a normal response that any https tunnel passes straight through.
+// Replays (sent when the page connects) are history, never live values.
+(async () => {
+  let after = 0;
+  for (;;) {
+    try {
+      const d = await (await fetch('/poll?after=' + after, { cache: 'no-store' })).json();
+      lastMsg = Date.now();
+      for (const m of d.msgs) {
+        if (m.replay) continue;
+        if (m.what === 'say' && running) { speak(m.value); send('said', m.value); }
+        if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); }
+        if (m.what === 'state') $('o2').textContent = status[m.value] || m.value;
+      }
+      after = d.seq;
+    } catch (_) { await new Promise((r) => setTimeout(r, 1000)); }
+  }
+})();
 
 setInterval(() => {
-  const linked = Date.now() - lastMsg < 12000;               // the hub pings every 5 s
-  dot('dHub', linked ? 'on' : 'off');
-  if (!linked && es.readyState !== EventSource.CONNECTING) { es.close(); connect(); }
-  for (const [what, id, card] of [['hr', 'hr', 'vHr'], ['spo2', 'o2', 'vO2']]) {
-    if (Date.now() - vitalAt[what] > 5000) $(id).textContent = '—';   // never show an old number
-    $(card).classList.toggle('off', $(id).textContent === '—');
-  }
+  dot('dHub', Date.now() - lastMsg < 12000 ? 'on' : 'off');   // a poll answers at least every 10 s
+  if (Date.now() - hrAt > 5000) $('hr').textContent = '—';     // never show an old number
+  $('vHr').classList.toggle('off', $('hr').textContent === '—');
 }, 1000);
 
 async function openCamera() {

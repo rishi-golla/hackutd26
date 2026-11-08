@@ -34,7 +34,8 @@ class Max30102:
     def read(self):
         """All samples waiting in the FIFO -> list of (red, ir)."""
         wr = self.b.read_byte_data(ADDR, 0x04); rd = self.b.read_byte_data(ADDR, 0x06)
-        n = (wr - rd) & 0x1F
+        self.lost = self.b.read_byte_data(ADDR, 0x05)    # samples dropped: we read later than the 32-sample FIFO lasts
+        n = (wr - rd) & 0x1F or (32 if self.lost else 0)
         out = []
         while n > 0:
             k = min(n, 5)

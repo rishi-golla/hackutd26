@@ -70,8 +70,8 @@
       <div><div class="label">Heart rate</div><div class="big"><b id="hr">—</b><span>bpm</span></div></div>
       <svg class="heart" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.1 0 3.6 1.1 4.3 2.4.8-1.3 2.3-2.4 4.4-2.4 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg>
     </div>
-    <div class="card vital o2 off" id="vO2">
-      <div><div class="label">Oxygen · experimental</div><div class="big"><b id="o2">—</b><span>%</span></div></div>
+    <div class="card vital o2" id="vO2">
+      <div><div class="label">Sensor</div><div class="big"><b id="o2" style="font-size:40px;letter-spacing:-.02em">—</b></div></div>
     </div>
     <div class="card"><div class="label">Activity</div><ul id="feed"></ul></div>
   </aside>
@@ -80,14 +80,20 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const seen = {}, vitalAt = { hr: 0, spo2: 0 };
-let frameAt = 0, lastMsg = 0, es = null;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const seen = {};
+let frameAt = 0, lastMsg = 0, hrAt = 0;
 
-// One readable line per message. Repeated sensor values are skipped.
+// What the sensor's state means for the person holding it.
+const status = {
+  live: 'Reading', no_finger: 'Place finger', settling: 'Hold still…', moving: 'Hold still', weak: 'Press firmer',
+  noisy: 'Hold still, press firmly', measuring: 'Measuring…', saturated: 'Press lighter', sensor_error: 'Check sensor',
+};
+
+// One readable line per message. Repeated values are skipped.
 const words = {
-  spo2: (v) => v ? `Oxygen ${v}%` : null,
-  finger: (v) => v === 'on' ? 'Finger on the sensor' : 'Finger off the sensor',
-  state: (v) => `Sensor ${String(v).replace('_', ' ')}`,
+  finger: (v) => ({ on: 'Finger on the sensor', off: 'Finger off the sensor', error: 'Sensor not responding' })[v],
+  state: (v) => `Sensor: ${status[v] || v}`,
   say: (v) => `Sent to bodycam: “${v}”`,
   said: (v) => `Bodycam said “${v}”`,
   bodycam: () => 'Bodycam started',
@@ -95,7 +101,7 @@ const words = {
   mark: () => 'MARK pressed',
   link: (v) => `Phone link: ${v}`,
 };
-const quiet = new Set(['hr', 'camera', 'ping']);
+const quiet = new Set(['hr', 'camera', 'spo2']);
 function feed(m) {
   const key = JSON.stringify(m.value);
   if (quiet.has(m.what) || (seen[m.what] === key && m.what !== 'say' && m.what !== 'said')) return;
@@ -110,41 +116,51 @@ function feed(m) {
   if ($('feed').children.length > 60) $('feed').lastChild.remove();
 }
 
-// Camera: one continuous MJPEG stream from the hub; reopened if it drops.
-function showVideo() {
-  if ($('cam').querySelector('img')) return;
-  const img = new Image();
-  img.onerror = () => img.remove();
-  img.src = '/video';
-  $('cam').replaceChildren(img, Object.assign(document.createElement('span'), { className:'chip live', textContent:'● LIVE' }));
+function handle(m) {
+  feed(m);
+  if (m.what === 'link') $('link').textContent = ` · phone: ${m.value}`;
+  if (m.replay) return;                                         // history, never a live value
+  if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); if (m.value) $('vHr').style.setProperty('--beat', 60 / m.value + 's'); }
+  if (m.what === 'state') $('o2').textContent = status[m.value] || m.value;
+  if (m.what === 'finger') $('dFinger').className = 'dot ' + (m.value === 'on' ? 'on' : 'warn');
+  if (m.what === 'camera') frameAt = Date.now();
 }
 
-// Live messages from the hub. Replays (sent when the page connects) are history, never live values.
-function connect() {
-  es = new EventSource('/events');
-  es.onmessage = (e) => {
-    lastMsg = Date.now();
-    const m = JSON.parse(e.data);
-    feed(m);
-    if (m.replay) return;
-    if (m.what === 'hr' || m.what === 'spo2') { $(m.what === 'hr' ? 'hr' : 'o2').textContent = m.value || '—'; vitalAt[m.what] = Date.now(); }
-    if (m.what === 'hr' && m.value) $('vHr').style.setProperty('--beat', 60 / m.value + 's');
-    if (m.what === 'finger') $('dFinger').className = 'dot ' + (m.value === 'on' ? 'on' : 'warn');
-    if (m.what === 'link') $('link').textContent = ` · phone: ${m.value}`;
-    if (m.what === 'camera') { frameAt = Date.now(); showVideo(); }
-  };
-}
-connect();
+// Live messages: long-poll, so each answer is a normal response that any https tunnel passes straight through.
+(async () => {
+  let after = 0;
+  for (;;) {
+    try {
+      const d = await (await fetch('/poll?after=' + after, { cache: 'no-store' })).json();
+      lastMsg = Date.now();
+      d.msgs.forEach(handle);
+      after = d.seq;
+    } catch (_) { await sleep(1000); }
+  }
+})();
+
+// Camera: ask for the next frame as soon as the last one arrives.
+(async () => {
+  const img = new Image();
+  img.alt = 'Bodycam';
+  let shown = 0, url = null;
+  for (;;) {
+    try {
+      const r = await fetch('/frame.jpg?after=' + shown, { cache: 'no-store' });
+      if (r.status !== 200) { if (r.status !== 204) await sleep(1000); continue; }   // 204 = no new frame in 5 s
+      shown = +r.headers.get('X-Seq');
+      if (url) URL.revokeObjectURL(url);
+      img.src = url = URL.createObjectURL(await r.blob());
+      if (!img.isConnected) $('cam').replaceChildren(img, Object.assign(document.createElement('span'), { className:'chip live', textContent:'● LIVE' }));
+      frameAt = Date.now();
+    } catch (_) { await sleep(1000); }
+  }
+})();
 
 setInterval(() => {
-  const linked = Date.now() - lastMsg < 12000;                // the hub pings every 5 s
-  $('dHub').className = 'dot ' + (linked ? 'on' : '');
-  if (!linked && es.readyState !== EventSource.CONNECTING) { es.close(); connect(); }
-  for (const [what, id, card] of [['hr', 'hr', 'vHr'], ['spo2', 'o2', 'vO2']]) {
-    if (Date.now() - vitalAt[what] > 5000) $(id).textContent = '—';   // never show an old number
-    $(card).classList.toggle('off', $(id).textContent === '—');
-  }
-  if (Date.now() - vitalAt.hr > 5000) $('dFinger').className = 'dot';
+  $('dHub').className = 'dot ' + (Date.now() - lastMsg < 12000 ? 'on' : '');   // a poll answers at least every 10 s
+  if (Date.now() - hrAt > 5000) { $('hr').textContent = '—'; $('dFinger').className = 'dot'; }   // never an old number
+  $('vHr').classList.toggle('off', $('hr').textContent === '—');
   const live = Date.now() - frameAt < 3000;
   $('dCam').className = 'dot ' + (live ? 'on' : '');
   const chip = $('cam').querySelector('.chip');

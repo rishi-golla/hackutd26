@@ -1,5 +1,5 @@
 [Unit]
-Description=Handoff public https link (pinggy)
+Description=Handoff public https link (Cloudflare quick tunnel)
 After=network-online.target handoff-hub.service
 Wants=network-online.target
 

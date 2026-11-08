@@ -1,20 +1,25 @@
 #!/bin/bash
-# Copy the hub + sensor program to the Pi (over the USB cable) and (re)start both.
+# Copy the hub + sensor program to the Pi (over the USB cable), test the sensor on real recordings, and only then
+# switch over and restart. The public link keeps running (restarting it would give the phone a new URL).
 #   ./deploy.sh                      deploy
 #   ./deploy.sh wifi "NAME" "PASS"   also join a Wi-Fi network (e.g. your phone hotspot)
 set -e
 cd "$(dirname "$0")"
 PI=../chromatic/tools/pi.sh
 DST="cmx@[$($PI --ip)]"
-SSHO="-6 -i ../chromatic/captures/private/pi_key -o UserKnownHostsFile=../chromatic/captures/private/pi_known_hosts -o StrictHostKeyChecking=no"
+SSHO="-6 -q -i ../chromatic/captures/private/pi_key -o UserKnownHostsFile=../chromatic/captures/private/pi_known_hosts -o StrictHostKeyChecking=no"
 
 if [ "$1" = wifi ]; then
   $PI "sudo raspi-config nonint do_wifi_country US && sudo raspi-config nonint do_wifi_ssid_passphrase $(printf %q "$2") $(printf %q "$3") && sleep 8 && hostname -I"
 fi
 
-$PI 'mkdir -p /home/cmx/hub'
-scp $SSHO hub.py phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/hub/"
-scp $SSHO ../chromatic/pi/pi_oximeter.py ../chromatic/pi/max30102.py ../chromatic/pi/pi_hr_sensor.py "$DST:/home/cmx/"
-$PI 'chmod +x /home/cmx/hub/link.sh && sudo cp /home/cmx/hub/handoff-*.service /etc/systemd/system/ && sudo systemctl daemon-reload &&
-     sudo systemctl enable handoff-hub handoff-link && sudo systemctl restart handoff-hub cmx-oximeter handoff-link && sleep 3 &&
-     systemctl is-active handoff-hub cmx-oximeter handoff-link && echo "Wi-Fi address(es): $(hostname -I)"'
+$PI 'rm -rf /home/cmx/next && mkdir -p /home/cmx/next/hub /home/cmx/next/testdata /home/cmx/hub'
+scp $SSHO hub.py phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/next/hub/"
+scp $SSHO ../chromatic/pi/{pi_oximeter,max30102,pi_hr_sensor,test_sensor}.py "$DST:/home/cmx/next/"
+scp $SSHO ../chromatic/pi/testdata/*.json "$DST:/home/cmx/next/testdata/"
+$PI 'cd /home/cmx/next && python3 -W ignore test_sensor.py' || { echo "Sensor test failed: nothing deployed."; exit 1; }
+$PI 'cp /home/cmx/next/*.py /home/cmx/ && cp -r /home/cmx/next/testdata /home/cmx/ && cp /home/cmx/next/hub/* /home/cmx/hub/ &&
+     rm -rf /home/cmx/next && chmod +x /home/cmx/hub/link.sh && sudo cp /home/cmx/hub/handoff-*.service /etc/systemd/system/ &&
+     sudo systemctl daemon-reload && sudo systemctl enable --now handoff-hub handoff-link &&
+     sudo systemctl restart handoff-hub cmx-oximeter && sleep 3 &&
+     systemctl is-active handoff-hub cmx-oximeter handoff-link && curl -s localhost:8000/state | grep -oE "https://[a-z0-9-]+\.trycloudflare\.com"'

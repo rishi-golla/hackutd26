@@ -13,7 +13,7 @@ two estimates in a row agree within 10 %, so noise (which HeartPy also turns int
 LED current is fixed: changing it mid-reading restarts the signal, and 0x18-0x3C were all 100 % valid in the trials.
 Log: /home/cmx/vitals.jsonl (state changes + readings), journalctl -u cmx-oximeter.
 """
-import json, os, queue, sys, threading, time, urllib.request
+import json, os, queue, signal, sys, threading, time, urllib.request
 import dbus, dbus.mainloop.glib
 import RPi.GPIO as GPIO
 from gi.repository import GLib
@@ -37,7 +37,7 @@ def _hub_worker():
     up = None
     while True:
         at, body = _hubq.get()
-        if time.monotonic() - at > 2:
+        if time.monotonic() - at > 1:
             continue                                # never deliver an old reading as if it were current
         try:
             urllib.request.urlopen(urllib.request.Request(HUB, body, {"Content-Type": "application/json"}),
@@ -54,10 +54,15 @@ threading.Thread(target=_hub_worker, daemon=True).start()
 
 
 def hub(what, value):
-    try:
-        _hubq.put_nowait((time.monotonic(), json.dumps({"from": "pi", "what": what, "value": value}).encode()))
-    except queue.Full:
-        pass
+    item = (time.monotonic(), json.dumps({"from": "pi", "what": what, "value": value}).encode())
+    while True:
+        try:
+            return _hubq.put_nowait(item)
+        except queue.Full:                          # keep the newest: drop the oldest
+            try:
+                _hubq.get_nowait()
+            except queue.Empty:
+                pass
 
 
 def say(log, **k):
@@ -65,7 +70,10 @@ def say(log, **k):
     line = json.dumps(k)
     print(line, flush=True)
     if log:
-        VLOG.write(line + "\n"); VLOG.flush()
+        try:
+            VLOG.write(line + "\n"); VLOG.flush()
+        except OSError:
+            pass                                    # a full disk must not stop the sensor
 
 
 def main():
@@ -93,128 +101,151 @@ def main():
     om = dbus.Interface(bus.get_object(BUS, "/"), "org.freedesktop.DBus.ObjectManager")
 
     def connected_devices():
-        out = []
-        for path, ifs in om.GetManagedObjects().items():
-            d = ifs.get("org.bluez.Device1")
-            if d and d.get("Connected") and str(path).startswith(ad):
-                out.append((path, str(d.get("Address"))))
-        return out
+        try:
+            objs = om.GetManagedObjects(timeout=2)     # runs on the main loop: never block it for long
+        except dbus.DBusException as e:
+            say(False, ev="dbus_error", e=str(e))
+            return []
+        return [p for p, ifs in objs.items()
+                if ifs.get("org.bluez.Device1", {}).get("Connected") and str(p).startswith(ad)]
 
     def drop(path, why):
         try:
-            dbus.Interface(bus.get_object(BUS, path), "org.bluez.Device1").Disconnect()
+            dbus.Interface(bus.get_object(BUS, path), "org.bluez.Device1").Disconnect(timeout=2)
             say(True, ev="dropped_link", dev=str(path).split("dev_")[-1], why=why)
         except dbus.DBusException as e:
             say(True, ev="drop_failed", e=str(e))
 
     # A handheld still connected from before this process started is subscribed to GATT objects that no longer
     # exist: it would get no data ("SIGNAL LOST"). Drop it so it reconnects and subscribes to us.
-    for p, _ in connected_devices():
+    for p in connected_devices():
         drop(p, "stale link from before restart")
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)    # MARK button: pin 11 to ground (pin 9)
-    st = {"m": None, "err": 0, "I": [], "finger": False, "base": 15000.0, "ac_ok": [], "hist": [], "prev": None,
-          "last_ok": 0.0, "hr": 0, "state": None, "linked": False, "btn": False, "marks": 0, "unsub_at": None,
-          "dev_at": 0.0}                       # base: first guess of the no-finger IR level (11-16k measured), then learned
+    st = {"m": None, "err": 0, "got_at": time.time(), "I": [], "finger": False, "base": 15000.0, "ac_ok": [],
+          "hist": [], "recent": [], "last_ok": 0.0, "hr": 0, "state": None, "linked": False, "btn": False,
+          "marks": 0, "unsub_at": None, "dev_at": 0.0}
+    # base: no-finger IR level, first guess 15k (11-16k measured), then learned from this sensor and room
 
     def sample():
         try:
-            if st["m"] is None:
-                st["m"] = Max30102(led=LED)
-                say(True, ev="sensor_ready")
-            st["I"] = (st["I"] + [i for _, i in st["m"].read()])[-WIN:]
-            st["err"] = 0
-        except OSError as e:                         # unplugged / I2C glitch: report it, retry about once a second
-            st["err"] += 1
-            if st["err"] == 1:
+            if st["m"] is None and st["err"] % 25:         # after an error, retry the sensor about once a second
+                st["err"] += 1
+            else:
+                if st["m"] is None:
+                    st["m"] = Max30102(led=LED)
+                    say(True, ev="sensor_ready")
+                new = [i for _, i in st["m"].read()]
+                if st["m"].lost:                           # samples were dropped: the window would have a gap
+                    st["I"] = []
+                if new:
+                    st["I"], st["got_at"], st["err"] = (st["I"] + new)[-WIN:], time.time(), 0
+        except OSError as e:                               # unplugged / I2C glitch
+            if not st["err"]:
                 say(True, ev="sensor_error", e=str(e))
-            if st["err"] % 25 == 0:
-                st["m"], st["I"] = None, []
-        pressed = GPIO.input(17) == 0                     # polled every 40 ms, which also debounces
-        if pressed and not st["btn"]:
-            st["marks"] += 1
-            say(True, ev="mark", n=st["marks"])
-            hub("mark", st["marks"])
-        st["btn"] = pressed
+            st["err"] += 1
+            st["m"], st["I"] = None, []
+        try:
+            pressed = GPIO.input(17) == 0                  # polled every 40 ms, which also debounces
+            if pressed and not st["btn"]:
+                st["marks"] += 1
+                say(True, ev="mark", n=st["marks"])
+                hub("mark", st["marks"])
+            st["btn"] = pressed
+        except Exception as e:
+            say(False, ev="button_error", e=str(e))
         return True
 
     def state(s, **k):
         if s != st["state"]:
             st["state"] = s
             say(True, ev="state", state=s, **k)
-            hub("state", s)
+        hub("state", s)                                    # every tick, so a lost update heals itself
+
+    def read_finger(now):
+        """None = sensor not readable, False = no finger, True = finger. Thresholds follow the learned no-finger
+        level, so ambient light and different sensors don't matter."""
+        if st["err"] or now - st["got_at"] > 0.5:          # error, or the sensor silently stopped sending
+            return None
+        I = st["I"]
+        if len(I) < 10:
+            return st["finger"] or False
+        dc = sum(I[-10:]) / 10
+        if not st["finger"]:
+            if dc < 1.3 * st["base"]:                      # learn only from readings that look like no finger
+                st["base"] = min(max(dc if dc < st["base"] else st["base"] + 0.01 * (dc - st["base"]), 3000), 30000)
+            return dc > 2 * st["base"]
+        return dc > 1.6 * st["base"]
+
+    def reading(now):
+        """-> (state, hr). A number only after 3 agreeing estimates (then 2), median of the last 2 s; otherwise
+        the reason. A value is held through up to 3 s of noise only, never through movement or saturation."""
+        e = estimate(st["I"])
+        st["recent"] = r = (st["recent"] + [e["hr"]])[-3:]
+        need = r if not st["hist"] else r[-2:]
+        if all(need) and len(need) >= (2 if st["hist"] else 3) and max(need) - min(need) <= 0.1 * min(need):
+            st["hist"] = (st["hist"] + [e["hr"]])[-8:]
+            st["ac_ok"] = (st["ac_ok"] + [e["ac"]])[-20:]          # this person's clean pulse swing
+            st["last_ok"] = now
+            return "live", sorted(st["hist"])[len(st["hist"]) // 2]
+        if e["why"] in ("noisy", None) and now - st["last_ok"] <= HOLD_S and st["hr"]:
+            return "live", st["hr"]
+        st["hist"] = []
+        ref = sorted(st["ac_ok"])[len(st["ac_ok"]) // 2] if st["ac_ok"] else None
+        if e["why"] == "noisy" and ref:
+            return ("moving" if e["ac"] > 3 * ref else "weak"), 0
+        return e["why"] or "measuring", 0
 
     def tick():
         now = time.time()
-        I = st["I"]
-        dc = sum(I[-10:]) / max(1, len(I[-10:])) if I else 0
-        # finger on/off: learned from this sensor's own no-finger level (ambient light and sensors differ)
-        if st["err"]:
-            if st["finger"] is not None:
-                st["finger"], st["hist"], st["hr"] = None, [], 0     # None = sensor not readable
-        elif st["finger"] is None:
-            st["finger"] = False
-        elif not st["finger"]:
-            st["base"] = dc if dc < st["base"] else st["base"] + 0.01 * (dc - st["base"])
-            if dc > 2.5 * st["base"]:
-                st["finger"], st["hist"], st["prev"], st["last_ok"] = True, [], None, 0.0
-        elif dc < 1.8 * st["base"]:
-            st["finger"], st["hist"], st["hr"] = False, [], 0
-        # a number only when two ticks in a row agree within 10 %; otherwise say why
-        if st["finger"] is None:
-            state("sensor_error")
-        elif not st["finger"]:
-            state("no_finger", dc=int(dc))
-        else:
-            e = estimate(st["I"])
-            agree = e["hr"] and st["prev"] and abs(e["hr"] - st["prev"]) <= 0.1 * st["prev"]
-            st["prev"] = e["hr"]
-            if agree:
-                st["hist"] = (st["hist"] + [e["hr"]])[-8:]          # shown value = median of the last 2 s
-                st["ac_ok"] = (st["ac_ok"] + [e["ac"]])[-20:]       # this person's clean pulse swing
-                hr = sorted(st["hist"])[len(st["hist"]) // 2]
-                st["last_ok"] = now
-                state("live")
-                if hr != st["hr"]:
-                    say(True, hr=hr, raw=e["hr"])
-                st["hr"] = hr
-            elif now - st["last_ok"] > HOLD_S:              # brief glitches keep the last value up to 3 s
-                st["hr"], st["hist"] = 0, []
-                ref = sorted(st["ac_ok"])[len(st["ac_ok"]) // 2] if st["ac_ok"] else None
-                if e["why"] == "noisy" and ref:
-                    why = "moving" if e["ac"] > 3 * ref else "weak"
-                else:
-                    why = e["why"] or "measuring"          # settling / saturated / noisy before any clean pulse
-                state(why)
-        # tell the handheld (every tick, whatever the state)
-        flags = 0x06 if st["finger"] else 0x04
-        bpm = max(0, min(250, int(st["hr"]))) if st["finger"] else 0
-        linked = meas.notify(bytes([flags, bpm]))
-        hub("finger", "on" if st["finger"] else "off")
-        hub("hr", bpm or None)                              # None = no valid reading (never a stale number)
-        if linked != st["linked"]:
-            st["linked"] = linked
-            say(True, ev="handheld", subscribed=bool(linked))
-        # watchdog: connected but nobody subscribed for > 6 s -> drop the link so the handheld starts over
-        if linked:
-            st["unsub_at"] = None
-        if linked or now - st["dev_at"] < 1:                # D-Bus call blocks the loop: once a second is enough
-            return True
-        st["dev_at"] = now
-        devs = connected_devices()
-        if not devs:
-            st["unsub_at"] = None
-        elif not st["unsub_at"]:
-            st["unsub_at"] = now
-        elif now - st["unsub_at"] > 6:
-            for p, _ in devs:
-                drop(p, "connected but not subscribed")
-            st["unsub_at"] = None
+        try:
+            finger = read_finger(now)
+            if finger and not st["finger"]:
+                st["hist"], st["recent"], st["ac_ok"], st["last_ok"] = [], [], [], 0.0
+            st["finger"] = finger
+            if finger is None:
+                s, hr = "sensor_error", 0
+            elif not finger:
+                s, hr = "no_finger", 0
+            else:
+                s, hr = reading(now)
+        except Exception as e:                             # never let a bug freeze the last value on screen
+            say(True, ev="tick_error", e=repr(e))
+            s, hr = "sensor_error", 0
+        if hr != st["hr"] and hr:
+            say(True, hr=hr)
+        st["hr"] = hr
+        state(s)
+        try:
+            # handheld: nothing while the sensor is unreadable (it shows signal lost), else every tick
+            linked = st["linked"] if st["finger"] is None else meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
+            hub("finger", {None: "error", False: "off", True: "on"}[st["finger"]])
+            hub("hr", hr or None)                          # None = no valid reading (never a stale number)
+            if linked != st["linked"]:
+                st["linked"] = linked
+                say(True, ev="handheld", subscribed=bool(linked))
+                if linked:
+                    st["unsub_at"] = None
+            # watchdog: connected but nobody subscribed for > 6 s -> drop the link so the handheld starts over
+            if not linked and now - st["dev_at"] >= 1:
+                st["dev_at"] = now
+                devs = connected_devices()
+                if not devs:
+                    st["unsub_at"] = None
+                elif not st["unsub_at"]:
+                    st["unsub_at"] = now
+                elif now - st["unsub_at"] > 6:
+                    for p in devs:
+                        drop(p, "connected but not subscribed")
+                    st["unsub_at"] = None
+        except Exception as e:
+            say(True, ev="link_error", e=repr(e))
         return True
 
     GLib.timeout_add(40, sample)
     GLib.timeout_add(250, tick)
+    GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, loop.quit)   # systemd stop: still turn the LEDs off
     say(True, ev="ready")
     try:
         loop.run()
