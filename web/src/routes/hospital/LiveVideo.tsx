@@ -139,7 +139,7 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
     >
       <video ref={videoRef} autoPlay playsInline muted />
       <span className="video__badge">
-        {state === 'live' ? 'LIVE' : state === 'stale' ? 'STALE · no video for 3 s' : 'connecting…'}
+        {state === 'live' ? 'Live' : state === 'stale' ? 'Stale' : 'Connecting…'}
       </span>
       <span className="video__toggle" aria-hidden="true">
         {expanded ? <MinimizeIcon /> : <ExpandIcon />}
@@ -148,18 +148,19 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
   );
 }
 
+// Lucide "maximize-2" and "minimize-2" (ISC), the one icon set used on the dashboard.
 function ExpandIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
     </svg>
   );
 }
 
 function MinimizeIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13.5 6.5h-4v-4M2.5 9.5h4v4M9.5 6.5l4-4M6.5 9.5l-4 4" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
     </svg>
   );
 }
