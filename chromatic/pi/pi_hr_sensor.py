@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """BlueZ D-Bus GATT building blocks (python3-dbus only) for pi_oximeter.py: advertisement, service,
 characteristic with notify, and the application object. The handheld connects to these as a standard BLE sensor.
-(The old scripted-patient demo that lived here is in chromatic/demos/pi_side/pi_hr_sensor_demo.py.)
 """
 import json, time
 import dbus, dbus.service

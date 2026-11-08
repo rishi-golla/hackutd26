@@ -8,7 +8,7 @@ a standard Bluetooth heart-rate sensor named "PI-HRM", and sends the rate plus t
 Each 0.25 s the handheld gets flags 0x04 with rate 0 when there is no finger, flags 0x06 with rate 0 while measuring,
 and flags 0x06 with the rate once a reading is trusted. The first reading needs 3 estimates in a row that agree
 within 10 %, so noise never shows as a rate. It appears about 3 s after a firm, still finger.
-The LED current is fixed, because changing it mid-reading restarts the signal (0x18-0x3C all worked in the trials).
+The LED current is fixed, because changing it mid-reading restarts the signal (0x18-0x3C all gave valid readings).
 Logs go to /home/cmx/vitals.jsonl and journalctl -u cmx-oximeter.
 """
 import json, os, queue, signal, sys, threading, time, urllib.request
@@ -23,8 +23,8 @@ from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # n
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 LED = 0x24
 HOLD_S = 3.0                               # keep showing the last good HR through short glitches
-# Button light ring, common + to 3.3 V, so a color is on when its pin is LOW. Only red and blue light: red is GPIO24,
-# blue is GPIO22 or GPIO23 depending on the rewiring, so both are driven together (the green element does not light).
+# Button light ring, common + to 3.3 V, so a color is on when its pin is LOW. Red is GPIO24. Blue is driven on GPIO22
+# and GPIO23 together so it lights whichever one the blue leg is wired to. The ring's green element does not light.
 BLUE, RED = [22, 23], 24
 
 
