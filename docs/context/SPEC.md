@@ -24,6 +24,14 @@ necessarily when the decision was made.
 
 - **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
   `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
+- **Sun ~09:20 (Alan): no invented birth dates, no reworded names** (§17, §19 agent rules, §24; `voice/`). Live: a card
+  with no date of birth came back from the vision model with an invented one (the panel showed an age), and Nemotron
+  answered "who is the patient" with a garbled name ("Borischa" for "Donocha"). Now the vision prompt returns
+  `birth_date: null` when no complete date is printed and the sampler never fills one in; a card without a date is a
+  valid finding, the EHR is searched by name alone, and the card-only record carries no date (no age shown). Identity
+  questions ("who's the patient", "what's his name") are answered by fixed code from the record. The policy drops a
+  spoken answer or advisory whose capitalised mid-sentence word is not in the facts (months, days and Handoff's own
+  words allowed), so a name can only ever be the one on record.
 - **Sun ~06:45 (Alan): an ID card with no EHR match still identifies the patient** (§17, W6, X8; `voice/` plus the
   hospital patient panel). The brain saves a record with source `ID card` (patientRef `card:<name>-<date>`, name and birth
   date from the card or the spoken line, every clinical field "unknown (no EHR record)"), points the incident at it, and
