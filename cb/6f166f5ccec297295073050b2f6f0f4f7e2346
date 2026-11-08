@@ -1,0 +1,19 @@
+voice/pipecat/client/index.html
+  s_4aec99cd9cb1d6::t_e96977f4d85de4 75-76,158,204-207,346-354,386,389-390,396,450,458,460-463,467,471,474,483-484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cb6f166f5ccec297295073050b2f6f0f4f7e2346",
+  "prompts": {},
+  "sessions": {
+    "s_4aec99cd9cb1d6": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_4aec99cd9cb1d6",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
