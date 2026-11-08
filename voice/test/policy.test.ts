@@ -6,7 +6,7 @@ import { callsTo, fakeConn } from './fakes.js';
 test('policy applies the word limit for every speech kind', async () => {
   const { conn, calls } = fakeConn();
   const policy = new Policy(conn);
-  const limits = { readback: 40, answer: 15, advisory: 8, record: 25, ask: 12, control: 3 } as const;
+  const limits = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3 } as const;
   for (const [kind, limit] of Object.entries(limits) as [keyof typeof limits, number][]) {
     const words = Array(limit + 1).fill('word').join(' ');
     assert.equal(await policy.say(words, 0, kind), false, `${kind} should reject ${limit + 1} words`);

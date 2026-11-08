@@ -26,7 +26,7 @@ const CONTROL_WINDOW_MS = 10_000;
 const PENDING_DOSE_MS = 30_000;
 /** How long the brain remembers a line it wrote, so the row coming back is recognised as its own. */
 const OWN_LINE_MS = 60_000;
-const PROACTIVE_EVERY_MS = 20_000;
+const PROACTIVE_EVERY_MS = 10_000;
 /** Nemotron turns per minute at most (NVIDIA free tier is about 40 requests/min for the whole key). */
 const LLM_TURNS_PER_MIN = 20;
 /**
@@ -49,8 +49,13 @@ Rules: never invent vitals, times, names, doses or findings. Never give orders; 
 const SYSTEM_NO_W6 = SYSTEM.replace(/- If the medic gives the patient's full name AND birth date.*\n/, '');
 
 const PROACTIVE = `You are Handoff, the voice assistant riding along with a paramedic. Prototype; all data is synthetic.
-Nothing was said. Look at the live state and decide whether ONE short advisory would help right now (for example after ROSC, a timer that is due, or a flagged medication). The rules already say "Push faster", "Resume compressions", "Epi due" and the vitals alarms, so never repeat those.
-Reply with the single word SILENT, or with the advisory: 8 words or fewer, protocol wording ("Consider…"), never an order, no numbers unless they are in the state.`;
+The live state just changed (CHANGED says what). Nobody asked you anything. Think like an experienced partner watching over the medic's shoulder: is there ONE thing worth saying right now that the medic may have missed? Good reasons to speak:
+- a safety link between facts: a recorded allergy against a drug just given or likely next; a home medication that matters now (a blood thinner and bleeding or a head injury; a beta blocker and a low heart rate); a do-not-resuscitate code status during an arrest
+- a flagged event the medic has left unanswered for over a minute
+- a clear trend in valid vitals (heart rate or SpO2 steadily worse) or a change in status (ROSC: post-arrest checks; en route: the hospital has the record)
+- something the handoff report will need and nobody has documented yet (patient identity, allergies checked, a pulse check after ROSC)
+The rules already say "Push faster", "Resume compressions", "Epi due", "Two minutes" and the vitals alarms, and RECENT SPEECH shows what was said lately: never repeat any of those, and never restate a read-back, question or warning Handoff just spoke. If nothing would clearly help, stay silent; silence is the usual answer.
+Reply with the single word SILENT, or with the advisory: 15 words or fewer, protocol wording ("Consider…", "Note:"), never an order, no numbers unless they are in the state.`;
 
 type Pending = {
   eventId: bigint;
@@ -656,18 +661,34 @@ export class Brain {
   private async proactiveTick() {
     const s = readState(this.conn);
     if (!s.incident) return;
-    const fingerprint = `${s.incident.status}|${s.events.length}|${s.timers.map(t => `${t.kind}:${t.state}`).join(',')}|${s.events.filter(e => e.status === 'flagged').length}`;
+    const v = s.vitals;
+    const parts: Record<string, string> = {
+      status: s.incident.status,
+      events: `${s.events.length} ${s.events.at(-1)?.label ?? ''}`,
+      flagged: String(s.events.filter(e => e.status === 'flagged').length),
+      timers: s.timers.map(t => `${t.kind}:${t.state}`).join(','),
+      record: s.record ? `${s.record.name} (${s.record.allergies.length} allergies)` : 'none',
+      vitals: v?.valid ? `HR ~${Math.round((v.hr ?? 0) / 10) * 10} SpO2 ~${Math.round((v.spo2 ?? 0) / 3) * 3}` : v ? `no valid reading (${v.status})` : 'none',
+      cpr: s.cpr?.fresh ? (s.cpr.compressing ? 'compressing' : 'paused') : 'none',
+    };
+    const fingerprint = JSON.stringify(parts);
     if (fingerprint === this.lastFingerprint) return;
+    const before: Record<string, string> = this.lastFingerprint ? JSON.parse(this.lastFingerprint) : {};
     this.lastFingerprint = fingerprint;
+    const changed = Object.keys(parts).filter(k => before[k] !== parts[k]).map(k => `${k}: ${before[k] ?? 'n/a'} → ${parts[k]}`);
+    const now = Date.now();
+    this.llmTurnTimes = this.llmTurnTimes.filter(t => now - t < 60_000);
+    if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) return;
+    this.llmTurnTimes.push(now);
     const gen = this.gen;
     const summary = summarize(s);
     try {
       const reply = await chat(
         [
           { role: 'system', content: `${PROACTIVE}\n\nLIVE STATE\n${summary}` },
-          { role: 'user', content: 'Advisory now? SILENT or 8 words.' },
+          { role: 'user', content: `CHANGED\n${changed.join('\n')}\n\nAdvisory now? SILENT or at most 15 words.` },
         ],
-        { timeoutMs: CONFIG.llmTimeoutMs, maxTokens: 60 }
+        { timeoutMs: CONFIG.llmTimeoutMs, maxTokens: 80 }
       );
       if (this.stale(gen, s.incident.id)) return;
       const content = reply.content.trim();

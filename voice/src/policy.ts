@@ -11,10 +11,10 @@ import { tsMs } from './state';
 export type SpeechKind = 'readback' | 'answer' | 'advisory' | 'record' | 'ask' | 'control' | 'vision';
 
 const SPACING_S = 4;
-const ADVISORY_GAP_S = 20;
+const ADVISORY_GAP_S = 15;
 /** "ask" is a reply to the medic (a clarifying question), not an unprompted advisory, so it gets room.
  *  "vision" is the answer to "Handoff, look": fixed wording from the sampler, never the model's. */
-const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 15, advisory: 8, record: 25, ask: 12, control: 3, vision: 20 };
+const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20 };
 const DECIMAL_OR_INT = /\b\d{1,3}(?:\.\d+)?\b/g;
 
 export class Policy {

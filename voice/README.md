@@ -93,7 +93,7 @@ when it drops. That is the whole failover trigger.
 | `incident.patientRef` set (ID card, spoken name, or `/controls` Identify) and no record yet | **W6:** `GET Patient/<id>/$everything` → `save_patient_record` (source `EHR`, or `cached` from the built-in copy of pt-0001 if the EHR is down, X7) | "Record found. Jordan Avery, fifty-eight. Allergy: amiodarone. On warfarin." (P2, X4) |
 | `event` with a `seen` source and no read-back source (the camera saw a drug given: the vision sampler, or any other client calling `log_event` with source `seen`, label = the drug, plus the printed dose if it read one) | **RB9/RB10:** the event is flagged (seen but not said) and `check_allergy` → warning (P0); a printed dose gets `check_dose_range` → out-of-range warning (P0) or "Saw epinephrine, one milligram. Confirm?" (P2); no dose → "Saw epinephrine. What dose?" (P2). A spoken dose within 30 s (a full read-back, or just "one milligram") merges in and the brain marks the event `confirmed`; "confirm" confirms a printed or allergy-flagged dose but is not enough when no dose is known | "Saw epinephrine. What dose?" (P2) |
 | `transcript` row the bodycam wrote itself (degraded mode) | The phone's parser already spoke the read-back and logged the event, so the brain skips the read-back and control paths for that line and only does W6 / Nemotron | — |
-| State change (status, ROSC, timers), at most every 20 s, `VOICE_PROACTIVE=on` | Nemotron decides whether an advisory helps; the policy layer clamps it to 8 words, protocol wording, never an order | P2 |
+| State change (status, events, flags, timers, the record, vitals bands, CPR), checked every 10 s, `VOICE_PROACTIVE` (on by default) | Nemotron is told what changed and decides whether one advisory helps (safety links between facts, trends, documentation gaps; never a rule callout again); the policy layer clamps it to 15 words, one per 15 s, protocol wording, never an order | P2 |
 
 Deadlines: the read-back path has no model call and speaks in well under a second plus the database round trip.
 A Nemotron turn gets 6 s; if it runs out, the brain stays silent (the rules are the safety net).
@@ -201,13 +201,15 @@ mocks call those directly.
 | `EHR_BASE_URL` | `http://localhost:4100/fhir` |
 | `VOICE_API_PORT` | `8787` |
 | `VOICE_W6` | `on`: this worker pulls the record when `patientRef` is set. Turn `off` if the bodycam lane runs W6 itself |
-| `VOICE_PROACTIVE` | `off`: unprompted Nemotron advisories (8 words, every 20 s at most) |
+| `VOICE_PROACTIVE` | `on`: unprompted Nemotron advisories on state changes (15 words, one per 15 s at most). `off` to silence them |
 | `DISPLAY_TZ` | `America/Chicago` |
 
 ## Honesty rules this code enforces (spec §19, §24)
 
 - Facts only: the model sees the state summary and tool results; `speak` rejects any number not present in them.
 - Doses and allergies: fixed tables and the pulled record, spoken verbatim. The model cannot log a medication.
-- Unprompted advisories: 8 words or fewer, at most one per 20 s, "Consider…" wording, never an order.
+- Unprompted advisories: 15 words or fewer, at most one per 15 s, "Consider…" wording, never an order.
+- Nothing the medic says is logged as settled without their word: actions are read back and stay flagged until
+  they say yes.
 - Never claims compression depth. Never speaks over the medic. Same words never queued twice (server-side).
 - Every step is in `agent_step`, workflow `voice`, so the hospital trace shows it.
