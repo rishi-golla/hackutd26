@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSpacetimeDB } from 'spacetimedb/react';
 import type { DbConnection } from '../../module_bindings';
 import { go } from './HospitalApp';
-import { Icon, StatusPill, patientLine } from './ui';
+import { Icon, StatusPill, patientLine, recordSource } from './ui';
 import type { HospitalData } from './useHospital';
 import { tsMs } from '../../db/time';
 import { SESSION_VIDEO_LABEL, unitLabel } from './recordings';
@@ -86,7 +86,7 @@ export default function PatientsPage({ data }: { data: HospitalData }) {
                       <span className="patient-directory__avatar"><Icon name="user" /></span>
                       <div>
                         <b>{patientLine(record) ?? (recordingOnly ? recording?.label : undefined) ?? 'Not identified'}</b>
-                        <small>{`Call ${incident.id}${record ? ` · ${record.source === 'cached' ? 'Cached copy' : 'From EHR'}` : recordingOnly ? '' : ' · Awaiting identification'}`}</small>
+                        <small>{`Call ${incident.id}${record ? ` · ${recordSource(record)}` : recordingOnly ? '' : ' · Awaiting identification'}`}</small>
                       </div>
                     </div>
                     <span className="patient-directory__unit">{unitLabel(incident)}</span>

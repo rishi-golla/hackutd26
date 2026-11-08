@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom';
 import LiveVideo from './LiveVideo';
 import ReportView from './ReportView';
 import { go } from './HospitalApp';
-import { Card, FromRecording, HandoffButton, Icon, PatientFacts, SessionVitals, Stamp, StatusPill, Timeline, time } from './ui';
+import { Card, FromRecording, HandoffButton, Icon, PatientFacts, recordSource, SessionVitals, Stamp, StatusPill, Timeline, time } from './ui';
 import type { HospitalData } from './useHospital';
 import { SESSION_VIDEO_LABEL, unitLabel, type Recording } from './recordings';
 import { ageOn } from './vitals';
@@ -103,7 +103,7 @@ export default function PatientPage({ data }: { data: HospitalData }) {
             go('/hospital/patients');
           }}>Back to patients</a><Icon name="arrow" size={14} />{record?.name ?? (data.recordingOnly ? data.recording?.label : undefined) ?? 'Patient'}</p>
           <h1>{record?.name ?? (data.recordingOnly ? data.recording?.label : undefined) ?? (incident?.patientRef ? 'Pulling the record…' : 'Patient not identified')}</h1>
-          <p className="sub">{record ? `${age !== undefined ? `${age} years · ` : ''}born ${record.birthDate} · ${record.patientRef}` : incident ? `${unitLabel(incident)} · incident ${incident.id}` : 'No incident yet'}</p>
+          <p className="sub">{record ? `${age !== undefined ? `${age} years · ` : ''}${record.birthDate ? `born ${record.birthDate} · ` : ''}${record.patientRef}` : incident ? `${unitLabel(incident)} · incident ${incident.id}` : 'No incident yet'}</p>
         </div>
         <dl className="head-facts">
           <div><dt>ETA</dt><dd>{data.etaMin !== undefined ? <b>{data.etaMin} min</b> : '—'}{data.destination && <small>{data.destination.name}</small>}</dd></div>
@@ -136,7 +136,7 @@ export default function PatientPage({ data }: { data: HospitalData }) {
           <Card title="Vital Signs" icon="pulse" right={<span className="muted small">{data.vitalsAt ? `Updated ${time(data.vitalsAt)}` : 'No live readings'}</span>}>
             <SessionVitals data={data} />
           </Card>
-          <Card title="Clinical Details" icon="clipboard" right={record && <span className="small muted">{record.source === 'cached' ? 'Cached copy' : 'From EHR'}</span>}>
+          <Card title="Clinical Details" icon="clipboard" right={record && <span className="small muted">{recordSource(record)}</span>}>
             {data.recordingOnly && !record ? <p className="empty">No clinical record on file for this session.</p>
               : <PatientFacts record={record} patientRef={incident?.patientRef} />}
           </Card>

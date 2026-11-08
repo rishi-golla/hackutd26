@@ -3,7 +3,7 @@ import { useSpacetimeDB } from 'spacetimedb/react';
 import type { DbConnection } from '../../module_bindings';
 import { go } from './HospitalApp';
 import { LiveView } from './PatientPage';
-import { Card, Icon, PatientFacts, patientLine, SessionVitals, SpokenTranscript, StatusPill } from './ui';
+import { Card, Icon, PatientFacts, patientLine, recordSource, SessionVitals, SpokenTranscript, StatusPill } from './ui';
 import { CareLog } from './CareLog';
 import { mmss } from './vitals';
 import type { HospitalData } from './useHospital';
@@ -71,7 +71,7 @@ export default function OpsPage({ data }: { data: HospitalData }) {
             <p className="sensor-note">{sensorNote}</p>
             {!current && !data.sensorStatus && <p className="sensor-note sensor-note--secondary">Hardware preview · not attached to a patient</p>}
           </Card>
-          <Card title="Patient" icon="user" right={data.record && <span className="small muted">{data.record.source === 'cached' ? 'Cached copy' : 'From EHR'}</span>}>
+          <Card title="Patient" icon="user" right={data.record && <span className="small muted">{recordSource(data.record)}</span>}>
             {current ? <PatientFacts record={data.record} patientRef={current.patientRef} /> : <p className="empty">No patient identified yet.</p>}
           </Card>
         </div>

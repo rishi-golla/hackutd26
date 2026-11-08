@@ -89,6 +89,14 @@ export function Metric(props: { label: string; icon?: string; unit?: string; val
   );
 }
 
+/** A record saved from the ID card or spoken name with no EHR match (voice/src/brain.ts). */
+export const CARD_ONLY = 'ID card';
+
+/** Where a record came from, for the small label beside it. */
+export function recordSource(record: PatientRecord) {
+  return record.source === 'cached' ? 'Cached copy' : record.source === CARD_ONLY ? 'From the ID card, no EHR record' : 'From EHR';
+}
+
 export function patientLine(record?: PatientRecord) {
   if (!record) return undefined;
   const age = ageOn(record.birthDate);
@@ -114,6 +122,8 @@ export function SessionVitals({ data }: { data: HospitalData }) {
 /** The record's facts (H9): allergy first and highlighted, then code status, medications, history. */
 export function PatientFacts({ record, patientRef }: { record?: PatientRecord; patientRef?: string }) {
   if (!record) return <p className="empty">{patientRef ? 'Pulling the record…' : 'Not identified yet. The medic says the name and birth date, or shows the ID card.'}</p>;
+  // Identified from the card or spoken name alone (no EHR match): nothing clinical is known, never "none".
+  if (record.source === CARD_ONLY) return <p className="empty">Allergies, medications and history unknown: no EHR record.</p>;
   return (
     <dl className="facts">
       <dt><Icon name="alert" size={16} />Allergies</dt>
