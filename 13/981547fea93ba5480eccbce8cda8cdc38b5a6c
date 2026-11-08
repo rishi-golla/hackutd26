@@ -1,0 +1,49 @@
+.claude/agents/spec-checker.md
+  s_01faa73c301f81::t_8f716893bc20fb 51
+docs/context/SPEC.md
+  s_01faa73c301f81::t_1d116d84d47a75 19-27,240-241,284-305,845,1304-1306,1327-1331,1393-1396,1447,1570-1571,1670-1671
+voice/.env.example
+  s_01faa73c301f81::t_fdfc195b93ff7d 19
+voice/README.md
+  s_01faa73c301f81::t_97df4e4436412c 90,96,108,114,176-177,182-184,205,212-214
+voice/pipecat/README.md
+  s_01faa73c301f81::t_ea6a1d4a983f80 121
+voice/pipecat/config.py
+  s_01faa73c301f81::t_4b05e9e0fc1690 25
+voice/src/brain.ts
+  s_01faa73c301f81::t_71ed7c490d5aeb 12,29,32-36,39-43,46-47,53-59,68-69,72-74,99-100,175-185,276,278-282,302-307,309,324,327-328,330-332,335-351,354,395,573,639,648-651,654,656-659,672-678,680,695-698,700-705,709,715-723,727-737,739,741-745,752,754
+voice/src/checks.ts
+  s_01faa73c301f81::t_676398baa473db 48,50-51
+voice/src/config.ts
+  s_01faa73c301f81::t_d9a34b90130041 32-33
+voice/src/policy.ts
+  s_01faa73c301f81::t_6acd24dc9e0c48 14,17,47-56
+voice/src/readback.ts
+  s_01faa73c301f81::t_e3a57e6bd8d3c6 204-213
+voice/src/tools.ts
+  s_01faa73c301f81::t_2b2547b5efb1ea 10,24,28-29,76,100-101,104-108,160-168,171-175
+voice/test/checks.test.ts
+  s_01faa73c301f81::t_81e861b2dc0242 19-20,22
+voice/test/conversation.test.ts
+  s_01faa73c301f81::t_1cb277d3afe7ba 1-191
+voice/test/policy.test.ts
+  s_01faa73c301f81::t_8c0de78c53a1ba 9,18-26
+voice/test/readback.test.ts
+  s_01faa73c301f81::t_54d14ee82133fb 3,46-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "13981547fea93ba5480eccbce8cda8cdc38b5a6c",
+  "prompts": {},
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
