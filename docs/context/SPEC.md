@@ -16,6 +16,8 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~01:30 (Alan): no "experimental" label on SpO₂ on the hospital dashboard** (decision 10, §5, R1, §24.1).
+  SpO₂ is still treated as experimental and the caveat is said if a judge asks; it's just not on screen.
 - **Sun ~01:20 (Rishi): the bridge runs on the real Pi against Maincloud** (`bridge/`; no contract changes).
   - **What's running:** the `handoff-bridge` service on the Pi, next to the hub and the sensor service. Real
     finger-sensor readings reach `handoff-hackutd26` once a second as `relay-1`: HR 75–102, and the experimental SpO2
@@ -216,7 +218,8 @@ section and add a change-log line.
    go on that teammate. No paramedic partner. Team roles: narrator, fitter/spotter, demo operator, ER host; the
    patient is any free teammate. (Alan, ~17:00)
 10. **Labelling simulated data "SIMULATED" is not a commitment right now.** Which data is live vs simulated and how
-    screens show it is decided at the end (§28). SpO₂ is always labelled experimental. Compressed demo timers are
+    screens show it is decided at the end (§28). SpO₂ is labelled experimental everywhere except the hospital
+    dashboard, which dropped the label (Alan, Sun ~01:30); the caveat is still said if asked. Compressed demo timers are
     always labelled DEMO TIMING, except on the hospital dashboard, which dropped the label for clarity (Alan, ~21:30);
     the narrator says it if a judge asks. (Alan)
 11. **The work board is flexible** (§26): no fixed schedule owners. The lanes in §0.2 decide folder ownership so
@@ -559,7 +562,7 @@ buffering.
 | Live video | Bodycam rear camera, WebRTC to `/hospital`. Fallbacks: hotspot, then TURN |
 | Transcript | The voice agent worker's streaming STT. Degraded mode: Web Speech API on the phone |
 | Heart rate, pulse waveform | Relay finger clip (MAX30101), real |
-| SpO₂ | Relay, **experimental**. Always label it |
+| SpO₂ | Relay, **experimental**. Not labelled on the hospital dashboard (decision 10); say so if asked |
 | Temperature | Relay 18B20 probe, every 2 s |
 | CPR rate, count, pauses | Bodycam motion sensor. **No depth claims.** Override: "CPR slow / CPR good" on `/controls` |
 | Medication logging | Voice read-back. Stretch: the camera seeing the drug given (label and the push) fuses into the same event, and a drug seen but not said is still logged (RB8). No taps; the med kit adds a source if built |
@@ -1124,7 +1127,7 @@ connected. Exact holes are in manual step 5.25.
 
 | ID | Requirement | Done when |
 | --- | --- | --- |
-| R1 | HR and SpO₂ from the finger clip; SpO₂ is always labelled experimental (optical sensors like ours read less accurately on darker skin, which the team noticed) | HR within ±5 bpm of a fingertip oximeter |
+| R1 | HR and SpO₂ from the finger clip; SpO₂ is treated as experimental (no label on the hospital dashboard, decision 10) (optical sensors like ours read less accurately on darker skin, which the team noticed) | HR within ±5 bpm of a fingertip oximeter |
 | R2 | Temperature from the probe every 2 s | Within ±0.5 °C of a reference |
 | R3 | Sender batches to SpacetimeDB: numbers once a second, waveform in 200 ms batches | Waveform scrolls smoothly with under 1 s lag |
 | R4 | No valid reading sends an empty value plus a status, never a stale number | Finger off: the hospital vitals show "—" (no data) within 5 s |
@@ -2011,8 +2014,8 @@ report under 30 s.
 
 - All patient data is synthetic. The EHR is a mock. Hospitals are fictional. Not a medical device.
 - A missing reading shows "—" (no data). Never show a stale or made-up number.
-- SpO₂ is always marked experimental. Fingertip oxygen readings are less accurate on darker skin, a known problem
-  with pulse oximeters; say so if asked.
+- SpO₂ is experimental. The hospital dashboard no longer labels it (decision 10), so say it out loud if asked: fingertip oxygen readings are less accurate on darker skin, a known problem
+  with pulse oximeters.
 - No compression-depth claims.
 - Demo timers are compressed. The hospital dashboard doesn't label them (§14); say so if asked.
 - Which data is live vs simulated, and whether and how it's labelled SIMULATED, is an open decision (§28).
