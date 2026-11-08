@@ -1,0 +1,36 @@
+docs/context/SPEC.md
+  h_f876d4e77222e2 28-33,36-39,47-50,354-357,412-416,1253,1940,1977-1979
+spacetime/README.md
+  h_f876d4e77222e2 240-243
+spacetime/src/index.ts
+  h_f876d4e77222e2 386-394
+spacetime/src/scenarios.ts
+  h_f876d4e77222e2 102-115,122,130,135
+voice/pipecat/README.md
+  h_f876d4e77222e2 9,14-33
+voice/pipecat/config.py
+  h_f876d4e77222e2 51-54,103-108,110-113
+voice/pipecat/requirements.txt
+  h_f876d4e77222e2 5
+voice/pipecat/run.py
+  h_f876d4e77222e2 11,81-104,116,406-408,415,437,478,488-490,492
+voice/src/brain.ts
+  h_f876d4e77222e2 120-121,520,538,591
+voice/src/speaker.ts
+  h_f876d4e77222e2 38-40,146,152-162
+voice/test/speaker.test.ts
+  h_f876d4e77222e2 5,82-102
+web/src/routes/controls/ControlsPage.tsx
+  h_f876d4e77222e2 32,105,151-158,170-171,231-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f4c85e3ef67d116f67922115ee0342355fdca5fd",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
