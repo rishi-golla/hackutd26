@@ -6,15 +6,31 @@ There is no LLM in the audio path: the brain is the LLM. The contract is the "Lo
 [`../README.md`](../README.md).
 
 ```
-transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → NVIDIA Magpie TTS → transport.output()
+transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → streaming TTS → transport.output()
                         │ ~1 frame/s → Nemotron vision (hosted)            │  POST /transcript       ▲ WS /mouth: speak
                         └── POST /seen, POST /say ─────────────────────────┴──────────► brain (voice/src, :8787)
 ```
 
-Pipecat 1.15.0 has NVIDIA speech built in (`pipecat.services.nvidia.stt.NvidiaSTTService`,
-`pipecat.services.nvidia.tts.NvidiaTTSService`; the old `riva` module names are gone), so one `nvapi-` key covers
-ASR, TTS, vision and the brain's Nemotron. The Deepgram + Cartesia fallback (spec §19) is not built: it is only
-needed if Magpie turns out to sound poor.
+Pipecat 1.15.0 supplies both NVIDIA speech and ElevenLabs streaming TTS. NVIDIA still handles
+ASR, vision and the brain. Speech output selects ElevenLabs when its key is present, otherwise NVIDIA.
+
+## Speech provider
+
+In the gitignored `voice/.env.local`:
+
+```dotenv
+ELEVENLABS_API_KEY=your-key
+TTS_PROVIDER=elevenlabs
+# Optional: defaults shown (George, stock voice)
+ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
+ELEVENLABS_MODEL=eleven_flash_v2_5
+```
+
+Restart the worker and reconnect the phone after changes. Flash uses WebSocket streaming and auto mode
+so complete brain phrases start without waiting for a text-length threshold. Barge-in and the shared
+callout queue are unchanged. Keep `NVIDIA_API_KEY` for recognition, vision and reasoning.
+Set `TTS_PROVIDER=nvidia` to return to Magpie (`RIVA_VOICE`); this is manual, not automatic failover.
+An explicit ElevenLabs selection without a key fails at startup. `--list-voices` still lists NVIDIA voices.
 
 ## Vision (spec §19 Vision, RB8–RB10, X1)
 

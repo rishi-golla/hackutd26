@@ -8,7 +8,7 @@
 
 Pipeline:
 
-    transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → NVIDIA Magpie TTS → transport.output()
+    transport.input() → VisionSampler → Silero VAD → NVIDIA streaming ASR → user turns → BrainBridge → streaming TTS → transport.output()
 
 There is no LLM here. The brain (Nemotron, tools, policy) gets each final transcript over POST /transcript and
 says things through WS /mouth; BrainBridge (brain_bridge.py) is the glue. VisionSampler (vision.py) takes about
@@ -78,6 +78,30 @@ def make_vision(cfg: Config) -> VisionSampler | None:
     )
 
 
+def make_tts(cfg: Config):
+    """Select only the mouth; the brain queue, STT and interruption path stay shared."""
+    if cfg.tts_provider == "elevenlabs":
+        from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+
+        return ElevenLabsTTSService(
+            api_key=cfg.elevenlabs_api_key,
+            auto_mode=True,  # BrainBridge sends complete phrases; don't wait for a character threshold.
+            settings=ElevenLabsTTSService.Settings(
+                model=cfg.elevenlabs_model,
+                voice=cfg.elevenlabs_voice_id,
+                stability=0.5,
+                similarity_boost=0.75,
+                use_speaker_boost=False,
+            ),
+        )
+    return NvidiaTTSService(
+        api_key=cfg.api_key,
+        server=NVIDIA_SPEECH_SERVER,
+        model_function_map={"function_id": cfg.tts_function_id, "model_name": TTS_MODEL},
+        settings=NvidiaTTSService.Settings(voice=cfg.voice, language=Language.EN_US),
+    )
+
+
 def build_pipeline(
     transport: BaseTransport, cfg: Config, *, barge_in: bool = True, vision: VisionSampler | None = None
 ) -> tuple[Pipeline, BrainBridge]:
@@ -89,12 +113,7 @@ def build_pipeline(
         # 20 instead of Riva's mild default 4: at the default, "epi" still came back as FEIO/EBI (Sat 22:05).
         settings=NvidiaSTTService.Settings(boosted_lm_words=cfg.boost_words, boosted_lm_score=20.0) if cfg.boost_words else None,
     )
-    tts = NvidiaTTSService(
-        api_key=cfg.api_key,
-        server=NVIDIA_SPEECH_SERVER,
-        model_function_map={"function_id": cfg.tts_function_id, "model_name": TTS_MODEL},
-        settings=NvidiaTTSService.Settings(voice=cfg.voice, language=Language.EN_US),
-    )
+    tts = make_tts(cfg)
 
     # VAD (Silero, local ONNX) feeds the turn processor, which emits UserStarted/StoppedSpeakingFrame and, with
     # barge-in on, interrupts the bot as soon as the medic starts talking (Pipecat's own interruption handling).
@@ -384,15 +403,16 @@ async def check(cfg: Config, barge_in: bool) -> int:
     from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 
     print(f"pipecat-ai {version('pipecat-ai')}, nvidia-riva-client {version('nvidia-riva-client')}")
-    print(f"NVIDIA_API_KEY (env or voice/.env.local): {cfg.masked_key()}")
-    print(f"voice {cfg.voice} · brain {cfg.brain_url} · ASR {cfg.asr_model} ({cfg.asr_function_id}) · TTS fn {cfg.tts_function_id}")
+    print(f"NVIDIA_API_KEY: {'present' if cfg.has_key else 'missing'}")
+    print(f"brain {cfg.brain_url} · ASR {cfg.asr_model} · TTS {cfg.tts_provider}")
+    print(f"voice {cfg.elevenlabs_voice_id if cfg.tts_provider == 'elevenlabs' else cfg.voice}")
     if cfg.boost_words:
         print(f"ASR word boost: {', '.join(cfg.boost_words)}")
     if cfg.ice_servers:
         print(f"ICE servers: {', '.join(str(s.get('urls')) for s in cfg.ice_servers)}")
     print(f"vision: {f'{cfg.vision_model} at {cfg.vision_base_url}, every {cfg.vision_interval_s:g} s' if cfg.vision else 'off'}" + (f", hub {cfg.hub_url}" if cfg.hub_url else ""))
     print(f"phone page: {HUB_PHONE_PAGE} ({'found' if HUB_PHONE_PAGE.exists() else 'MISSING'})")
-    dummy = replace(cfg, api_key="nvapi-check-dummy-key")
+    dummy = replace(cfg, api_key="nvapi-check-dummy-key", elevenlabs_api_key="check-dummy-key")
 
     connection = SmallWebRTCConnection()
     transport = SmallWebRTCTransport(webrtc_connection=connection, params=webrtc_params(dummy))
@@ -414,7 +434,7 @@ async def check(cfg: Config, barge_in: bool) -> int:
         print("local pipeline: " + " → ".join(p.name for p in pipeline.processors))
 
     if not cfg.has_key:
-        print("note: no nvapi- key found; the worker will build but NVIDIA ASR/TTS will refuse to connect")
+        print("note: no nvapi- key found; the worker will build but NVIDIA speech will refuse to connect")
     print("check OK")
     return 0
 
@@ -455,7 +475,7 @@ def main():
         help="laptop speakers only, never the demo: the agent keeps talking when the medic speaks",
     )
     parser.add_argument("--check", action="store_true", help="build the pipelines with a dummy key and exit")
-    parser.add_argument("--list-voices", action="store_true", help="print the hosted TTS voices (needs the key)")
+    parser.add_argument("--list-voices", action="store_true", help="print NVIDIA hosted TTS voices (needs NVIDIA key)")
     args = parser.parse_args()
 
     cfg = load_config()
@@ -465,8 +485,11 @@ def main():
         sys.exit(asyncio.run(check(cfg, barge_in)))
     if args.list_voices:
         sys.exit(list_voices(cfg))
+    logger.info(f"Speech output: {cfg.tts_provider} · "
+                f"{cfg.elevenlabs_model if cfg.tts_provider == 'elevenlabs' else TTS_MODEL} · "
+                f"{cfg.elevenlabs_voice_id if cfg.tts_provider == 'elevenlabs' else cfg.voice}")
     if not cfg.has_key:
-        logger.warning("NVIDIA_API_KEY is missing or not an nvapi- key: ASR and TTS will fail to connect")
+        logger.warning("NVIDIA_API_KEY is missing or not an nvapi- key: NVIDIA speech will fail to connect")
     if args.transport == "local":
         asyncio.run(run_local(cfg, barge_in))
     else:

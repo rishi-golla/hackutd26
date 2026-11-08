@@ -48,6 +48,10 @@ class Config:
     asr_function_id: str
     asr_model: str
     tts_function_id: str
+    tts_provider: str = "nvidia"
+    elevenlabs_api_key: str = field(default="", repr=False)
+    elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George, stock voice
+    elevenlabs_model: str = "eleven_flash_v2_5"
     boost_words: list[str] = field(default_factory=list)
     # WebRTC ICE servers for both peers, e.g. a TURN relay when the venue Wi-Fi blocks device-to-device traffic
     ice_servers: list[dict] = field(default_factory=list)
@@ -96,7 +100,17 @@ def load_config() -> Config:
         vision_interval = float(get("VISION_INTERVAL_S", "1.0"))
     except ValueError:
         raise SystemExit(f"VISION_INTERVAL_S must be a number of seconds, got {get('VISION_INTERVAL_S')!r}")
+    elevenlabs_key = get("ELEVENLABS_API_KEY")
+    tts_provider = get("TTS_PROVIDER", "elevenlabs" if elevenlabs_key else "nvidia").lower()
+    if tts_provider not in ("nvidia", "elevenlabs"):
+        raise SystemExit("TTS_PROVIDER must be nvidia or elevenlabs")
+    if tts_provider == "elevenlabs" and not elevenlabs_key:
+        raise SystemExit("ELEVENLABS_API_KEY is required when TTS_PROVIDER=elevenlabs")
     return Config(
+        tts_provider=tts_provider,
+        elevenlabs_api_key=elevenlabs_key,
+        elevenlabs_voice_id=get("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb"),
+        elevenlabs_model=get("ELEVENLABS_MODEL", "eleven_flash_v2_5"),
         api_key=get("NVIDIA_API_KEY"),
         voice=get("RIVA_VOICE", DEFAULT_VOICE),
         brain_url=get("BRAIN_URL", "http://127.0.0.1:8787").rstrip("/"),
