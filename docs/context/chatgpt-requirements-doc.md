@@ -1,7 +1,7 @@
 # Handoff — original requirements doc (from ChatGPT, ~2026-10-29)
 
 > **Historical context, not a spec.** This is the first project requirements doc, written in a ChatGPT conversation during ideation and shared at the 2026-10-29 meeting.
-> If anything here conflicts with `Handoff Product Spec (Copy).md` (the ground truth) or `AGENTS.md`, **the spec wins**. The current brief has changed scope since this was written, including the chest-worn phone, the relay box beside the patient, and CPR coaching.
+> If anything here conflicts with `SPEC.md` (the ground truth), **the spec wins**. The current brief has changed scope since this was written, including the chest-worn phone, the relay box beside the patient, and CPR coaching.
 
 **NVIDIA × Emergency Medical Services × Real-Time AI**
 

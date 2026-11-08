@@ -1,7 +1,7 @@
 # Ideation meeting — Paramedic support project (2026-10-29)
 
 > **Historical context, not a spec.** These are AI-generated notes (Genspark) from the ideation call where the paramedic body-camera idea first came up, about a week before HackUTD 2026.
-> If anything here conflicts with `Handoff Product Spec (Copy).md` (the ground truth) or `AGENTS.md`, **the spec wins**. Many questions left open here have since been decided there.
+> If anything here conflicts with `SPEC.md` (the ground truth), **the spec wins**. Many questions left open here have since been decided there.
 > Personal and career discussion from the call has been left out.
 
 Participants: Justin (researcher) and the meeting lead.
