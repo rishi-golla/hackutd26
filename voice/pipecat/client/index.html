@@ -72,6 +72,8 @@
   .ctl.active { background: var(--blue-soft); color: var(--blue); }
   .ctl.hang { background: #ef4444; color: #fff; }
   .ctl.hang:hover:not(:disabled) { background: #dc2626; }
+  .ctl.call { background: #22c55e; } .ctl.call:hover:not(:disabled) { background: #16a34a; }
+  .ctl.call svg { width: 20px; height: 20px; }
   .ctl.hang svg { width: 24px; height: 24px; }
   .ctl:disabled { cursor: default; }
   /* side tabs */
@@ -153,6 +155,7 @@
   <symbol id="i-video" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></symbol>
   <symbol id="i-video-off" viewBox="0 0 24 24"><path d="M2 2l20 20M10.7 6H14a2 2 0 0 1 2 2v3.3l1 1 5-3v10M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/></symbol>
   <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.3 0 .7-.2 1z"/></symbol>
   <symbol id="i-phone-off" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 8.5c-3.4 0-6.6 1.1-8.9 3.1-.6.5-.8 1.2-.7 1.9l.3 1.9c.1.8.9 1.4 1.7 1.2l3-.6c.7-.1 1.2-.7 1.2-1.4v-1.8c1.1-.4 2.2-.5 3.4-.5s2.3.1 3.4.5v1.8c0 .7.5 1.3 1.2 1.4l3 .6c.8.2 1.6-.4 1.7-1.2l.3-1.9c.1-.7-.1-1.4-.7-1.9-2.3-2-5.5-3.1-8.9-3.1z"/></symbol>
   <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
@@ -198,10 +201,10 @@
           <div class="saying" id="saying"></div>
         </div>
         <div class="controls">
-          <button class="ctl" id="mic" title="Mute microphone" disabled><svg class="i"><use href="#i-mic"/></svg></button>
-          <button class="ctl" id="cam" title="Camera" disabled><svg class="i"><use href="#i-video"/></svg></button>
-          <button class="ctl" id="screen" title="Share screen (the camera's eyes see it)" disabled><svg class="i"><use href="#i-monitor"/></svg></button>
-          <button class="ctl hang" id="hang" title="End call" disabled><svg class="i"><use href="#i-phone-off"/></svg></button>
+          <button class="ctl" id="mic" title="Mute microphone"><svg class="i"><use href="#i-mic"/></svg></button>
+          <button class="ctl" id="cam" title="Camera"><svg class="i"><use href="#i-video"/></svg></button>
+          <button class="ctl" id="screen" title="Share screen (the agent's eyes see it)"><svg class="i"><use href="#i-monitor"/></svg></button>
+          <button class="ctl hang call" id="hang" title="Call Handoff"><svg class="i"><use href="#i-phone"/></svg></button>
         </div>
       </div>
       <div class="side">
@@ -340,8 +343,15 @@ function render() {
   $('connect').textContent = call.pc && !live ? 'Connecting…' : live ? 'Disconnect' : 'Connect';
   $('connect').classList.toggle('live', live);
   $('connect').disabled = !!call.pc && !live;
-  ['mic', 'cam', 'screen', 'hang'].forEach((id) => $(id).disabled = !live);
-  $('mic').classList.toggle('off', live && !call.micOn);
+  // Usable before a call too: mic sets whether the call starts muted, camera and screen share start a preview that
+  // the call then uses, and the green button calls (red hangs up once live).
+  const connecting = !!call.pc && !live;
+  $('hang').disabled = connecting;
+  $('hang').classList.toggle('call', !live);
+  $('hang').title = live ? 'End call' : connecting ? 'Connecting…' : 'Call Handoff';
+  $('hang').innerHTML = `<svg class="i"><use href="#i-${live || connecting ? 'phone-off' : 'phone'}"/></svg>`;
+  $('mic').title = call.micOn ? (live ? 'Mute microphone' : 'Start the call muted') : (live ? 'Unmute microphone' : 'Start the call unmuted');
+  $('mic').classList.toggle('off', !call.micOn);
   $('mic').innerHTML = `<svg class="i"><use href="#i-${call.micOn ? 'mic' : 'mic-off'}"/></svg>`;
   $('cam').classList.toggle('active', !!call.cam);
   $('screen').classList.toggle('active', !!call.screen);
@@ -373,16 +383,17 @@ async function connect() {
   try {
     const media = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: settings.echo, noiseSuppression: settings.noise, autoGainControl: true, ...(localStorage.getItem('handoff.voice.mic') ? { deviceId: { ideal: localStorage.getItem('handoff.voice.mic') } } : {}) },
-      video: settings.camOnStart ? { width: 1280, height: 720 } : false,
+      video: settings.camOnStart && !call.cam ? { width: 1280, height: 720 } : false,
     });
     call.mic = media.getAudioTracks()[0];
-    call.cam = media.getVideoTracks()[0] || null;
+    call.mic.enabled = call.micOn;
+    call.cam = call.cam || media.getVideoTracks()[0] || null;
     const iceServers = await (await fetch('/api/ice')).json();
     const pc = call.pc = new RTCPeerConnection({ iceServers });
     // Transceiver order matters to the worker: 0 = microphone, 1 = camera (the screen share rides on 1 too, so the
     // agent's eyes see whatever is shared, e.g. an ID card on screen).
     call.audioSender = pc.addTransceiver(call.mic, { direction: 'sendrecv' }).sender;
-    call.videoSender = pc.addTransceiver(call.cam || 'video', { direction: 'sendrecv' }).sender;
+    call.videoSender = pc.addTransceiver(call.screen || call.cam || 'video', { direction: 'sendrecv' }).sender;
     showSelf();
     const dc = call.dc = pc.createDataChannel('chat', { ordered: true });
     dc.onopen = () => {
@@ -436,7 +447,7 @@ function disconnect(reason = 'ended') {
   clearInterval(call.ping);
   try { call.pc.close?.(); } catch (_) {}
   [call.mic, call.cam, call.screen].forEach((t) => t?.stop());
-  Object.assign(call, { pc: null, dc: null, mic: null, cam: null, screen: null, connected: false, botReady: false, botSpeaking: false, userSpeaking: false, micOn: true, interim: '' });
+  Object.assign(call, { pc: null, dc: null, mic: null, cam: null, screen: null, audioSender: null, videoSender: null, connected: false, botReady: false, botSpeaking: false, userSpeaking: false, interim: '' });
   micAnalyser = botAnalyser = null;
   $('selfVideo').srcObject = null; $('saying').textContent = '';
   logEvent('disconnected', `Session ended (${reason})`);
@@ -444,22 +455,23 @@ function disconnect(reason = 'ended') {
 }
 
 $('connect').onclick = () => (call.connected ? disconnect('user hung up') : connect());
-$('hang').onclick = () => disconnect('user hung up');
+$('hang').onclick = () => (call.connected ? disconnect('user hung up') : !call.pc && connect());
 $('mic').onclick = () => {
-  if (!call.mic) return;
-  call.micOn = !call.micOn; call.mic.enabled = call.micOn; signalTrack(0, call.micOn);
-  logEvent('micToggled', call.micOn ? 'Microphone on' : 'Microphone muted'); render();
+  call.micOn = !call.micOn;
+  if (call.mic) call.mic.enabled = call.micOn;
+  signalTrack(0, call.micOn);
+  logEvent('micToggled', call.micOn ? 'Microphone on' : call.connected ? 'Microphone muted' : 'The call will start muted'); render();
 };
 $('cam').onclick = async () => {
   try {
-    if (call.cam) { call.cam.stop(); call.cam = null; if (!call.screen) await call.videoSender.replaceTrack(null); signalTrack(1, !!call.screen); }
+    if (call.cam) { call.cam.stop(); call.cam = null; if (!call.screen) await call.videoSender?.replaceTrack(null); signalTrack(1, !!call.screen); }
     else {
       const id = localStorage.getItem('handoff.voice.cam');
       call.cam = (await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720, ...(id ? { deviceId: { ideal: id } } : {}) } })).getVideoTracks()[0];
-      if (!call.screen) await call.videoSender.replaceTrack(call.cam);
+      if (!call.screen) await call.videoSender?.replaceTrack(call.cam);
       signalTrack(1, true);
     }
-    logEvent('camToggled', call.cam ? 'Camera on: the agent sees it about once a second' : 'Camera off');
+    logEvent('camToggled', call.cam ? (call.connected ? 'Camera on: the agent sees it about once a second' : 'Camera preview on: the call will use it') : 'Camera off');
   } catch (err) { logEvent('error', 'Camera: ' + err.message, true); toast('Camera blocked or busy.'); }
   showSelf(); render();
 };
@@ -468,8 +480,8 @@ $('screen').onclick = async () => {
     if (call.screen) { stopScreen(); return; }
     call.screen = (await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })).getVideoTracks()[0];
     call.screen.onended = stopScreen;
-    await call.videoSender.replaceTrack(call.screen); signalTrack(1, true);
-    logEvent('screenShare', 'Sharing the screen with the agent\'s eyes');
+    await call.videoSender?.replaceTrack(call.screen); signalTrack(1, true);
+    logEvent('screenShare', call.connected ? 'Sharing the screen with the agent\'s eyes' : 'Screen ready: the call will share it');
   } catch (err) { logEvent('screenShare', 'Not shared: ' + err.message); }
   showSelf(); render();
 };
