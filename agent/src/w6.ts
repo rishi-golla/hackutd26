@@ -65,6 +65,18 @@ export function parseIdentity(text: string): { name?: string; birthDate?: string
   return { name, birthDate };
 }
 
+/** Newest name and newest birth date across lines (oldest first), so a correction wins over what it corrects. */
+export function latestIdentity(texts: string[]): { name?: string; birthDate?: string } {
+  let name: string | undefined;
+  let birthDate: string | undefined;
+  for (const t of [...texts].reverse()) {
+    const p = parseIdentity(t);
+    name ??= p.name;
+    birthDate ??= p.birthDate;
+  }
+  return { name, birthDate };
+}
+
 // ---------------------------------------------------------------------------
 // Shared steps
 // ---------------------------------------------------------------------------
@@ -264,6 +276,7 @@ You get the latest lines the medic said on scene. Decide whether they identify t
   (multiple_matches or no_match). Never guess.
 - A name without a birth date: call ask_crew with need_birth_date. Do not search.
 - No patient name in the lines (questions, plans, other talk): call no tool and reply "no identity".
+If the medic corrected a name or date, use the newest one.
 Use only what the medic said. Never invent names, dates or ids.`;
 
 /** Words of `value` that are not in `said`, for the facts-only check on the model's search arguments. */
@@ -381,7 +394,7 @@ export async function runW6Transcript(conn: Conn, incidentId: bigint) {
   if (state.done) return;
   const s = snapshot(conn, incidentId);
   if (!s.incident || s.incident.status === 'closed' || s.record) return;
-  const { name, birthDate } = parseIdentity(said);
+  const { name, birthDate } = latestIdentity(lines.map(l => l.text));
   if (!name && !birthDate) {
     await step(conn, W, 'decide', 'No name and birth date in what was said; no search (rule)');
     return;
