@@ -1,0 +1,19 @@
+bridge/README.md
+  s_091b0973bd03e7::t_95b6f54a6825c8 110-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd90481a00726b957a1f8d5b6505cd16e444e269",
+  "prompts": {},
+  "sessions": {
+    "s_091b0973bd03e7": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_091b0973bd03e7",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
