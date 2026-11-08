@@ -37,7 +37,7 @@ const FILLER = /^(?:\s*\b(?:yeah|yep|yes|no|nope|ok|okay|right|alright|all right
 const HISTORY_TURNS = 8;
 const HISTORY_MS = 5 * 60_000;
 /** A line this soon after Handoff answered something is a follow-up, so it is meant for Handoff. */
-const FOLLOW_UP_MS = 45_000;
+const FOLLOW_UP_MS = 5_000;
 const HANDOFF_NAME = /\bhand\s?-?\s?off\b/i;
 /**
  * A request to the assistant even without its name or a question mark ("Pull up his record", "What's his
@@ -848,7 +848,7 @@ export class Brain {
 
   /**
    * Is the line meant for Handoff? A question, its name, a direct request ("Can you pull up his record"), or a
-   * follow-up within 45 s of Handoff answering. Only such a line may be answered out loud (§19, decision 21).
+   * follow-up within 5 s of Handoff answering. Only such a line may be answered out loud (§19, decision 21).
    */
   private isAddressed(text: string): boolean {
     if (/\?\s*$/.test(text) || HANDOFF_NAME.test(text) || DIRECT_REQUEST.test(text)) return true;

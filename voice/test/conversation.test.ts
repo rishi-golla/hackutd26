@@ -509,7 +509,7 @@ test('a direct request without the name or a question mark counts as addressed',
   });
 });
 
-test('a follow-up within 45 s of Handoff answering counts as addressed; after that it does not', async () => {
+test('a follow-up within 5 s of Handoff answering counts as addressed; after that it does not', async () => {
   const { conn, calls } = arrest();
   await withModel([
     { content: 'I read back doses and check allergies.' },
@@ -525,8 +525,8 @@ test('a follow-up within 45 s of Handoff answering counts as addressed; after th
     await settle(() => callsTo(calls, 'addCallout').length > 1);
     for (let i = 0; i < 50 && callsTo(calls, 'addCallout').length < 2; i++) await wait(100);
     assert.deepEqual(callsTo(calls, 'addCallout').map(c => c.args.text), ['I read back doses and check allergies.', 'I check each drug against the record.']);
-    // 46 s later the same kind of line is background talk again.
-    for (const h of (brain as any).history) h.at -= 46_000;
+    // 6 s later the same kind of line is background talk again.
+    for (const h of (brain as any).history) h.at -= 6_000;
     await brain.handleUtterance('Okay and the pupils look equal now', 'pipecat');
     await settle(() => requests.length >= 5);
     assert.equal(callsTo(calls, 'addCallout').length, 2);

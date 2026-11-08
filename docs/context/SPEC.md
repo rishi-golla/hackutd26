@@ -16,6 +16,8 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Nov 7–8, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun (Alan): implicit voice follow-ups expire after 5 s, reduced from 45 s** (§0.1 decision 24, §19;
+  `voice/` only). A later line needs its own addressed cue; documentation and proactive callouts are unchanged.
 - **Sun ~05:00 (Alan): the agent speaks only when spoken to, watches the vitals trend, and sees what the camera
   sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` plus one caption for the new `trend` step in
   `web/src/routes/hospital/thoughts.ts` (hospital lane, for Josh's OK); no table, reducer or audio-link changes). Found
@@ -499,12 +501,15 @@ section and add a change-log line.
       Live updates use a short fade/slide; reduced motion swaps text directly. Repeated legacy camera updates
       collapse and are cut into groups at 60 seconds. User authorization covers resuming this hospital UI draft;
       the PR remains available for Josh's hospital-lane review before merge.
+    - **Follow-up window shortened (Alan, Sun):** an implicit follow-up is addressed only within 5 s of
+      Nemotron's reply, reduced from 45 s after Alan flagged the window as too long. After that, the line needs
+      its own addressed cue; listening, documentation, read-backs and proactive warnings are unchanged.
     - **Amended Sun ~05:00 (Alan, after the first live phone test): speaks only when spoken to; trend; camera.**
       `voice/` only; no table, reducer or audio-link change; keep/drop (decision 21) is unchanged.
       - **Addressed only, never its reasoning.** In the test the agent spoke the model's free-text reasoning aloud
         while medications were given. Now a Nemotron turn's free text is spoken only if (a) the line was addressed
         to Handoff (it ends in "?", says "Handoff", is a direct request such as "look up", "pull up", "can you",
-        "tell me" or "what's", or follows a reply Nemotron itself gave within 45 s: the latest Nemotron turn must
+        "tell me" or "what's", or follows a reply Nemotron itself gave within 5 s: the latest Nemotron turn must
         be one where Handoff spoke, so a kept-but-silent line in between closes the window; read-backs and "Record
         found…" don't open it) and (b) the text reads as speech (at most three short sentences, 45 words; no
         lists, JSON, tool names or reasoning markers; `voice/src/speech.ts`). Anything else is not
@@ -1834,7 +1839,7 @@ There are two parts:
   sentence changes, a `CAMERA (N s ago) …` line. The camera line is context only: the model never logs it as a
   fact on its own. Format in `voice/README.md`. Never raw waveforms.
 - **Speaks only when spoken to (decision 24, amended Sun ~05:00).** A Nemotron turn's free text is spoken only if
-  the line was addressed to Handoff (a question, "Handoff", a direct request, or a follow-up within 45 s of
+  the line was addressed to Handoff (a question, "Handoff", a direct request, or a follow-up within 5 s of
   Handoff's own reply) and the text reads as speech (one or two sentences; no lists, JSON, tool names or
   reasoning markers). Anything else is not spoken: the dashboard shows a generic decision row, never the model's
   words, and the `speak` tool is refused for a line that was not addressed. The model's reasoning is never
