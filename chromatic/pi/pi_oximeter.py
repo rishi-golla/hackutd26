@@ -22,12 +22,13 @@ from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # n
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 LED = 0x24
-
 HOLD_S = 3.0                               # keep showing the last good HR through short glitches
+
 
 # Hub (hub.py on this Pi): every reading also goes there, so the phone and dashboard see it. Never blocks the sensor.
 HUB = os.environ.get("HUB_URL", "http://127.0.0.1:8000/send")
 _hubq = queue.Queue(maxsize=50)
+
 
 def _hub_worker():
     up = None
@@ -45,9 +46,12 @@ def _hub_worker():
             up = ok
             say(True, ev="hub_up" if ok else "hub_down", e=err)
 
+
 threading.Thread(target=_hub_worker, daemon=True).start()
 
+
 _sent = {}                                          # what -> (value, when it was last queued)
+
 
 def hub(what, value):
     """Queue a message for the hub when the value changes, else at most once a second: each message wakes every
@@ -67,6 +71,7 @@ def hub(what, value):
             except queue.Empty:
                 pass
 
+
 def say(log, **k):
     k.setdefault("t", round(time.time(), 3))
     line = json.dumps(k)
@@ -76,6 +81,7 @@ def say(log, **k):
             VLOG.write(line + "\n"); VLOG.flush()
         except OSError:
             pass                                    # a full disk must not stop the sensor
+
 
 def main():
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -144,15 +150,12 @@ def main():
                 say(True, ev="sensor_error", e=str(e))
             st["err"] += 1
             st["m"], st["I"] = None, []
-        try:
-            pressed = GPIO.input(17) == 0                  # polled every 40 ms, which also debounces
-            if pressed and not st["btn"]:
-                st["marks"] += 1
-                say(True, ev="mark", n=st["marks"])
-                hub("mark", st["marks"])
-            st["btn"] = pressed
-        except Exception as e:
-            say(False, ev="button_error", e=str(e))
+        pressed = GPIO.input(17) == 0                      # polled every 40 ms, which also debounces
+        if pressed and not st["btn"]:
+            st["marks"] += 1
+            say(True, ev="mark", n=st["marks"])
+            hub("mark", st["marks"])
+        st["btn"] = pressed
         return True
 
     def state(s, **k):
@@ -214,8 +217,10 @@ def main():
         st["hr"] = hr
         state(s)
         try:
-            # handheld: nothing while the sensor is unreadable (it shows signal lost), else every tick
-            linked = st["linked"] if st["finger"] is None else meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
+            # the handheld gets nothing while the sensor is unreadable (it then shows signal lost), else every tick
+            linked = st["linked"]
+            if st["finger"] is not None:
+                linked = meas.notify(bytes([0x06 if st["finger"] else 0x04, min(hr, 250)]))
             hub("finger", {None: "error", False: "off", True: "on"}[st["finger"]])
             hub("hr", hr or None)                          # None = no valid reading (never a stale number)
             if linked != st["linked"]:
@@ -248,6 +253,7 @@ def main():
     finally:
         if st["m"]:
             st["m"].close()
+
 
 if __name__ == "__main__":
     main()
