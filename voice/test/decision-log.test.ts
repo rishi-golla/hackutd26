@@ -171,7 +171,7 @@ test('overlapping proactive ticks are deduplicated while the first review is in 
 
 test('an advisory blocked by policy is not logged as queued or delivered', async () => {
   const fake = setup();
-  await withFetch((async () => response('{"advisory":"Consider rechecking the airway in 999 seconds.","summary":"Preparing an advisory."}')) as typeof fetch, async () => {
+  await withFetch((async () => response('{"advisory":"Consider rechecking the splint in 999 seconds.","summary":"Preparing an advisory."}')) as typeof fetch, async () => {
     await tick(new Brain(fake.conn, speaker, new Policy(fake.conn)));
     assert.equal(updates(fake).at(-1).phase, 'error');
     assert.match(updates(fake).at(-1).text, /did not queue/);
@@ -271,7 +271,7 @@ test('an advisory that names something the state does not hold is not spoken (fa
   const { ungroundedTerm } = await import('../src/decision-log.js');
   assert.equal(ungroundedTerm('Consider checking pulse post-shock', corpus), 'post-shock');
   assert.equal(ungroundedTerm('Note: Epinephrine administered; seizure activity observed.', corpus), 'seizure');
-  assert.equal(ungroundedTerm('Consider confirming the airway and oxygen.', corpus), undefined);
+  assert.equal(ungroundedTerm('Consider documenting the time of arrival.', corpus), undefined);
   assert.equal(ungroundedTerm('Consider the amiodarone allergy before the next dose.', corpus + '\nPATIENT Jordan Avery, 58 (EHR) · allergies: amiodarone'), undefined);
   const fake = setup();
   await withFetch((async () => response(JSON.stringify({ advisory: 'Consider checking pulse post-shock', summary: 'x' }))) as typeof fetch, async () => {
@@ -286,7 +286,7 @@ test('an advisory that names something the state does not hold is not spoken (fa
 test('the same unprompted note is not said twice within two minutes', async () => {
   const fake = setup();
   let n = 0;
-  await withFetch((async () => response(JSON.stringify({ advisory: 'Consider confirming the airway and oxygen.', summary: 'x' }))) as typeof fetch, async () => {
+  await withFetch((async () => response(JSON.stringify({ advisory: 'Consider documenting the time of arrival.', summary: 'x' }))) as typeof fetch, async () => {
     const brain = new Brain(fake.conn, speaker, new Policy(fake.conn));
     await tick(brain);
     assert.equal(fake.rows.callout.length, 1);
@@ -324,4 +324,14 @@ test('vitals words in an advisory need a valid reading (clip off: "SpO2 dropping
   const valid = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)\nVITALS (relay, 1 s ago) HR 96 · SpO2 92 (experimental)';
   assert.equal(ungroundedTerm('Note: SpO2 dropping to zero. Consider airway and oxygen.', noFinger), 'SpO2');
   assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', valid), undefined);
+});
+
+test('sensor-state sentences and ungrounded airway advice are never advisories (live Sun ~05:41, clip off during the arrest)', async () => {
+  const { ungroundedTerm } = await import('../src/decision-log.js');
+  const corpus = 'INCIDENT Medic 12 · status ARREST\nPATIENT not identified yet (no record)\nVITALS no valid reading (acquiring)\nCPR no motion data from the bodycam';
+  assert.equal(advisoryDecision(JSON.stringify({ advisory: 'Note: no valid reading acquiring. Consider airway and oxygen.', summary: 'x' }), corpus).advisory, null);
+  assert.equal(advisoryDecision(JSON.stringify({ advisory: 'No valid pulse reading; continuing compressions.', summary: 'x' }), corpus).advisory, null);
+  assert.equal(ungroundedTerm('Consider airway and oxygen.', corpus), 'airway');
+  const seizure = corpus.replace('VITALS no valid reading (acquiring)', 'VITALS (simulated, 1 s ago) HR 160 · SpO2 84 (experimental)\nTREND (last 30 s) SpO2 97 → 84 · SpO2 falling fast · WORSENING');
+  assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', seizure), undefined);
 });

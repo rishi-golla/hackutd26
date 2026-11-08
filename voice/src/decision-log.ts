@@ -66,7 +66,7 @@ export function publicSummary(value: unknown, corpus: string, fallback: string):
  */
 const STATUS_WORDING = /^(?:reviewed|reviewing|monitoring|continuing to monitor|no (?:additional |further )?advisory|nothing (?:to|further)|no (?:current |valid )*(?:reading|data|vitals|record)|the (?:patient|state|incident) (?:is|was|remains)|state (?:reviewed|unchanged))\b/i;
 /** Anywhere in the text: "…; continuing to monitor." is a dashboard sentence however it starts (live Sun ~05:16). */
-const STATUS_ANYWHERE = /\b(?:continuing to monitor|no (?:additional|further) advisory|keep monitoring|will monitor)\b/i;
+const STATUS_ANYWHERE = /\b(?:continuing (?:to monitor|compressions|cpr)|no (?:additional|further) advisory|keep monitoring|will monitor|no (?:current |valid |pulse )*(?:pulse )?(?:reading|data|vitals)|reading (?:is )?(?:unavailable|not available|invalid)|acquiring|calibrating|no finger|sensor (?:is )?(?:off|settling))\b/i;
 export function isStatusNotAdvisory(text: string, corpus: string): boolean {
   const t = text.trim().replace(/\s+/g, ' ');
   return publicSummaries(corpus).some(s => s.toLowerCase() === t.toLowerCase()) || STATUS_WORDING.test(t) || STATUS_ANYWHERE.test(t);
@@ -80,6 +80,9 @@ const GROUNDED: [RegExp, RegExp][] = [
   // Vitals words need a valid reading on the VITALS line: with the clip off the model said "SpO2 dropping to zero"
   // (live Sun ~05:12, Maincloud, status "no finger").
   [/\b(?:spo2|oxygen saturation|sats?|desaturat\w*|heart rate|pulse ox|tachycard\w*|bradycard\w*)\b/i, /^VITALS \((?:relay|simulated), \d+ s ago\)/m],
+  // Airway and oxygen advice needs a reason in the state: a worsening trend, a valid SpO2, or an airway event.
+  // "Consider airway and oxygen" with the clip off and no trend (live Sun ~05:41) is the model filling silence.
+  [/\b(?:airway|oxygen|ventilat\w*|suction|bag[- ]?valve|bvm)\b/i, /^TREND .*WORSENING|^VITALS \((?:relay|simulated), \d+ s ago\).*SpO2|\bairway\b/im],
   [/\b(?:post-?shock|shocks?|defib\w*|shocked)\b/i, /\b(?:shock|defib)/i],
   [/\b(?:post-?arrest|post-?rosc|rosc)\b/i, /\b(?:ARREST|ROSC)\b/],
   [/\bseiz\w*/i, /\bseiz/i],
