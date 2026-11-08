@@ -6,13 +6,22 @@ import { callsTo, fakeConn } from './fakes.js';
 test('policy applies the word limit for every speech kind', async () => {
   const { conn, calls } = fakeConn();
   const policy = new Policy(conn);
-  const limits = { readback: 40, answer: 15, advisory: 8, record: 25, ask: 12, control: 3 } as const;
+  const limits = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3 } as const;
   for (const [kind, limit] of Object.entries(limits) as [keyof typeof limits, number][]) {
     const words = Array(limit + 1).fill('word').join(' ');
     assert.equal(await policy.say(words, 0, kind), false, `${kind} should reject ${limit + 1} words`);
   }
   assert.equal(callsTo(calls, 'addCallout').length, 0);
   assert.equal(callsTo(calls, 'logAgentStep').filter(c => c.args.tool === 'policy').length, 6);
+});
+
+test('a long answer keeps the whole leading sentences that fit; one long sentence is still dropped', async () => {
+  const { conn, rows } = fakeConn();
+  const policy = new Policy(conn);
+  const sentence = 'I can read back doses and check allergies for you.';
+  assert.equal(await policy.say(`${sentence} ${sentence} ${sentence} ${sentence}`, 0, 'answer'), true);
+  assert.equal(rows.callout[0].text, `${sentence} ${sentence} ${sentence}`);
+  assert.equal(await policy.say(Array(31).fill('word').join(' '), 0, 'answer'), false);
 });
 
 test('advisories are limited to one per 20 seconds and order wording gets Consider prefix', async () => {

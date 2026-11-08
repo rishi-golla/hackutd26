@@ -29,8 +29,8 @@ export const CONFIG = {
   apiPort: Number(env.VOICE_API_PORT ?? 8787),
   /** This worker pulls the record when incident.patientRef is set (W6). Off if the bodycam lane does it. */
   w6: (env.VOICE_W6 ?? 'on') === 'on',
-  /** Unprompted Nemotron advisories: 8 words or fewer, at most one per 20 s. */
-  proactive: (env.VOICE_PROACTIVE ?? 'off') === 'on',
+  /** Unprompted Nemotron advisories on state changes: 15 words or fewer, at most one per 15 s. */
+  proactive: (env.VOICE_PROACTIVE ?? 'on') === 'on',
   timeZone: env.DISPLAY_TZ ?? 'America/Chicago',
 };
 

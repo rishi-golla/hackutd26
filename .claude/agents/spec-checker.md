@@ -48,7 +48,7 @@ this prompt's summary.
    parsing; questions and plans never trigger; echo guard (0.7 s); dose checks (epinephrine 0.3–1 mg,
    amiodarone 150–300 mg); allergy check (RB7); "correction" within 10 s cancels; units spoken in full.
 5. **Agent (spec §19).** Uses only facts from the database; every step written to `agent_step`; its own
-   callouts are 8 words or fewer, at most one every 20 s, advisory wording; the report drops uncited
+   callouts stay within the length and spacing limits in SPEC.md section 0 (decision 21), advisory wording; the report drops uncited
    sentences (W4); fallback template when Nemotron is down.
 6. **Honesty and safety (spec §24, SPEC.md section 0 and Part B §8).** These are always **high** severity:
    - a stale, default or made-up number shown where a reading is missing (must show "no data")

@@ -54,12 +54,40 @@ function parseNumber(value: string): number {
 }
 
 function title(value: string): string { return value.charAt(0).toUpperCase() + value.slice(1); }
-function findDrug(text: string): { drug: string; index: number; end: number } | undefined {
+/** `loose`: also try sound-alikes over up to three words; only where a medication is clearly being talked about. */
+function findDrug(text: string, loose = false): { drug: string; index: number; end: number } | undefined {
   for (const { drug, alias } of aliases) {
     const match = new RegExp(`\\b${alias.replace(/ /g, '\\s+')}\\b`, 'i').exec(text);
     if (match) return { drug, index: match.index, end: match.index + match[0].length };
   }
-  return fuzzyDrug(text);
+  return fuzzyDrug(text) ?? (loose ? soundAlikeDrug(text) : undefined);
+}
+
+/** Spelling folded to sound: "ph" → "f", "y" → "i", doubled letters once, "h" after a consonant dropped. */
+function sound(word: string): string {
+  return word.toLowerCase().replace(/[^a-z]/g, '').replace(/ph/g, 'f').replace(/y/g, 'i').replace(/([bcdfgjklmnpqrstvwxz])h/g, '$1').replace(/(.)\1+/g, '$1');
+}
+
+/**
+ * The ASR splits and respells long drug names ("a pine fine" for epinephrine). One to three adjacent words, joined
+ * and folded to sound, within 30 % of a long alias's length count as that drug. Used only with a dose or an open
+ * medication question around it, so ordinary speech can't become a drug.
+ */
+function soundAlikeDrug(text: string): { drug: string; index: number; end: number } | undefined {
+  const long = aliases.filter(a => a.alias.length >= 6 && !a.alias.includes(' ')).map(a => ({ ...a, folded: sound(a.alias) }));
+  const words = [...text.matchAll(/[A-Za-z]+/g)].map(m => ({ word: m[0], index: m.index!, end: m.index! + m[0].length }));
+  let best: { drug: string; dist: number; index: number; end: number } | undefined;
+  for (let i = 0; i < words.length; i++) {
+    for (let n = 1; n <= 3 && i + n <= words.length; n++) {
+      const folded = sound(words.slice(i, i + n).map(w => w.word).join(''));
+      if (folded.length < 5) continue;
+      for (const { drug, folded: target } of long) {
+        const dist = editDistance(folded, target);
+        if (dist <= Math.floor(target.length * 0.3) && (!best || dist < best.dist)) best = { drug, dist, index: words[i].index, end: words[i + n - 1].end };
+      }
+    }
+  }
+  return best && { drug: best.drug, index: best.index, end: best.end };
 }
 
 /** Damerau–Levenshtein distance (adjacent transpositions count once). */
@@ -99,9 +127,31 @@ function fuzzyDrug(text: string): { drug: string; index: number; end: number } |
   return undefined;
 }
 
-/** The drug a line names, exact or fuzzy, or undefined. For the brain's "Say again the drug" follow-up. */
-export function recognizeDrug(text: string): string | undefined {
-  return findDrug(normalizeTranscript(text))?.drug;
+/** The drug a line names, exact, fuzzy or sound-alike, or undefined. For the brain's "Say again the drug" follow-up. */
+export function recognizeDrug(text: string, loose = true): string | undefined {
+  return findDrug(normalizeTranscript(text), loose)?.drug;
+}
+
+export type MedParts = { drug?: string; dose?: number; unit?: Unit; route?: Route };
+
+/**
+ * Whatever pieces of a medication statement a line carries, in any order and without needing a verb: for filling
+ * in a medication the brain is still collecting ("one milligram of" … "epinephrine" … "IV"). Questions carry none.
+ */
+export function medParts(text: string): MedParts {
+  const input = normalizeTranscript(text).trim();
+  if (!input || /\?\s*$/.test(input) || question.test(input)) return {};
+  const found = findDrug(input, true);
+  const masked = found ? input.slice(0, found.index) + ' '.repeat(found.end - found.index) + input.slice(found.end) : input;
+  // A number without a unit counts only when it is nearly the whole line ("One." after "What dose?"), so a year
+  // or a count elsewhere in a sentence never becomes a dose.
+  const shortLine = input.split(/\s+/).length <= 3;
+  const dose = [...masked.matchAll(numberPattern)].map(m => {
+    const after = masked.slice(m.index! + m[0].length).trimStart();
+    return { dose: parseNumber(m[0]), unit: units.find(([pattern]) => pattern.test(after))?.[1], after };
+  }).find(c => Number.isFinite(c.dose) && c.dose > 0 && !/^(?::|%|[- ]?years?\b|percent\b|minutes?\b|min\b|seconds?\b|o['’]clock\b)/i.test(c.after) && (c.unit || shortLine));
+  const route = routes.find(([pattern]) => pattern.test(masked))?.[1];
+  return { ...(found ? { drug: found.drug } : {}), ...(dose ? { dose: dose.dose, ...(dose.unit ? { unit: dose.unit } : {}) } : {}), ...(route ? { route } : {}) };
 }
 
 /** Riva mishearings seen at the table, mapped to the words the parser knows (spec §16). */
@@ -109,6 +159,8 @@ const MISHEARINGS: [RegExp, string][] = [
   [/\b(?:f\s?p\s?i\s?o|fpio|feio|feo|fio|fbi|f\.?e\.?o|epio|ebio|evio|eppio|eppy\s?o|epi\s?o|happy\s?o|epi\s?eye\s?oh|f\s?e\s?i\s?o)\b/gi, 'epi IO'],
   [/\b(?:epi\s?i\s?v|epiv|eppy\s?v)\b/gi, 'epi IV'],
   [/\bministering\b/gi, 'administering'],
+  [/\b(?:a\s+)?pine\s*(?:f|ph)(?:ine|rine|rin|ren|reen)\b/gi, 'epinephrine'],
+  [/\bepi\s+(?:nephrine|nefrine|fine|frin|phrine)\b/gi, 'epinephrine'],
   [/\b(?:ebi|evi|epe|eppy|epee|e\s?p\s?i)\b/gi, 'epi'],
   [/\b(?:ammio|amy\s?o|ami\s?o)\b/gi, 'amio'],
   [/\b(?:nar\s?can|narcon)\b/gi, 'Narcan'],
@@ -125,7 +177,9 @@ export function normalizeTranscript(text: string): string {
 export function parseReadback(text: string): ReadbackMatch | MissingDose | MissingDrug | undefined {
   const input = normalizeTranscript(text).trim();
   if (!input || /\?\s*$/.test(input) || question.test(input)) return;
-  const found = findDrug(input);
+  // Sound-alikes only when the line is clearly a dose being given (a verb and a dose unit).
+  const doseGiven = verb.test(input) && /\b(?:\d+(?:\.\d+)?\s*(?:mg|mcg|g)|milligrams?|micrograms?|grams?|units?)\b/i.test(input);
+  const found = findDrug(input, doseGiven);
   // Negation and plans count only in the administration clause: up to the first comma or full stop after the
   // drug ("Giving epi one milligram, no allergies" is a dose; "We have not given epi 1 mg" is not).
   const afterDrug = found ? input.slice(found.end) : '';
@@ -201,14 +255,42 @@ export function parseControl(text: string): ControlWord | undefined {
   if (/^(?:confirm|confirmed|yes confirm)$/.test(normalized)) return 'confirm';
 }
 
-export function parseIdentity(text: string): { name: string; birthDate: string } | undefined {
+/**
+ * The medic's answer to "Log it?". The whole line must be the answer, so "No pulse, starting compressions" or
+ * "Yes, and get the pads on" are never taken as one; the brain only asks this within a short window.
+ */
+export function parseAnswer(text: string): 'yes' | 'no' | undefined {
+  const t = text.trim().toLowerCase().replace(/[.!?,]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/^(?:(?:yes|yeah|yep|yup|affirmative|correct|sure|please|ok|okay)(?: (?:please|log it|go ahead|do it|log that|confirm|that's right|thats right))*|log it|log that|go ahead|do it)$/.test(t)) return 'yes';
+  if (/^(?:(?:no|nope|negative)(?: (?:don't log it|do not log it|don't|cancel(?: it| that)?|that's wrong|thats wrong|wrong))*|don't log it|do not log it|don't log that)$/.test(t)) return 'no';
+}
+
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth'];
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** "fourteenth" → "14", "twenty-third" → "23", "nineteen sixty-eight" → "1968", "two thousand five" → "2005". */
+function spokenDateWords(text: string): string {
+  const units = 'one|two|three|four|five|six|seven|eight|nine';
+  const ord = (w: string) => ORDINALS.indexOf(w.toLowerCase()) + 1;
+  return text
+    .replace(new RegExp(`\\b(twenty|thirty)[ -](${ORDINALS.slice(0, 9).join('|')})\\b`, 'gi'), (_m, tens: string, o: string) => String((tens.toLowerCase() === 'twenty' ? 20 : 30) + ord(o)))
+    .replace(/\bthirtieth\b/gi, '30')
+    .replace(new RegExp(`\\b(${ORDINALS.join('|')})\\b`, 'gi'), o => String(ord(o)))
+    .replace(new RegExp(`\\bnineteen[ -](twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:[ -](${units}))?\\b`, 'gi'), (_m, tens: string, unit?: string) => String(1900 + (numberWords[tens.toLowerCase()] ?? 0) + (unit ? numberWords[unit.toLowerCase()] : 0)))
+    .replace(new RegExp(`\\btwo thousand(?: and)?(?:[ -](${units}|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty))?\\b`, 'gi'), (_m, unit?: string) => String(2000 + (unit ? numberWords[unit.toLowerCase()] : 0)));
+}
+
+export function parseIdentity(raw: string): { name: string; birthDate: string } | undefined {
+  const text = spokenDateWords(raw);
   const name = /\b(?:patient(?:'s|’s) name is|patient is|this is|name is)\s+([a-z]+(?:[-'][a-z]+)?(?:\s+[a-z]+(?:[-'][a-z]+)?){1,2})(?=\s*,|\s+(?:born|date of birth|dob)\b)/i.exec(text)?.[1];
-  const date = /\b(?:born|date of birth|dob)\s*[:]?\s*(?:(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})|(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(\d{4}))/i.exec(text);
+  const month = `(${MONTHS.join('|')})`;
+  const date = new RegExp(`\\b(?:born|date of birth|dob)\\s*(?:[:,]|\\s(?:in|on|is))?\\s*(?:(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})|${month}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s*,?\\s+(\\d{4})|(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${month}\\s*,?\\s+(\\d{4}))`, 'i').exec(text);
   if (!name || !date) return;
-  const month = date[1] ? Number(date[1]) : ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'].indexOf(date[4].toLowerCase()) + 1;
-  const day = Number(date[2] ?? date[5]);
-  const year = Number(date[3] ?? date[6]);
-  const check = new Date(Date.UTC(year, month - 1, day));
-  if (year < 100 || check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return;
-  return { name: name.split(/\s+/).map(part => title(part.toLowerCase())).join(' '), birthDate: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` };
+  const monthOf = (m: string) => MONTHS.indexOf(m.toLowerCase()) + 1;
+  const monthNo = date[1] ? Number(date[1]) : date[4] ? monthOf(date[4]) : monthOf(date[8]);
+  const day = Number(date[2] ?? date[5] ?? date[7]);
+  const year = Number(date[3] ?? date[6] ?? date[9]);
+  const check = new Date(Date.UTC(year, monthNo - 1, day));
+  if (year < 100 || check.getUTCFullYear() !== year || check.getUTCMonth() !== monthNo - 1 || check.getUTCDate() !== day) return;
+  return { name: name.split(/\s+/).map(part => title(part.toLowerCase())).join(' '), birthDate: `${year}-${String(monthNo).padStart(2, '0')}-${String(day).padStart(2, '0')}` };
 }

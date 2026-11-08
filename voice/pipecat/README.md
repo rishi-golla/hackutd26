@@ -118,7 +118,7 @@ must have accepted the cert once (open `https://<laptop>:7860`).
 | `BRAIN_URL` | `http://127.0.0.1:8787` |
 | `RIVA_ASR_FUNCTION_ID`, `RIVA_ASR_MODEL` | `1598d209-5e27-4d3c-8079-4751568b1081`, `parakeet-ctc-1.1b-asr` (since the Sat ~22:15 live test). nemotron-asr-streaming is `bb0837de-8c7b-481f-9ec8-ef5663e9c1fa`, model name empty |
 | `RIVA_TTS_FUNCTION_ID` | `877104f7-e885-42b9-8de8-f6e4c6303969` (magpie-tts-multilingual, Pipecat's default) |
-| `RIVA_BOOST_WORDS` | the clinical list in `config.py` (epinephrine, amiodarone, IO, IV, ROSC, …) at weight 20. A comma list overrides; `""` turns boosting off |
+| `RIVA_BOOST_WORDS` | the clinical list in `config.py` (epinephrine, amiodarone, intraosseous, ROSC, …) at weight 20; IO, IV and IM are left out because they turned "I'm" into "IM". A comma list overrides; `""` turns boosting off |
 | `ICE_SERVERS` | empty. A JSON list such as `[{"urls":"turn:host:3478","username":"u","credential":"p"}]`, used by both peers (the browser gets it from `/start` or `/api/ice`) |
 | `TURN_URL`, `TURN_USER`, `TURN_PASS` | empty. The short form of one TURN entry, appended to `ICE_SERVERS` |
 | `VISION` | `on`. `off` = audio only (no video track requested) |
@@ -142,9 +142,16 @@ differs between releases, so run `--list-voices` for what the hosted endpoint ac
 
 - **Hearing.** The final transcripts of one user turn are joined and posted once when the turn ends, as
   `{"text", "source": "pipecat"}`. The ASR can split a sentence at a short pause, and "Epi." then "One milligram
-  IO." as two lines would give "Say again the dose." A turn that noise keeps open is flushed every 2.5 s
-  (`MAX_TURN_HOLD_SECS`). Posts go in order with a 2 s timeout; a failed post is logged and dropped. Interim
-  transcripts are dropped, and no transcript reaches TTS.
+  IO." as two lines would give "Say again the dose." When the turn ends while the ASR is still on the last
+  words (an interim is out, its final not yet in), the bridge waits up to 1.2 s for that final
+  (`LATE_FINAL_SECS`) so the end of the sentence joins the line; speaking again meanwhile continues the same line.
+  A turn that noise keeps open is flushed after 8 s (`MAX_TURN_HOLD_SECS`; it was 2.5 s, which cut long sentences
+  in two). Posts go in order with a 2 s timeout; a failed post is logged and dropped. Interim transcripts are never
+  posted, and no transcript reaches TTS.
+- **End of utterance in the ASR.** Riva closes an utterance after `ASR_STOP_HISTORY_MS` = 800 ms of blank output
+  (its own default; Pipecat passes 320 ms). At 320 ms a soft last syllable counted as silence ("cardiac Ar.") and
+  sentences split at short pauses, so the medic had to repeat themselves (Sun ~01:40). The VAD's volume floor is
+  0.6 and its stop wait 0.6 s for the same reason.
 - **Speaking.** A `speak` becomes a `TTSSpeakFrame`, and `spoken` goes back when the bot stops speaking it. A
   `speak` that arrives while another plays, or while the medic is talking, waits in a queue (lowest priority number
   first, then oldest).
@@ -202,9 +209,11 @@ Not verified (needs the key, a phone, or PortAudio):
 
 ## Latency notes
 
-The agent's reply starts after: end of speech → VAD stop (0.2 s) → turn end (0.5 s more, `USER_SPEECH_TIMEOUT`) →
+The agent's reply starts after: end of speech → VAD stop (0.6 s) → turn end (0.5 s more, `USER_SPEECH_TIMEOUT`) →
 the brain (a read-back has no model call; the DB round trip is in the path) → TTS first audio. The ASR final
-arrives during the turn-end wait. The spec targets about 700–1200 ms voice to voice (§19), and a read-back within
+arrives about 0.8 s after the speech ends (`ASR_STOP_HISTORY_MS`), usually inside the turn-end wait; when it is
+later, the bridge holds the line for it (`LATE_FINAL_SECS`). Completeness was chosen over the last few hundred
+milliseconds: a clipped sentence costs a repeat, which is far slower. The spec targets about 700–1200 ms voice to voice (§19), and a read-back within
 about 1.2 s on the agent path (B10), so TTS first audio has to stay under roughly 0.4 s. The worker logs each
 service's time to first byte (`TTFB` lines, `enable_metrics`); read them on the first real run. To trade naturalness for speed, lower `USER_SPEECH_TIMEOUT`.
 NVIDIA's free tier is reportedly about 40 requests per minute per key (unverified). Each spoken utterance is one

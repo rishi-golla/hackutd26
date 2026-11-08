@@ -47,7 +47,11 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-MAX_TURN_HOLD_SECS = 2.5
+MAX_TURN_HOLD_SECS = 8.0
+# The turn can end while the ASR is still finishing the last words (an interim is out, its final not yet in).
+# Wait this long for that final so the tail of the sentence joins the turn instead of arriving as its own line.
+LATE_FINAL_SECS = 1.2
+LATE_FINAL_SETTLE_SECS = 0.05
 
 
 @dataclass
@@ -96,6 +100,8 @@ class BrainBridge(FrameProcessor):
         self._transcripts: asyncio.Queue[str] = asyncio.Queue()
         self._turn_text: list[str] = []
         self._turn_hold: asyncio.Task | None = None
+        self._interim_pending = False  # an interim arrived after the last final: words still being recognised
+        self._late_final: asyncio.Task | None = None  # set while the ended turn waits for that final
 
         self._pending: list[_Utterance] = []
         self._current: _Utterance | None = None
@@ -121,6 +127,7 @@ class BrainBridge(FrameProcessor):
 
         # Transcripts stop here: they go to the brain, and TTS must never read the medic's words back.
         if isinstance(frame, TranscriptionFrame):
+            self._interim_pending = False
             text = frame.text.strip()
             if text:
                 logger.info(f"heard: {text!r}")
@@ -128,11 +135,16 @@ class BrainBridge(FrameProcessor):
                     self._turn_text.append(text)
                     if self._turn_hold is None:
                         self._turn_hold = self.create_task(self._hold_turn(), name="turn_hold")
+                elif self._late_final:
+                    # A final for the turn that just ended: it belongs to that turn's line, sent together.
+                    self._turn_text.append(text)
                 else:
-                    # Outside a turn (a late final, or one the turn processor hasn't opened a turn for yet).
+                    # Outside a turn (one the turn processor hasn't opened a turn for yet).
                     self._transcripts.put_nowait(text)
             return
         if isinstance(frame, InterimTranscriptionFrame):
+            if frame.text.strip():
+                self._interim_pending = True
             return
 
         # Everything else passes through first, so an interruption reaches TTS before anything new is queued.
@@ -140,10 +152,15 @@ class BrainBridge(FrameProcessor):
 
         if isinstance(frame, UserStartedSpeakingFrame):
             self._user_speaking = True
+            # Speaking again before the late final came: the same sentence continues; keep collecting.
+            late, self._late_final = self._late_final, None
+            if late:
+                await self.cancel_task(late)
             await self._send({"type": "user_speaking", "active": True})
         elif isinstance(frame, UserStoppedSpeakingFrame):
             self._user_speaking = False
-            await self._flush_turn()
+            if self._late_final is None:
+                self._late_final = self.create_task(self._await_late_final(), name="late_final")
             await self._send({"type": "user_speaking", "active": False})
             await self._speak_next()
         elif isinstance(frame, InterruptionFrame):
@@ -166,11 +183,26 @@ class BrainBridge(FrameProcessor):
 
     async def _flush_turn(self):
         hold, self._turn_hold = self._turn_hold, None
-        if hold and hold is not asyncio.current_task():
-            await self.cancel_task(hold)
+        late, self._late_final = self._late_final, None
+        for task in (hold, late):
+            if task and task is not asyncio.current_task():
+                await self.cancel_task(task)
         if self._turn_text:
             self._transcripts.put_nowait(" ".join(self._turn_text))
             self._turn_text = []
+
+    async def _await_late_final(self):
+        # UserStoppedSpeakingFrame is a system frame and can overtake transcripts still queued behind it: give
+        # those a moment to land before deciding whether the ASR is still on the last words.
+        await asyncio.sleep(LATE_FINAL_SETTLE_SECS)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + LATE_FINAL_SECS
+        while self._interim_pending and loop.time() < deadline:
+            await asyncio.sleep(0.05)
+        if self._interim_pending:
+            logger.debug(f"no final within {LATE_FINAL_SECS} s of the turn ending; sending what was heard")
+        self._interim_pending = False
+        await self._flush_turn()
 
     async def _hold_turn(self):
         await asyncio.sleep(MAX_TURN_HOLD_SECS)

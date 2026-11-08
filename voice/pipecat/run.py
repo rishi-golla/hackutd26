@@ -56,6 +56,10 @@ HUB_PHONE_PAGE = Path(__file__).resolve().parent.parent.parent / "hub" / "phone.
 # because a read-back waits for it. BrainBridge joins the ASR finals of one turn, so "epi ... one milligram"
 # with a pause shorter than this reaches the brain as one line.
 USER_SPEECH_TIMEOUT = 0.5
+# Riva ends an utterance after this much blank acoustic output. Pipecat passes 320 ms; Riva's own default is
+# 800 ms. At 320 ms a soft last syllable counted as silence ("cardiac Ar.", "a Sei.") and one sentence split in
+# two at any short pause (live test, Sun ~01:40), so the medic had to repeat themselves.
+ASR_STOP_HISTORY_MS = 800
 
 
 def make_vision(cfg: Config) -> VisionSampler | None:
@@ -81,6 +85,7 @@ def build_pipeline(
         api_key=cfg.api_key,
         server=NVIDIA_SPEECH_SERVER,
         model_function_map={"function_id": cfg.asr_function_id, "model_name": cfg.asr_model},
+        stop_history=ASR_STOP_HISTORY_MS,
         # 20 instead of Riva's mild default 4: at the default, "epi" still came back as FEIO/EBI (Sat 22:05).
         settings=NvidiaSTTService.Settings(boosted_lm_words=cfg.boost_words, boosted_lm_score=20.0) if cfg.boost_words else None,
     )
@@ -95,7 +100,9 @@ def build_pipeline(
     # barge-in on, interrupts the bot as soon as the medic starts talking (Pipecat's own interruption handling).
     # Stricter than Pipecat's defaults (0.7 / 0.2 s / 0.6): the chest mic also hears the room, and a passing
     # sentence from a teammate was interrupting the agent (seen live, Sat 21:57). Louder and longer speech only.
-    vad = VADProcessor(vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.85, start_secs=0.4, stop_secs=0.5, min_volume=0.75)))
+    # The volume floor is 0.6, not 0.75, and the stop wait 0.6 s: at 0.75 the quieter end of a word counted as
+    # silence and closed the turn before the sentence was finished (Sun ~01:40).
+    vad = VADProcessor(vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.85, start_secs=0.4, stop_secs=0.6, min_volume=0.6)))
     turns = UserTurnProcessor(
         user_turn_strategies=UserTurnStrategies(
             start=[
