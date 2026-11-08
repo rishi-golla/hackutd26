@@ -95,6 +95,14 @@ export type ToolContext = {
   pullRecord: (patientRef: string, method: string) => Promise<string>;
   /** False once the incident this turn started under is gone; speech is dropped instead of queued. */
   valid: () => boolean;
+  /** What the medic said this turn; status changes must be stated in it, not inferred. */
+  utterance: string;
+};
+
+const STATUS_WORDS: Record<string, RegExp> = {
+  arrest: /\b(no pulse|pulseless|cardiac arrest|in arrest|start(ing|ed)? (cpr|compressions)|begin(ning)? compressions|coding)\b/i,
+  rosc: /\b(rosc|pulse (is |came )?back|got a pulse|we have a pulse|return of (spontaneous )?circulation)\b/i,
+  en_route: /\b(transport\w*|en route|loading|leaving (the )?scene|rolling|heading to)\b/i,
 };
 
 const j = (v: unknown) => JSON.stringify(v);
@@ -132,6 +140,16 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       if (!inc) return j({ error: 'no active incident' });
       const label = String(args.label ?? '').slice(0, 80);
       if (!label) return j({ error: 'label required' });
+      // A line that carries a dose is a medication statement, however garbled: the read-back owns it entirely.
+      if (/\b(\d+(?:\.\d+)?\s*(mg|mcg|g|ml)|milligrams?|micrograms?|one of|a milligram)\b/i.test(ctx.utterance)) {
+        await step(conn, 'log_event', `Refused "${label}": the medic's line carries a dose, so it is a medication statement`);
+        return j({ error: 'the medic stated a dose, so this is a medication statement handled by the read-back system; do nothing' });
+      }
+      // A "something administered / 1 mg" label is a medication (or a garbled drug name): never a procedure.
+      if (/\b(administer\w*|given|gave|pushed|push|mg|mcg|milligrams?|micrograms?|dose|units?|shock\w*|defib\w*|joules?)\b/i.test(label)) {
+        await step(conn, 'log_event', `Refused "${label}": looks like a medication or a garbled drug; the read-back owns those`);
+        return j({ error: 'that looks like a medication or a shock, or an unclear word; those are logged by the read-back system. If the word was unclear, do nothing.' });
+      }
       await conn.reducers.logEvent({ kind, label, sourceKind: 'voice', sourceDetail: String(args.detail ?? label).slice(0, 200) });
       await step(conn, 'log_event', `${kind}: ${label}`);
       return j({ ok: true });
@@ -141,7 +159,11 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       if (!['arrest', 'rosc', 'en_route'].includes(status)) return j({ error: 'status must be arrest, rosc or en_route' });
       if (!inc) return j({ error: 'no active incident' });
       if (inc.status === status) return j({ ok: true, note: `already ${status}` });
-      await conn.reducers.setStatus({ status, sourceKind: 'voice', sourceDetail: String(args.detail ?? '').slice(0, 200) });
+      if (!STATUS_WORDS[status].test(ctx.utterance)) {
+        await step(conn, 'set_status', `Refused ${status}: the medic didn't say so ("${ctx.utterance.slice(0, 60)}")`);
+        return j({ error: `the medic did not plainly state ${status}; do nothing` });
+      }
+      await conn.reducers.setStatus({ status, sourceKind: 'voice', sourceDetail: ctx.utterance.slice(0, 200) });
       await step(conn, 'set_status', `${inc.status} → ${status} (medic said so)`);
       return j({ ok: true, status });
     }

@@ -17,8 +17,18 @@ ENV_FILE = Path(__file__).resolve().parent.parent / ".env.local"
 # These are Pipecat 1.15.0's defaults. NVIDIA changes an id when it redeploys a model: the current one is on the
 # model's build.nvidia.com page (".../api" tab), and RIVA_ASR_FUNCTION_ID / RIVA_TTS_FUNCTION_ID override them.
 NVIDIA_SPEECH_SERVER = "grpc.nvcf.nvidia.com:443"
-ASR_FUNCTION_ID = "bb0837de-8c7b-481f-9ec8-ef5663e9c1fa"  # nemotron-asr-streaming
-ASR_MODEL = "nemotron-asr-streaming"
+ASR_FUNCTION_ID = "1598d209-5e27-4d3c-8079-4751568b1081"  # parakeet-ctc-1.1b-asr
+# Words Riva keeps mishearing at the demo table ("epi IO" came back as "FPIO" and "FEO"). Boosted by default;
+# RIVA_BOOST_WORDS overrides the list, RIVA_BOOST_WORDS="" turns it off.
+DEFAULT_BOOST_WORDS = (
+    "epi, epinephrine, adrenaline, amio, amiodarone, naloxone, Narcan, nitro, bicarb, atropine, adenosine, "
+    "IO, IV, IM, intraosseous, intranasal, sublingual, milligram, milligrams, micrograms, joules, "
+    "i-gel, airway, ROSC, pulse, compressions, shock, defib, correction, confirm, Handoff, Jordan Avery"
+)
+# Default ASR: Parakeet CTC 1.1B (streaming-capable). nemotron-asr-streaming (bb0837de-8c7b-481f-9ec8-ef5663e9c1fa,
+# model "nemotron-asr-streaming") was the first choice but mangled drug names badly in a noisy room (Sat 22:10).
+# Override with RIVA_ASR_FUNCTION_ID + RIVA_ASR_MODEL.
+ASR_MODEL = "parakeet-ctc-1.1b-asr"
 TTS_FUNCTION_ID = "877104f7-e885-42b9-8de8-f6e4c6303969"  # magpie-tts-multilingual
 TTS_MODEL = "magpie-tts-multilingual"
 DEFAULT_VOICE = "Magpie-Multilingual.EN-US.Aria"
@@ -30,6 +40,7 @@ class Config:
     voice: str
     brain_url: str
     asr_function_id: str
+    asr_model: str
     tts_function_id: str
     boost_words: list[str] = field(default_factory=list)
     # WebRTC ICE servers for both peers, e.g. a TURN relay when the venue Wi-Fi blocks device-to-device traffic
@@ -52,7 +63,10 @@ def load_config() -> Config:
         value = os.environ.get(name) or file_values.get(name) or default
         return value.strip()
 
-    boost = get("RIVA_BOOST_WORDS")
+    boost_raw = os.environ.get("RIVA_BOOST_WORDS")
+    if boost_raw is None:
+        boost_raw = file_values.get("RIVA_BOOST_WORDS")
+    boost = DEFAULT_BOOST_WORDS if boost_raw is None else boost_raw
     # ICE_SERVERS='[{"urls": "turn:host:3478", "username": "u", "credential": "p"}]' (JSON, as in RTCIceServer)
     ice = get("ICE_SERVERS")
     try:
@@ -65,6 +79,7 @@ def load_config() -> Config:
         voice=get("RIVA_VOICE", DEFAULT_VOICE),
         brain_url=get("BRAIN_URL", "http://127.0.0.1:8787").rstrip("/"),
         asr_function_id=get("RIVA_ASR_FUNCTION_ID", ASR_FUNCTION_ID),
+        asr_model=get("RIVA_ASR_MODEL", ASR_MODEL),
         tts_function_id=get("RIVA_TTS_FUNCTION_ID", TTS_FUNCTION_ID),
         boost_words=[w.strip() for w in boost.split(",") if w.strip()],
         ice_servers=ice_servers,

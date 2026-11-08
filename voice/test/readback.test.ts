@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseControl, parseIdentity, parseReadback, type ReadbackMatch } from '../src/readback.js';
+import { parseControl, parseIdentity, parseReadback, recognizeDrug, type ReadbackMatch } from '../src/readback.js';
 import { spoken } from '../src/spoken.js';
 function match(text: string): ReadbackMatch {
   const result = parseReadback(text);
-  assert.ok(result && result.kind !== 'missing_dose', text);
+  assert.ok(result && result.kind !== 'missing_dose' && result.kind !== 'missing_drug', text);
   return result;
 }
 test('RB1–RB2: spec example table', () => {
@@ -88,4 +88,34 @@ test('RB1: negation and plans only count inside the administration clause', () =
   assert.equal(match('Giving epi one milligram, no allergies').label, 'Epinephrine 1 mg');
   assert.equal(match('Pushed one milligram of epi IO. Not sure about the time.').label, 'Epinephrine 1 mg IO');
   for (const line of ['We have not given epi 1 mg', 'Epi 1 mg not given', 'Get the epi ready, one milligram']) assert.equal(parseReadback(line), undefined, line);
+});
+
+test('RB1: Riva mishearings heard at the table map to the drug', () => {
+  for (const line of ['ministering one milligram of FPIO', 'administering one milligram of FEO', 'Giving one of eppy o']) {
+    assert.equal(match(line).label, 'Epinephrine 1 mg IO', line);
+  }
+});
+
+test('RB1: garbled long drug names match fuzzily; a dose with no recognisable drug asks for the drug', () => {
+  assert.equal(match('giving three hundred milligrams of aminoderone').label, 'Amiodarone 300 mg');
+  assert.equal(match('administering one milligram of epinefrin IO').label, 'Epinephrine 1 mg IO');
+  for (const line of ['administering one milligram of FBI', 'administering one milligram of FEIO']) assert.equal(match(line).label, 'Epinephrine 1 mg IO', line);
+  assert.equal(parseReadback('administering one milligram of zorblax')?.kind, 'missing_drug');
+  assert.equal(parseReadback('the patient is resting comfortably'), undefined);
+});
+
+test('RB1: a dose statement split by a pause still parses (explicit unit, no verb; stray article)', () => {
+  assert.equal(match('one a milligram of FEIO').label, 'Epinephrine 1 mg IO');
+  assert.equal(match('one milligram of epi IO').label, 'Epinephrine 1 mg IO');
+  assert.equal(match('Administering one uh milligram of epi IO').label, 'Epinephrine 1 mg IO');
+  assert.equal(parseReadback('epi one milligram is ready'), undefined);
+});
+
+test('RB1: long drug names split in two by STT, and the "say again the drug" follow-up', () => {
+  for (const line of ['giving three hundred milligrams of amino dirone', 'giving three hundred milligrams of amino derone']) assert.equal(match(line).label, 'Amiodarone 300 mg', line);
+  const missing = parseReadback('giving three hundred milligrams of El Nino DO');
+  assert.equal(missing?.kind, 'missing_drug');
+  assert.deepEqual(missing && missing.kind === 'missing_drug' ? [missing.dose, missing.unit] : null, [300, 'mg']);
+  assert.equal(recognizeDrug('amino derone amiodarone.'), 'amiodarone');
+  assert.equal(recognizeDrug('okay never mind'), undefined);
 });

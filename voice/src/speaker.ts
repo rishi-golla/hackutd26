@@ -15,6 +15,9 @@ const ECHO_WINDOW_S = 2;
 const MAX_PLAYBACK_ERRORS = 2;
 /** Never talk over the medic, unless "speaking" has been continuous this long (hall noise): then P0/P1 go through. */
 const STUCK_SPEAKING_MS = 10_000;
+/** After a barge-in, wait this long once the medic stops before saying anything: their words ("correction") must
+ *  reach the brain first, or the interrupted read-back replays over the cancel (seen live, Sat 21:54). */
+const BARGE_IN_HOLD_MS = 1_500;
 
 type MouthMessage =
   | { type: 'spoken'; id: string; interrupted?: boolean; error?: string }
@@ -26,6 +29,8 @@ export class Speaker {
   private inFlight?: { callout: Callout; sentAt: number; acking: boolean };
   private userSpeaking = false;
   private userSpeakingSince = 0;
+  private holdUntil = 0;
+  private interruptedDuringSpeech = false;
   private timer?: NodeJS.Timeout;
   private playbackErrors = 0;
   /** Callouts the medic talked over once; they get one more try (spec §15: never cut off, so say it again). */
@@ -69,7 +74,13 @@ export class Speaker {
       else if (msg.type === 'user_speaking') {
         if (msg.active && !this.userSpeaking) this.userSpeakingSince = Date.now();
         this.userSpeaking = msg.active;
-        if (!msg.active) this.tick();
+        if (!msg.active) {
+          if (this.interruptedDuringSpeech) {
+            this.holdUntil = Date.now() + BARGE_IN_HOLD_MS;
+            this.interruptedDuringSpeech = false;
+          }
+          this.tick();
+        }
       }
     });
     ws.on('close', () => {
@@ -97,10 +108,15 @@ export class Speaker {
       return;
     }
     this.playbackErrors = 0;
-    if (msg.interrupted && !this.retried.has(cur.callout.id)) {
-      // Barge-in: the medic spoke over it. Leave it unspoken and say it once more when they stop.
+    // Only an urgent rule callout (P1) is said again after a barge-in. A read-back (P0) the medic talks over is
+    // being answered ("correction"), and replaying it over the answer was the bug seen live (Sat 22:12).
+    if (msg.interrupted && cur.callout.priority === 1 && !this.retried.has(cur.callout.id)) {
+      // Barge-in on an urgent callout: leave it unspoken and say it once more when they stop, after a short hold
+      // so what they said (maybe "correction") is processed first. Interrupted P2/P3 prompts are not repeated.
       this.retried.add(cur.callout.id);
       this.inFlight = undefined;
+      this.interruptedDuringSpeech = true;
+      this.holdUntil = Date.now() + BARGE_IN_HOLD_MS;
       this.tick();
       return;
     }
@@ -123,6 +139,7 @@ export class Speaker {
       .filter(c => c.spokenAt === undefined)
       .sort((a, b) => a.priority - b.priority || Number(a.id - b.id))[0];
     if (!next) return;
+    if (Date.now() < this.holdUntil) return;
     if (this.userSpeaking && (next.priority > 1 || Date.now() - this.userSpeakingSince < STUCK_SPEAKING_MS)) return;
     this.inFlight = { callout: next, sentAt: Date.now(), acking: false };
     this.mouth.send(JSON.stringify({ type: 'speak', id: String(next.id), text: next.text, priority: next.priority }));

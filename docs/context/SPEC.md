@@ -21,6 +21,13 @@ necessarily when the decision was made.
   turned the Chromatic into a Bluetooth vitals screen with a QR page that encodes a short readable summary. Whether
   it joins the demo, and whether its QR page is an exception to decision 8, is open. H4 fixed: with camera-seen drugs
   a stretch goal, the epi event has one chip (read-back).
+- **Sat ~22:15 (Alan): first live audio test of the voice agent** (laptop mic, Chrome, noisy room). The loop
+  works: read-back audio 0.2–0.4 s after the medic stops, Nemotron answers in about 1 s, barge-in works. Riva
+  mangled short drug names ("epi" → FEIO/EBI, "amiodarone" → "amino dirone"), so: the line card says the full
+  names (§8), the ASR default is Parakeet with boosted clinical vocabulary, the parser maps mishearings and matches
+  long names fuzzily, and the brain asks "Say again the drug." instead of guessing. Room chatter: stricter VAD,
+  a relevance gate before Nemotron, 20 turns/min. Interrupted read-backs are not replayed. Details in
+  `voice/README.md`.
 - **Sat ~20:15 (Josh): hospital dashboard redesign.**
   - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
   - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
@@ -796,13 +803,18 @@ Say these, in order:
 
 - "Handoff, look." (after showing the ID card)
 - Or say: "Patient is Jordan Avery, born March 14, 1968."
-- "Administering one milligram of epi IO."
+- "Administering one milligram of epinephrine IO."
 - "Giving three hundred milligrams of amiodarone." (then say "Correction")
 
 Bonus lines:
 
-- "Giving ten milligrams of epi." (dose check)
+- "Giving ten milligrams of epinephrine." (dose check)
 - "Shock delivered, two hundred joules."
+
+Say the full drug names, slowly, with a short pause before and after the line. Live test Sat ~22:05: Riva heard
+"epi" as "FEIO", "EBI" and "FPIO" and split "amiodarone" into "amino dirone"; the parser maps the known
+mishearings and matches long names fuzzily, but "epinephrine" and "amiodarone" spoken in full are recognised
+first time. The agent asks "Say again the drug." when it heard a dose but no drug it knows.
 
 ### What this adds to the build
 

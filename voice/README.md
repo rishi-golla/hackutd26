@@ -150,6 +150,29 @@ mocks call those directly.
 - `npm run scenario` plays the §7 storyboard through both mocks with the real timing, for regression and demo
   videos.
 
+## Lessons from the first live audio test (Sat ~22:00, laptop mic, noisy room)
+
+- **Say full drug names.** Riva heard "epi" as FEIO/EBI/FBI and split "amiodarone" into "amino dirone". The parser
+  maps the mishearings it has seen, matches long names fuzzily (edit distance, single words and adjacent pairs),
+  and asks "Say again the drug." when it heard a dose but no drug it knows (the answer, just the drug name, is
+  combined with the dose). "Epinephrine" and "amiodarone" in full are recognised first time. The line card in
+  SPEC §8 now uses them.
+- **ASR model:** default is Parakeet CTC 1.1B with the clinical vocabulary boosted at weight 20
+  (`voice/pipecat/config.py`); `RIVA_ASR_FUNCTION_ID`/`RIVA_ASR_MODEL` switch back to nemotron-asr-streaming.
+- **Split sentences:** a pause after "Administering" makes two STT lines. A skipped fragment is stitched onto the
+  next line, a dose with an explicit unit parses without the verb, and a line ending in "of" waits 2 s for the
+  drug before asking.
+- **Room chatter:** stricter VAD (confidence 0.85, 0.4 s, higher volume floor), transcripts never interrupt the
+  agent (only sustained speech does), lines under 3 words are skipped, and Nemotron runs only for questions,
+  "Handoff", or clinical vocabulary, at most 20 turns/min.
+- **Barge-in:** an interrupted read-back is not replayed (the medic is answering it); only an interrupted P1 rule
+  callout gets one more try, 1.5 s after the medic stops.
+- **Guardrails that fired:** the model tried to log "FEIO administered" and "Shock delivered" as procedures; any
+  line carrying a dose, or any medication/shock-shaped label, is refused. `set_status` needs the medic's literal
+  words ("no pulse", "ROSC", "transporting").
+- **Rule callouts are not the agent:** in ARREST the §15 rules say "Epi due" every 45 s and "Two minutes…" every
+  30 s (DEMO TIMING). Say "ROSC" or reset between runs.
+
 ## Settings (`voice/.env.local`, gitignored)
 
 | Setting | Default |

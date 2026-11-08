@@ -25,6 +25,7 @@ from importlib.metadata import version
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker, ProcessorUnusablePolicy
 from pipecat.processors.audio.vad_processor import VADProcessor
@@ -51,8 +52,9 @@ def build_pipeline(transport: BaseTransport, cfg: Config, *, barge_in: bool = Tr
     stt = NvidiaSTTService(
         api_key=cfg.api_key,
         server=NVIDIA_SPEECH_SERVER,
-        model_function_map={"function_id": cfg.asr_function_id, "model_name": ASR_MODEL},
-        settings=NvidiaSTTService.Settings(boosted_lm_words=cfg.boost_words) if cfg.boost_words else None,
+        model_function_map={"function_id": cfg.asr_function_id, "model_name": cfg.asr_model},
+        # 20 instead of Riva's mild default 4: at the default, "epi" still came back as FEIO/EBI (Sat 22:05).
+        settings=NvidiaSTTService.Settings(boosted_lm_words=cfg.boost_words, boosted_lm_score=20.0) if cfg.boost_words else None,
     )
     tts = NvidiaTTSService(
         api_key=cfg.api_key,
@@ -63,19 +65,23 @@ def build_pipeline(transport: BaseTransport, cfg: Config, *, barge_in: bool = Tr
 
     # VAD (Silero, local ONNX) feeds the turn processor, which emits UserStarted/StoppedSpeakingFrame and, with
     # barge-in on, interrupts the bot as soon as the medic starts talking (Pipecat's own interruption handling).
-    vad = VADProcessor(vad_analyzer=SileroVADAnalyzer())
+    # Stricter than Pipecat's defaults (0.7 / 0.2 s / 0.6): the chest mic also hears the room, and a passing
+    # sentence from a teammate was interrupting the agent (seen live, Sat 21:57). Louder and longer speech only.
+    vad = VADProcessor(vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.85, start_secs=0.4, stop_secs=0.5, min_volume=0.75)))
     turns = UserTurnProcessor(
         user_turn_strategies=UserTurnStrategies(
             start=[
                 VADUserTurnStartStrategy(enable_interruptions=barge_in),
-                TranscriptionUserTurnStartStrategy(enable_interruptions=barge_in),
+                # Transcripts start a turn but never interrupt: only sustained speech on the VAD does.
+                TranscriptionUserTurnStartStrategy(enable_interruptions=False),
             ],
             # A plain silence timeout rather than Pipecat's default smart-turn model: predictable, and a clipped
             # "epi in" never waits on a classifier deciding whether the medic sounded finished.
             stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=USER_SPEECH_TIMEOUT)],
         )
     )
-    bridge = BrainBridge(cfg.brain_url)
+    # 6 s grace: a brain restart (about 1 s) must not end the phone's session.
+    bridge = BrainBridge(cfg.brain_url, mouth_grace_secs=6.0)
 
     return Pipeline([transport.input(), vad, stt, turns, bridge, tts, transport.output()]), bridge
 
@@ -292,7 +298,7 @@ async def check(cfg: Config, barge_in: bool) -> int:
 
     print(f"pipecat-ai {version('pipecat-ai')}, nvidia-riva-client {version('nvidia-riva-client')}")
     print(f"NVIDIA_API_KEY (env or voice/.env.local): {cfg.masked_key()}")
-    print(f"voice {cfg.voice} · brain {cfg.brain_url} · ASR fn {cfg.asr_function_id} · TTS fn {cfg.tts_function_id}")
+    print(f"voice {cfg.voice} · brain {cfg.brain_url} · ASR {cfg.asr_model} ({cfg.asr_function_id}) · TTS fn {cfg.tts_function_id}")
     if cfg.boost_words:
         print(f"ASR word boost: {', '.join(cfg.boost_words)}")
     if cfg.ice_servers:

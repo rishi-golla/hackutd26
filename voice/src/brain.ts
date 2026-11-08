@@ -9,7 +9,7 @@ import type { Conn } from './db';
 import { activeIncident, step } from './db';
 import { CONFIG, llmConfigured } from './config';
 import { chat, modelInUse, type ChatMessage } from './llm';
-import { ECHO_PREFIXES, parseControl, parseIdentity, parseReadback, type ReadbackMatch, type Unit } from './readback';
+import { ECHO_PREFIXES, normalizeTranscript, parseControl, parseIdentity, parseReadback, recognizeDrug, type ReadbackMatch, type Route, type Unit } from './readback';
 import { checkAllergy, checkDoseRange, composeReadback, type DoseVerdict } from './checks';
 import { cachedMatch, fetchRecord, searchPatients, spokenRecordSummary } from './ehr';
 import { readState, summarize, tsMs } from './state';
@@ -26,6 +26,13 @@ const PENDING_DOSE_MS = 30_000;
 /** How long the brain remembers a line it wrote, so the row coming back is recognised as its own. */
 const OWN_LINE_MS = 60_000;
 const PROACTIVE_EVERY_MS = 20_000;
+/** Nemotron turns per minute at most (NVIDIA free tier is about 40 requests/min for the whole key). */
+const LLM_TURNS_PER_MIN = 20;
+/**
+ * The mic hears the room. A line goes to Nemotron only if it is a question, addresses Handoff, or carries clinical
+ * vocabulary; side conversations ("that's why like I like what you said") are never worth a model call.
+ */
+const RELEVANT = /\?|\b(handoff|what|where|when|how|did we|do we|have we|should|pulse|pulseless|arrest|rosc|cpr|compressions?|compress|airway|i-?gel|intubat\w*|tube|iv|io|access|line in|bleeding|breathing|breaths?|resp\w*|oxygen|sat|sats|spo2|heart|rate|pressure|bp|glucose|sugar|pupils?|gcs|unresponsive|conscious|seiz\w*|stroke|chest pain|allerg\w*|meds?|medication|record|history|patient|transport\w*|en route|hospital|eta|shock|defib\w*|pads|epi|epinephrine|amio\w*|narcan|naloxone|nitro|aspirin|dose|milligram|microgram|mark|note|found|pill|bottle)\b/i;
 
 const SYSTEM = `You are Handoff, the voice assistant riding along with a paramedic. Prototype; all data is synthetic.
 You hear what the medic just said and see the live state. Decide what, if anything, to do, using the tools:
@@ -34,6 +41,7 @@ You hear what the medic just said and see the live state. Decide what, if anythi
 - If the medic plainly states a status change (no pulse / cardiac arrest / starting CPR → arrest; pulse is back → rosc; transporting / loading / en route → en_route), call set_status.
 - If the medic gives the patient's full name AND birth date, call search_ehr; one match → pull_record; several → ask which with "speak"; none → say no record found. Never guess.
 - Otherwise reply with the single word SILENT. Partial sentences, the medic talking to the patient or a partner, and small talk need nothing.
+- Speech-to-text garbles words. If a word is not a drug, device or procedure you recognise (e.g. "FEO", "FPIO"), do nothing: never log it, never guess what it was.
 Rules: never invent vitals, times, names, doses or findings. Never give orders; advisory protocol wording only. Never mention compression depth. Doses and allergies are judged only by the check tools.`;
 
 const SYSTEM_NO_W6 = SYSTEM.replace(/- If the medic gives the patient's full name AND birth date.*\n/, '');
@@ -70,6 +78,11 @@ export class Brain {
   private gen = 0;
   private proactiveTimer?: NodeJS.Timeout;
   private lastFingerprint = '';
+  private llmTurnTimes: number[] = [];
+  /** A one- or two-word line we skipped ("Administering"); the next line may be its other half. */
+  private lastFragment?: { text: string; at: number };
+  /** After "Say again the drug.": the dose we heard, waiting for the drug name (15 s). */
+  private pendingDrug?: { dose: number; unit: Unit; route?: Route; at: number };
 
   constructor(private conn: Conn, private speaker: Speaker, private policy: Policy) {}
 
@@ -131,6 +144,7 @@ export class Brain {
   }
 
   private async processLine(text: string, source: string) {
+    // eslint-disable-next-line no-param-reassign -- a stitched fragment may extend the line below
     const gen = this.gen;
     const lower = text.toLowerCase();
     // A transcript row the bodycam wrote itself means the phone is in degraded mode (B11): its parser already
@@ -152,22 +166,58 @@ export class Brain {
 
     // RB1–RB7: the read-back fast path, no model call.
     let rb = parseReadback(text);
+    // STT split the sentence at a pause ("Administering" | "one milligram of epi IO"): try the two halves together.
+    if ((!rb || rb.kind !== 'medication') && this.lastFragment && Date.now() - this.lastFragment.at < 4_000) {
+      const stitched = parseReadback(`${this.lastFragment.text} ${text}`);
+      if (stitched && stitched.kind === 'medication') {
+        text = `${this.lastFragment.text} ${text}`;
+        rb = stitched;
+      }
+    }
+    this.lastFragment = undefined;
+    // The answer to "Say again the drug.": just the drug name, combined with the dose we already heard.
+    if (!rb && this.pendingDrug && Date.now() - this.pendingDrug.at < 15_000) {
+      const drug = recognizeDrug(text);
+      if (drug) {
+        const p = this.pendingDrug;
+        const combined = parseReadback(`giving ${drug} ${p.dose} ${p.unit}${p.route ? ` ${p.route}` : ''}`);
+        if (combined && combined.kind === 'medication') {
+          text = `${text} (dose heard earlier: ${p.dose} ${p.unit})`;
+          rb = combined;
+        }
+      }
+      this.pendingDrug = undefined;
+    }
     // RB9: a bare dose ("one milligram") after "Saw epinephrine. What dose?" belongs to that drug.
     const pending = this.lastReadback;
     if (!rb && pending?.reason === 'missing_dose' && pending.drug && Date.now() - pending.at < PENDING_DOSE_MS && /\d|\b(one|two|three|four|five|six|seven|eight|nine|ten|point|hundred|fifty|twenty|thirty|forty)\b/i.test(text)) {
       const asDose = parseReadback(`giving ${pending.drug} ${text}`);
-      if (asDose && asDose.kind !== 'missing_dose') rb = asDose;
+      if (asDose && asDose.kind === 'medication') rb = asDose;
     }
     if (rb && phoneHandled) {
       await step(this.conn, 'read_back', `Phone (degraded mode) already read back: "${text.slice(0, 60)}"`);
       return;
     }
     if (rb) {
-      if (rb.kind === 'missing_dose') {
-        await step(this.conn, 'read_back', `${rb.drug} without a dose`);
+      if (rb.kind === 'missing_dose' || rb.kind === 'missing_drug') {
+        if (rb.kind === 'missing_drug' && rb.dose !== undefined && rb.unit) {
+          const pending = { dose: rb.dose, unit: rb.unit, route: rb.route, at: Date.now() };
+          this.pendingDrug = pending;
+          // "giving three hundred milligrams of" | "amiodarone": STT closed the line before the drug. Give the
+          // next line 2 s to bring it before asking (seen live, Sat 22:12).
+          if (/\b(of|the|some|a|an)\s*[.,]?$/i.test(text)) {
+            await step(this.conn, 'read_back', `dose heard, line ends before the drug: waiting 2 s for "${text.slice(-30)}"`);
+            setTimeout(() => {
+              if (this.pendingDrug === pending) void this.policy.say(rb.spoken, 0, 'readback');
+            }, 2000);
+            return;
+          }
+        }
+        await step(this.conn, 'read_back', rb.kind === 'missing_dose' ? `${rb.drug} without a dose` : `dose heard, drug not recognised: "${text.slice(0, 60)}"`);
         await this.policy.say(rb.spoken, 0, 'readback');
         return;
       }
+      this.pendingDrug = undefined; // a full statement supersedes any half we were waiting on
       return this.handleReadback(rb, text, gen);
     }
 
@@ -179,7 +229,25 @@ export class Brain {
       await step(this.conn, 'nemotron', `Skipped (no NVIDIA_API_KEY): "${text.slice(0, 60)}"`);
       return;
     }
-    await this.nemotronTurn(text, source, gen);
+    // Room chatter: a fragment of one or two words is never a question or a statement worth a model call.
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    if (wordCount < 3 && !/\?/.test(text)) {
+      this.lastFragment = { text, at: Date.now() };
+      await step(this.conn, 'nemotron', `Skipped fragment: "${text.slice(0, 60)}"`);
+      return;
+    }
+    if (!RELEVANT.test(text)) {
+      await step(this.conn, 'nemotron', `Skipped (not about the patient): "${text.slice(0, 60)}"`);
+      return;
+    }
+    const now = Date.now();
+    this.llmTurnTimes = this.llmTurnTimes.filter(t => now - t < 60_000);
+    if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) {
+      await step(this.conn, 'nemotron', `Skipped: ${LLM_TURNS_PER_MIN} turns in the last minute (rate budget)`);
+      return;
+    }
+    this.llmTurnTimes.push(now);
+    await this.nemotronTurn(normalizeTranscript(text), source, gen);
   }
 
   // ---- read-back ------------------------------------------------------------------------------------------
@@ -444,15 +512,15 @@ export class Brain {
 
   // ---- Nemotron ---------------------------------------------------------------------------------------------
 
-  private toolContext(valid: () => boolean): ToolContext {
-    return { conn: this.conn, policy: this.policy, corpus: [], pullRecord: (ref, method) => this.pullRecord(ref, method), valid };
+  private toolContext(valid: () => boolean, utterance: string): ToolContext {
+    return { conn: this.conn, policy: this.policy, corpus: [], pullRecord: (ref, method) => this.pullRecord(ref, method), valid, utterance };
   }
 
   private async nemotronTurn(text: string, source: string, gen: number) {
     const deadline = Date.now() + CONFIG.llmTimeoutMs;
     const incidentId = activeIncident(this.conn)?.id;
     const valid = () => !this.stale(gen, incidentId);
-    const ctx = this.toolContext(valid);
+    const ctx = this.toolContext(valid, text);
     const summary = summarize(readState(this.conn));
     ctx.corpus.push(summary, text);
     const messages: ChatMessage[] = [

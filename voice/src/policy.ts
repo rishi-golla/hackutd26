@@ -65,7 +65,16 @@ export class Policy {
       }
     }
     // Numbers are spoken in words (spec §15). Read-backs already are; answers and advisories come from the model.
-    if (kind === 'answer' || kind === 'advisory') words = words.replace(DECIMAL_OR_INT, n => spoken(Number(n)));
+    if (kind === 'answer' || kind === 'advisory') {
+      words = words
+        .replace(/\b(\d{1,2}):(\d{2})\b/g, (_m, h, m) => `${spoken(Number(h))} ${Number(m) === 0 ? 'hundred' : Number(m) < 10 ? `oh ${spoken(Number(m))}` : spoken(Number(m))}`) // 22:11 → twenty-two eleven
+        .replace(/\bmcg\b/gi, 'micrograms')
+        .replace(/\bmg\b/gi, 'milligrams')
+        .replace(/\bIO\b/g, 'I-O')
+        .replace(/\bIV\b/g, 'I-V')
+        .replace(/\bIM\b/g, 'I-M')
+        .replace(DECIMAL_OR_INT, n => spoken(Number(n)));
+    }
 
     // At most one callout every 4 s across rules and agent (read-backs and control words are exempt).
     if (priority > 0) {
