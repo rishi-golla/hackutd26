@@ -52,6 +52,7 @@ from recording import ClipStore
 from vision import VisionConfig, VisionSampler
 
 HUB_PHONE_PAGE = Path(__file__).resolve().parent.parent.parent / "hub" / "phone.html"
+HUB_COMMON_JS = HUB_PHONE_PAGE.with_name("common.js")
 
 # How long the medic may pause before the turn ends and the brain may speak again (after VAD's own 0.2 s). Short,
 # because a read-back waits for it. BrainBridge joins the ASR finals of one turn, so "epi ... one milligram"
@@ -292,6 +293,15 @@ def make_app(cfg: Config, barge_in: bool):
         if not HUB_PHONE_PAGE.exists():
             raise HTTPException(404, f"{HUB_PHONE_PAGE} not found")
         return FileResponse(HUB_PHONE_PAGE, media_type="text/html", headers={"Cache-Control": "no-store"})
+
+    @app.get("/common.js", include_in_schema=False)
+    async def phone_common_js():
+        """The page's script from this repo, never proxied: when the Pi hub was unreachable the proxy answered 502 and
+        the phone page loaded without its script (live Sun ~13:52, mid-demo). The page and its script now always come
+        from the same tree; only the data calls (/poll, /frame, /send, /audio) go to the hub."""
+        if not HUB_COMMON_JS.exists():
+            raise HTTPException(404, f"{HUB_COMMON_JS} not found")
+        return FileResponse(HUB_COMMON_JS, media_type="text/javascript", headers={"Cache-Control": "no-store"})
 
     @app.post("/start")
     async def start(request: Request):
