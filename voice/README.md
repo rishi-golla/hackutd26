@@ -252,6 +252,12 @@ mocks call those directly.
   deterministic: read-backs, warnings, the record summary, the fixed control words and the trend note (numbers from
   the state only, one per episode).
 - The camera scene is context for the model, never a fact it can log on its own.
+- Unprompted advisories are facts only: one naming a shock, arrest/ROSC, a seizure, a drug, an allergy, a blood
+  thinner, CPR, the record or the ID card that the state doesn't hold is dropped as invented; a status sentence in
+  the advisory field is a keep-monitoring decision; the same note is never repeated within two minutes; the first
+  look at an incident is a baseline, not a change; a new event alone triggers no review.
+- A line meant for Handoff (its name, a question, a direct request, a follow-up) is never dropped: a DROP is
+  overruled and the line is answered.
 - Nothing the medic says is logged as settled without their word: actions are read back with "Log it?" and are
   `confirmed` only when they say yes. Room talk Nemotron drops is never stored.
 - Never claims compression depth. Never speaks over the medic. Same words never queued twice (server-side).

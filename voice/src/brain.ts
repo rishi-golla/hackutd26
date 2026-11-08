@@ -9,7 +9,7 @@ import type { Conn } from './db';
 import { activeIncident, step } from './db';
 import { CONFIG, llmConfigured } from './config';
 import { chat, modelInUse, type ChatMessage } from './llm';
-import { advisoryDecision, DecisionLog, publicSummaries, toolProgress } from './decision-log';
+import { advisoryDecision, DecisionLog, publicSummaries, toolProgress, ungroundedTerm } from './decision-log';
 import { ECHO_PREFIXES, medParts, normalizeTranscript, parseAnswer, parseControl, parseIdentity, type MedParts, parseReadback, recognizeDrug, type ReadbackMatch, type Route, type Unit } from './readback';
 import { checkAllergy, checkDoseRange, composeReadback, type DoseVerdict } from './checks';
 import { cachedMatch, fetchRecord, searchPatients, spokenRecordSummary } from './ehr';
@@ -39,12 +39,36 @@ const HISTORY_MS = 5 * 60_000;
 /** A line this soon after Handoff answered something is a follow-up, so it is meant for Handoff. */
 const FOLLOW_UP_MS = 45_000;
 const HANDOFF_NAME = /\bhand\s?-?\s?off\b/i;
-/** A request to the assistant even without its name or a question mark ("Can you pull up his record"). */
-const DIRECT_REQUEST = /\b(?:look up|pull up|pull the record|search (?:for|the)|check (?:the|his|her|their) (?:record|allergies|meds|medications)|tell me|can you|could you|do you|what(?:['’]s| is| are| was| did)|how (?:long|many|much)|when (?:did|was)|any allergies|read (?:it )?back)\b/i;
+/**
+ * A request to the assistant even without its name or a question mark ("Pull up his record", "What's his
+ * allergy"). Not a bare "can you" / "could you": "Hey can you pass me the tape" is for a partner (live Sun ~04:55).
+ */
+const DIRECT_REQUEST = /\b(?:look up|pull up|pull (?:the|his|her|their) record|search (?:for|the)|check (?:the|his|her|their) (?:record|allergies|meds|medications|history)|tell me|what(?:['’]s| is| are| was| did)|how (?:long|many|much)|when (?:did|was)|any allergies|read (?:it|that )?back)\b/i;
 /** The vitals-trend check when Nemotron advisories are off (no key, or VOICE_PROACTIVE=off). */
 const TREND_EVERY_MS = 5_000;
 /** A trend note the policy dropped (spacing, another callout) is tried again after this long, not every tick. */
 const TREND_RETRY_MS = 10_000;
+/** An advisory about the vitals trend, for the one-note-per-episode rule. */
+const TREND_WORDS = /\b(?:oxygen|saturation|spo2|sats?|desaturat\w*|heart rate|tachycard\w*|bradycard\w*)\b/i;
+/** How long a spoken callout counts as "just said" for the restatement check. */
+const RESTATE_WINDOW_S = 30;
+/** Words that carry no clinical content when two sentences share them. */
+const RESTATE_STOP = new Set(['consider', 'warning', 'record', 'patient', 'present', 'before', 'during', 'please', 'should', 'anyway', 'hundred', 'milligram', 'milligrams', 'minutes', 'seconds', 'protocol', 'confirm', 'confirmed', 'logged', 'current', 'without', 'reading']);
+
+/**
+ * The callout spoken in the last 30 s that the advisory restates (two or more clinical words in common), or
+ * undefined. "Note: amiodarone allergy confirmed. Warfarin present." right after "…lists an amiodarone allergy…".
+ */
+export function restatesRecentSpeech(advisory: string, s: State): string | undefined {
+  const words = (t: string) => new Set(t.toLowerCase().match(/[a-z][a-z-]{5,}/g)?.filter(w => !RESTATE_STOP.has(w)) ?? []);
+  const mine = words(advisory);
+  for (const c of s.recentSpeech) {
+    if (!c.spokenAt || (s.now - tsMs(c.spokenAt)) / 1000 > RESTATE_WINDOW_S) continue;
+    const shared = [...words(c.text)].filter(w => mine.has(w));
+    if (shared.length >= 2) return c.text;
+  }
+  return undefined;
+}
 
 const SYSTEM = `You are Handoff, the voice assistant riding along with a paramedic. Prototype; all data is synthetic.
 You hear every line the chest mic picks up: the medic talking to you, to a partner or to the patient, and room noise (bystanders, other conversations nearby, people who are not on this call). Each turn you get one NEW LINE, the VOICE LOG (the last lines heard, each marked kept or dropped), the recent conversation with you, and the live state.
@@ -724,6 +748,9 @@ export class Brain {
     if (this.incidentId !== inc.id) {
       this.resetIncident();
       this.incidentId = inc.id;
+      // The first look at an incident is the baseline, not a change: a cold start that reviewed "everything
+      // changed" made the model invent "Consider checking pulse post-shock" with no shock anywhere (live Sun ~04:47).
+      this.lastFingerprint = JSON.stringify(this.fingerprint(readState(this.conn)));
     }
     // W6 trigger: patientRef set by anyone (ID card, voice, /controls) and no record yet (spec §17).
     if (CONFIG.w6 && inc.patientRef) {
@@ -904,9 +931,16 @@ export class Brain {
           // DROP: not about this patient and not for Handoff. Nothing was done, so nothing is stored: no transcript
           // or event, only a generic outcome without the dropped words (decision 24).
           if (!toolsRan && !spoke && !did.length && isDrop(content)) {
-            console.log(`[voice] dropped (Nemotron): "${text.slice(0, 60)}"`);
-            await decision.write('complete', 'Ignored unrelated audio; continuing to monitor.');
-            return false;
+            // Only a line that names Handoff or is a question overrules the model's DROP ("Handoff, what have we
+            // given so far?" came back DROP, live Sun ~04:48). A softer cue (a request, a follow-up) still lets the
+            // model answer, but its DROP stands: "Hey can you pass me the tape" is for a partner (live Sun ~04:55).
+            if (!(HANDOFF_NAME.test(text) || question)) {
+              console.log(`[voice] dropped (Nemotron): "${text.slice(0, 60)}"`);
+              await decision.write('complete', 'Ignored unrelated audio; continuing to monitor.');
+              return false;
+            }
+            console.log(`[voice] DROP overruled, the line was meant for Handoff: "${text.slice(0, 60)}"`);
+            break;
           }
           if (!content || /^silent\b/i.test(content) || /\bSILENT\.?$/.test(content) || isDrop(content) || spoke) {
             // kept, nothing to say
@@ -954,7 +988,9 @@ export class Brain {
           // Tools can return facts as plain text or arrays as well as JSON objects.
           try {
             const payload: unknown = JSON.parse(result);
-            if (payload && typeof payload === 'object' && 'error' in payload && !refusedSpeak) toolFailed = true;
+            // A guardrail refusal (a medication the model tried to log, a status the medic didn't state) is the
+            // brain deciding, not a failed request: the review still completes.
+            if (payload && typeof payload === 'object' && 'error' in payload && !('refused' in payload) && !refusedSpeak) toolFailed = true;
           } catch { /* A plain state summary is a valid tool result. */ }
           if (!result.includes('"ok":true')) continue;
           if (call.function.name === 'speak') {
@@ -964,8 +1000,7 @@ export class Brain {
           else if (call.function.name === 'set_status') did.push(`set status ${args.status}`);
         }
       }
-      did.push('stopped after 3 tool rounds');
-      toolFailed = true;
+      if (toolsRan) did.push('stopped after 3 tool rounds');
       // Spoken to and still no answer: one last call with no tools, so a question is never met with silence.
       if (addressed && !spoke && deadline - Date.now() > 800) {
         const last = await chat([...messages, { role: 'user', content: 'Answer the medic now in one or two short sentences, from the state and the tool results above. No tools.' }], { timeoutMs: deadline - Date.now() });
@@ -978,6 +1013,9 @@ export class Brain {
           } else if (valid() && await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) did.push(`said "${content}"`);
         }
       }
+      // Running out of tool rounds is a failure only when nothing came of the turn: a question answered after three
+      // rounds of reading the timeline is a completed review (live Sun ~04:58), not an unsuccessful request.
+      if (toolsRan && !did.some(d => /^(?:said|logged|set status)/.test(d))) toolFailed = true;
       return kept();
     } catch (err) {
       // No decision (timeout, API error): the line is stored undecided so nothing clinical is lost; the rules are the
@@ -999,14 +1037,15 @@ export class Brain {
    * Unprompted advisories (VOICE_PROACTIVE, on by default): one model call when something that matters changed
    * (status, events, flags, timers, the record, vitals bands, CPR), every 10 s at most, inside the rate budget.
    */
-  private async proactiveTick() {
-    const s = readState(this.conn);
-    if (!s.incident || this.proactiveInFlight) return;
-    this.trackTrendEpisode(s);
+  /**
+   * What a state change means for the advisory review. Not the event count: a new event is a read-back or a rule
+   * that has just spoken, and reviewing right after it only restated it ("Note: Epinephrine administered", live
+   * Sun ~04:48). Flags, the record, status, timers, vitals bands, CPR and the trend are what an advisory can add to.
+   */
+  private fingerprint(s: State): Record<string, string> {
     const v = s.vitals;
-    const parts: Record<string, string> = {
-      status: s.incident.status,
-      events: `${s.events.length} ${s.events.at(-1)?.label ?? ''}`,
+    return {
+      status: s.incident?.status ?? 'none',
       flagged: String(s.events.filter(e => e.status === 'flagged').length),
       timers: s.timers.map(t => `${t.kind}:${t.state}`).join(','),
       record: s.record ? `${s.record.name} (${s.record.allergies.length} allergies)` : 'none',
@@ -1015,6 +1054,13 @@ export class Brain {
       // Coarse words ("SpO2 falling fast, HR rising fast"), so a movement is one change, not one per second.
       trend: s.trend?.words ?? 'none',
     };
+  }
+
+  private async proactiveTick() {
+    const s = readState(this.conn);
+    if (!s.incident || this.proactiveInFlight) return;
+    this.trackTrendEpisode(s);
+    const parts = this.fingerprint(s);
     const fingerprint = JSON.stringify(parts);
     // Nothing new for the model; a trend note the policy dropped earlier is still retried (no model call).
     if (fingerprint === this.lastFingerprint) return this.trendNote(s);
@@ -1055,11 +1101,35 @@ export class Brain {
         await decision.write('complete', result.summary);
         return false;
       }
+      // Facts only (§19): an advisory about a shock, a drug, a seizure or a record the state doesn't hold is the
+      // model inventing ("Consider checking pulse post-shock" on scene with no shock, live Sun ~04:47).
+      const invented = ungroundedTerm(result.advisory, summary);
+      if (invented) {
+        await step(this.conn, 'policy', `Dropped advisory: "${invented}" is not in the state`);
+        await decision.write('complete', 'Reviewed the state; the advisory referred to something not in the state and was not spoken.');
+        return false;
+      }
+      // Never restate what Handoff just said (§19, decision 21): "Note: amiodarone allergy confirmed" right after the
+      // allergy warning was spoken (live Sun ~04:59) shares its clinical words with that callout.
+      const restated = restatesRecentSpeech(result.advisory, s);
+      if (restated) {
+        await step(this.conn, 'policy', `Dropped advisory: restates what was just said ("${restated.slice(0, 60)}")`);
+        await decision.write('complete', 'Reviewed the state; the advisory repeated a callout just spoken and was not said again.');
+        return false;
+      }
+      // One note per worsening episode, whoever says it: once the trend has been noted, another advisory about the
+      // oxygen saturation or heart rate is a repeat (the model said "oxygen saturation falling fast" twice, 20 s apart).
+      const trendNow = readState(this.conn).trend;
+      if (this.trendNotedAt !== undefined && trendNow?.worsening && TREND_WORDS.test(result.advisory)) {
+        await decision.write('complete', 'Reviewed the vitals trend; it was already noted to the medic.');
+        return false;
+      }
       await decision.write('progress', 'Preparing an advisory for the medic.');
       // Numbers are checked against the tables (no CAMERA line): the vision model's words are not facts to speak.
       const queued = await this.policy.say(result.advisory, 2, 'advisory', summarize(s), valid);
-      // Spoken during a worsening trend, the model's advisory is this episode's note: no fixed note after it.
-      if (queued && s.trend?.worsening) this.trendNotedAt = Date.now();
+      // Spoken during a worsening trend (as it stands now, not when the review began), the model's advisory is this
+      // episode's note: no fixed note after it.
+      if (queued && (s.trend?.worsening || trendNow?.worsening)) this.trendNotedAt = Date.now();
       await decision.write(queued ? 'complete' : 'error', queued
         ? `Queued advisory: ${result.advisory}`
         : 'Reviewed the state; the speech policy did not queue the advisory.');

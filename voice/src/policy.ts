@@ -5,7 +5,7 @@
 import type { Conn } from './db';
 import { step } from './db';
 import { numbersSupported } from './llm';
-import { spoken } from './spoken';
+import { spoken, spokenUnit } from './spoken';
 import { tsMs } from './state';
 
 export type SpeechKind = 'readback' | 'answer' | 'advisory' | 'record' | 'ask' | 'control' | 'vision' | 'trend';
@@ -18,6 +18,9 @@ const ADVISORY_GAP_S = 15;
  *  keeps the advisory's 15-word cap and spoken numbers but not the 15 s advisory gap (the 4 s spacing still holds). */
 const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20, trend: 15 };
 const DECIMAL_OR_INT = /\b\d{1,3}(?:\.\d+)?\b/g;
+/** An unprompted note is not repeated within this long, even in different capitalisation or punctuation. */
+const REPEAT_S = 120;
+const sameWords = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim() === b.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 export class Policy {
   private lastAdvisoryAt = 0;
@@ -70,23 +73,37 @@ export class Policy {
       await step(this.conn, 'policy', `Dropped ${kind}: a number in it is not in the facts: "${words.slice(0, 60)}"`);
       return false;
     }
-    if (kind === 'advisory') {
-      const since = (Date.now() - this.lastAdvisoryAt) / 1000;
-      if (since < ADVISORY_GAP_S) {
-        await step(this.conn, 'policy', `Dropped advisory: last one ${Math.round(since)} s ago (min ${ADVISORY_GAP_S})`);
-        return false;
-      }
-    }
     // Numbers are spoken in words (spec §15). Read-backs already are; answers and advisories come from the model.
     if (kind === 'answer' || kind === 'advisory' || kind === 'trend') {
       words = words
         .replace(/\b(\d{1,2}):(\d{2})\b/g, (_m, h, m) => `${spoken(Number(h))} ${Number(m) === 0 ? 'hundred' : Number(m) < 10 ? `oh ${spoken(Number(m))}` : spoken(Number(m))}`) // 22:11 → twenty-two eleven
+        // "1 mg" → "one milligram", "300 mg" → "three hundred milligrams" ("one milligrams" was heard live, Sun ~04:58).
+        .replace(/\b(\d+(?:\.\d+)?)\s*(mg|mcg)\b/gi, (_m, n, u) => `${spoken(Number(n))} ${spokenUnit(u.toLowerCase() === 'mg' ? 'mg' : 'mcg', Number(n))}`)
         .replace(/\bmcg\b/gi, 'micrograms')
         .replace(/\bmg\b/gi, 'milligrams')
         .replace(/\bIO\b/g, 'I-O')
         .replace(/\bIV\b/g, 'I-V')
         .replace(/\bIM\b/g, 'I-M')
         .replace(DECIMAL_OR_INT, n => spoken(Number(n)));
+    }
+
+    // Never the same unprompted note twice in two minutes (the model repeated "oxygen saturation falling fast.
+    // Consider airway and oxygen." 20 s apart, live Sun ~04:49). The server only drops identical *unspoken* rows.
+    if (kind === 'advisory' || kind === 'trend') {
+      const same = [...this.conn.db.callout.iter()].find(c => (c.spokenAt !== undefined || c.priority > 0) && sameWords(c.text, words) && (Date.now() - tsMs(c.spokenAt ?? c.createdAt)) / 1000 < REPEAT_S);
+      if (same) {
+        await step(this.conn, 'policy', `Dropped ${kind}: the same words were said ${Math.round((Date.now() - tsMs(same.spokenAt ?? same.createdAt)) / 1000)} s ago`);
+        return false;
+      }
+    }
+
+    // Then the 15 s gap between unprompted advisories (decision 21).
+    if (kind === 'advisory') {
+      const since = (Date.now() - this.lastAdvisoryAt) / 1000;
+      if (since < ADVISORY_GAP_S) {
+        await step(this.conn, 'policy', `Dropped advisory: last one ${Math.round(since)} s ago (min ${ADVISORY_GAP_S})`);
+        return false;
+      }
     }
 
     // At most one callout every 4 s across rules and agent (read-backs and control words are exempt).

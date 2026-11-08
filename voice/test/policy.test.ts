@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Policy } from '../src/policy.js';
-import { callsTo, fakeConn } from './fakes.js';
+import { callsTo, fakeConn, nowTs } from './fakes.js';
 
 test('policy applies the word limit for every speech kind', async () => {
   const { conn, calls } = fakeConn();
@@ -51,4 +51,11 @@ test('depth claims are dropped; normal priority callouts pass when the queue has
   assert.equal(await policy.say('Copy. Epinephrine, one milligram.', 0, 'readback'), true);
   assert.equal(await policy.say('The patient is stable', 1, 'answer'), true);
   assert.equal(rows.callout.length, 2);
+});
+
+test('"1 mg" is spoken as "one milligram", "300 mg" as "three hundred milligrams"', async () => {
+  const { conn, calls } = fakeConn({ incident: [{ id: 1n, status: 'arrest', startedAt: nowTs(), updatedAt: nowTs(), demoMode: true }] });
+  const policy = new Policy(conn);
+  await policy.say("We've given epinephrine 1 mg IO and amiodarone 300 mg.", 1, 'answer', 'EVENTS 1 mg 300 mg');
+  assert.equal(callsTo(calls, 'addCallout')[0].args.text, "We've given epinephrine one milligram I-O and amiodarone three hundred milligrams.");
 });

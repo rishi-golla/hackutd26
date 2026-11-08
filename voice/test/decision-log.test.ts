@@ -243,3 +243,76 @@ test('a worsening TREND line offers the trend summary; a non-worsening movement 
   assert.ok(!publicSummaries('TREND (last 20 s) SpO2 90 → 95 · SpO2 rising').includes(trend), 'a rising SpO2 is never called worsening');
   assert.ok(!publicSummaries('VITALS (simulated, 1 s ago) HR 80').includes(trend));
 });
+
+test('a dashboard sentence in the advisory field is a keep-monitoring decision, never speech (seen live Sun ~04:45)', async () => {
+  const fake = setup();
+  const corpus = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)';
+  const copied = advisoryDecision(JSON.stringify({ advisory: 'Reviewed the latest state; continuing to monitor without an additional advisory.', summary: 'Reviewed the latest state; continuing to monitor without an additional advisory.' }), corpus);
+  assert.equal(copied.advisory, null);
+  assert.match(copied.summary, /continuing to monitor/);
+  const status = advisoryDecision(JSON.stringify({ advisory: 'Monitoring the patient; no additional advisory needed.', summary: 'whatever' }), corpus);
+  assert.equal(status.advisory, null);
+  const plain = advisoryDecision('Reviewed the latest update; continuing to monitor.', corpus);
+  assert.equal(plain.advisory, null, 'legacy plain text in status wording is not spoken either');
+  const real = advisoryDecision(JSON.stringify({ advisory: 'Consider checking the record for allergies before the next drug.', summary: 'x' }), corpus);
+  assert.equal(real.advisory, 'Consider checking the record for allergies before the next drug.');
+  // End to end: the brain queues nothing for the copied summary.
+  await withFetch((async () => response(JSON.stringify({ advisory: 'Reviewed the latest state; continuing to monitor without an additional advisory.', summary: 'Reviewed the latest state; continuing to monitor without an additional advisory.' }))) as typeof fetch, async () => {
+    const brain = new Brain(fake.conn, speaker, new Policy(fake.conn));
+    await tick(brain);
+    assert.equal(fake.rows.callout.length, 0, 'nothing queued for the speaker');
+    assert.deepEqual(updates(fake).map(r => r.phase), ['progress', 'complete']);
+  });
+});
+
+test('an advisory that names something the state does not hold is not spoken (facts only, §19)', async () => {
+  const corpus = 'INCIDENT Medic 12 · status ON_SCENE · DEMO TIMING on\nPATIENT not identified yet (no record)\nVITALS no data (relay offline)';
+  const { ungroundedTerm } = await import('../src/decision-log.js');
+  assert.equal(ungroundedTerm('Consider checking pulse post-shock', corpus), 'post-shock');
+  assert.equal(ungroundedTerm('Note: Epinephrine administered; seizure activity observed.', corpus), 'seizure');
+  assert.equal(ungroundedTerm('Consider confirming the airway and oxygen.', corpus), undefined);
+  assert.equal(ungroundedTerm('Consider the amiodarone allergy before the next dose.', corpus + '\nPATIENT Jordan Avery, 58 (EHR) · allergies: amiodarone'), undefined);
+  const fake = setup();
+  await withFetch((async () => response(JSON.stringify({ advisory: 'Consider checking pulse post-shock', summary: 'x' }))) as typeof fetch, async () => {
+    const brain = new Brain(fake.conn, speaker, new Policy(fake.conn));
+    await tick(brain);
+    assert.equal(fake.rows.callout.length, 0);
+    assert.match(updates(fake).at(-1).text, /not in the state and was not spoken/);
+    assert.ok(fake.rows.agentStep.some(s => s.tool === 'policy' && /post-shock/.test(s.summary)));
+  });
+});
+
+test('the same unprompted note is not said twice within two minutes', async () => {
+  const fake = setup();
+  let n = 0;
+  await withFetch((async () => response(JSON.stringify({ advisory: 'Consider confirming the airway and oxygen.', summary: 'x' }))) as typeof fetch, async () => {
+    const brain = new Brain(fake.conn, speaker, new Policy(fake.conn));
+    await tick(brain);
+    assert.equal(fake.rows.callout.length, 1);
+    // Said, then the state changes again and the model repeats itself.
+    fake.db.callout.update({ ...fake.rows.callout[0], spokenAt: nowTs() });
+    fake.db.incident.update({ ...fake.rows.incident[0], status: 'en_route', updatedAt: nowTs() });
+    await new Promise(r => setTimeout(r, 20));
+    n = fake.rows.agentStep.length;
+    await tick(brain);
+    assert.equal(fake.rows.callout.length, 1, 'the repeat is dropped');
+    assert.ok(fake.rows.agentStep.slice(n).some(s => /same words were said|repeated a callout just spoken/.test(s.summary)), 'dropped as a repeat (by the restatement check or the policy)');
+  });
+});
+
+test('an advisory that restates a callout spoken in the last 30 s is not said again', async () => {
+  const { restatesRecentSpeech } = await import('../src/brain.js');
+  const { readState } = await import('../src/state.js');
+  const fake = setup();
+  fake.db.patientRecord.insert({ incidentId: 1n, patientRef: 'pt-0001', name: 'Jordan Avery', birthDate: '1968-03-14', allergies: ['amiodarone'], medications: ['warfarin'], conditions: [], codeStatus: 'full code', source: 'EHR', updatedAt: nowTs() });
+  fake.db.callout.insert({ id: 1n, incidentId: 1n, text: 'Amiodarone, three hundred milligrams. Warning: the record lists an amiodarone allergy. Log it anyway?', priority: 0, createdAt: nowTs(), spokenAt: nowTs() });
+  const s = readState(fake.conn);
+  assert.ok(restatesRecentSpeech('Note: amiodarone allergy confirmed. Warfarin present.', s));
+  assert.equal(restatesRecentSpeech('Consider checking the airway and oxygen.', s), undefined);
+  await withFetch((async () => response(JSON.stringify({ advisory: 'Note: amiodarone allergy confirmed. Warfarin present.', summary: 'x' }))) as typeof fetch, async () => {
+    const brain = new Brain(fake.conn, speaker, new Policy(fake.conn));
+    await tick(brain);
+    assert.equal(fake.rows.callout.length, 1, 'nothing new queued');
+    assert.match(updates(fake).at(-1).text, /repeated a callout just spoken/);
+  });
+});

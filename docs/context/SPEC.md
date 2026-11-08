@@ -17,7 +17,8 @@ Newest first. Times are Nov 7–8, Central time. "~" means the time the spec pag
 necessarily when the decision was made.
 
 - **Sun ~05:00 (Alan): the agent speaks only when spoken to, watches the vitals trend, and sees what the camera
-  sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` only, no table, reducer or audio-link changes). Found
+  sees** (§0.1 decision 24 amended, §19, §22.6, §23; `voice/` plus one caption for the new `trend` step in
+  `web/src/routes/hospital/thoughts.ts` (hospital lane, for Josh's OK); no table, reducer or audio-link changes). Found
   in the first live phone test (Sun ~04:00): while medications were given, the agent read the model's free-text
   reasoning out loud.
   - **Addressed only:** a Nemotron turn's free text is spoken only when the line was addressed to Handoff and the
@@ -503,8 +504,9 @@ section and add a change-log line.
       - **Addressed only, never its reasoning.** In the test the agent spoke the model's free-text reasoning aloud
         while medications were given. Now a Nemotron turn's free text is spoken only if (a) the line was addressed
         to Handoff (it ends in "?", says "Handoff", is a direct request such as "look up", "pull up", "can you",
-        "tell me" or "what's", or follows a reply Nemotron itself gave within 45 s; read-backs and "Record found…"
-        don't open that window) and (b) the text reads as speech (at most three short sentences, 45 words; no
+        "tell me" or "what's", or follows a reply Nemotron itself gave within 45 s: the latest Nemotron turn must
+        be one where Handoff spoke, so a kept-but-silent line in between closes the window; read-backs and "Record
+        found…" don't open it) and (b) the text reads as speech (at most three short sentences, 45 words; no
         lists, JSON, tool names or reasoning markers; `voice/src/speech.ts`). Anything else is not
         spoken, and the dashboard gets only the generic decision row "Reviewed the clinical update; nothing to say
         aloud.", never the model's words. The `speak` tool is refused when the line was not addressed, so
@@ -530,11 +532,27 @@ section and add a change-log line.
         §15) are unchanged and stay the safety net: the note is about the movement, the alarm about the threshold.
       - **The camera informs the decisions.** The vision sampler's per-frame reply also carries one sentence,
         `scene` ("medic's gloved hands over the patient's chest, syringe in the right hand"). When it changes (at
-        most every 5 s) the sampler posts `{"type":"scene","text":"…"}` to `POST /seen`. The brain keeps it in
-        memory only (no event, no transcript), writes one `agent_step` row (tool `vision`, "Camera: …", shown as
-        "Nemotron · vision") and adds a `CAMERA (N s ago) …` line to the state summary for the next 60 s, so voice
-        turns and advisories see what the camera sees. The model may use it as context and never logs it as a fact
-        on its own. No extra model call: the scene rides in the same vision call.
+        most every 5 s) the sampler posts `{"type":"scene","text":"…","confidence":1}` to `POST /seen` (the
+        confidence is ignored). The brain keeps it in memory only (no event, no transcript), writes one `agent_step`
+        row (tool `vision`, "Camera: …", shown as "Nemotron · vision") and adds a `CAMERA (N s ago) …` line to the
+        state summary for the next 60 s, so voice turns and advisories see what the camera sees. The model may use
+        it as context and never logs it as a fact on its own; the prompt limits the sentence to actions and
+        equipment (no names, printed text or bystanders, §24.3). No extra model call: the scene rides in the same
+        vision call. A dashboard sentence the model puts in the advisory field ("Reviewed…", "Monitoring…") is a
+        keep-monitoring decision, never speech (seen live Sun ~04:45).
+      - **Quieter advisories (Sun ~05:30, from the first live run against the model).** (1) The first look at an
+        incident (brain start, or a new incident) is the baseline, not a change to review: a cold start reviewed
+        "everything changed" and the model invented "Consider checking pulse post-shock" with no shock anywhere.
+        (2) A new event alone no longer triggers a review (a read-back or rule just spoke; the review only restated
+        it): flags, status, timers, the record, vitals bands, CPR and the trend do. (3) Facts only: an advisory that
+        names a shock, arrest/ROSC, a seizure or stroke, a drug, an allergy, a blood thinner, CPR, the record or the
+        ID card when the state doesn't hold it is dropped, with a `policy` row saying what was not in the state.
+        (4) The same unprompted note is never said twice within two minutes. (5) One note per worsening episode,
+        whoever says it: once the trend was noted, another advisory about the oxygen saturation or heart rate in the
+        same episode is a repeat. (6) A line that names Handoff or is a question is never dropped: a DROP on
+        "Handoff, what have we given so far?" (seen live) is overruled and the question is answered. A softer cue
+        (a request, a follow-up) lets the model answer but its DROP stands, and a bare "can you" / "could you" is
+        not a request to Handoff ("Hey can you pass me the tape" was answered "Sure, I'll grab a roll", live).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1823,7 +1841,7 @@ There are two parts:
   spoken. Read-backs, "Record found…", warnings and the fixed control words are deterministic and unchanged.
 - **Proactive speech:** the deterministic triggers always speak (record found, "Saw epinephrine. What dose?",
   allergy warnings). Nemotron advisories are on by default (`VOICE_PROACTIVE`, decision 21): one model call when
-  the state changed (checked every 10 s), one advisory per 15 s at most, 15 words or fewer, "Consider…" wording. The policy layer (`voice/src/policy.ts`) keeps §15:
+  the state changed (checked every 10 s), one advisory per 15 s at most, 15 words or fewer, "Consider…" / "Note:" wording (decision 21); a status sentence in the advisory field ("Reviewed…", "Monitoring…") is never spoken, an advisory naming something the state doesn't hold (a shock, a drug, a seizure, the record) is dropped as invented, the same note is never repeated within two minutes, and the first look at an incident is a baseline, not a change (decision 24, Sun ~05:30). The policy layer (`voice/src/policy.ts`) keeps §15:
   one callout per 4 s across rules and agent (read-backs exempt), P0–P3, the server drops identical unspoken
   words, never talk over the medic (the mouth reports `user_speaking`). `tick_rules` stays the safety net.
   **Vitals trend note (decision 24, amended Sun ~05:00):** when the `TREND` words change, the proactive review

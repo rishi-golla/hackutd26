@@ -59,16 +59,60 @@ export function publicSummary(value: unknown, corpus: string, fallback: string):
   return typeof value === 'string' && publicSummaries(corpus).includes(value.trim()) ? value.trim() : fallback;
 }
 
-/** Accept legacy SILENT/advisory replies, but never speak a malformed structured response. */
+/**
+ * A dashboard sentence in the advisory field is not an advisory. Seen live (Sun ~04:45): the model answered
+ * {"advisory": "Reviewed the latest state; continuing to monitor…"} and it was queued for the speaker. Status
+ * wording ("Reviewed…", "Monitoring…", "No additional advisory…") and the offered summaries are never spoken.
+ */
+const STATUS_WORDING = /^(?:reviewed|reviewing|monitoring|continuing to monitor|no (?:additional |further )?advisory|nothing (?:to|further)|the (?:patient|state|incident) (?:is|was|remains)|state (?:reviewed|unchanged))\b/i;
+export function isStatusNotAdvisory(text: string, corpus: string): boolean {
+  const t = text.trim().replace(/\s+/g, ' ');
+  return publicSummaries(corpus).some(s => s.toLowerCase() === t.toLowerCase()) || STATUS_WORDING.test(t);
+}
+
+/**
+ * Clinical things an advisory may name only when the state names them too (§19: facts only, never invented
+ * findings). Each entry: the words in the advisory, and the words that must then appear in the state summary.
+ */
+const GROUNDED: [RegExp, RegExp][] = [
+  [/\b(?:post-?shock|shocks?|defib\w*|shocked)\b/i, /\b(?:shock|defib)/i],
+  [/\b(?:post-?arrest|post-?rosc|rosc)\b/i, /\b(?:ARREST|ROSC)\b/],
+  [/\bseiz\w*/i, /\bseiz/i],
+  [/\bstroke\b/i, /\bstroke\b/i],
+  [/\bepi(?:nephrine)?\b/i, /\bepi(?:nephrine)?\b/i],
+  [/\bamio(?:darone)?\b/i, /\bamio(?:darone)?\b/i],
+  [/\ballerg\w*/i, /\ballerg/i],
+  [/\b(?:warfarin|blood thinner|anticoagul\w*)\b/i, /\b(?:warfarin|apixaban|rivaroxaban|heparin|anticoagul)/i],
+  [/\b(?:cpr|compressions?)\b/i, /\b(?:CPR|compress)/i],
+  [/\b(?:the record|ehr|chart)\b/i, /\(EHR\)|\(cached\)/],
+  [/\bid card\b/i, /\bID card\b/i],
+];
+
+/** The first thing the advisory names that the state summary doesn't, or undefined when it is grounded. */
+export function ungroundedTerm(advisory: string, corpus: string): string | undefined {
+  for (const [said, known] of GROUNDED) {
+    const m = said.exec(advisory);
+    if (m && !known.test(corpus)) return m[0];
+  }
+  return undefined;
+}
+
+/** Accept legacy SILENT/advisory replies, but never speak a malformed structured response or a status sentence. */
 export function advisoryDecision(content: string, corpus: string): { advisory: string | null; summary: string } {
   const fallback = 'Reviewed the latest state; continuing to monitor without an additional advisory.';
   const plain = content.trim();
   if (!plain) throw new Error('Empty advisory decision');
   if (/^SILENT\.?$/i.test(plain)) return { advisory: null, summary: fallback };
   if (/^(?:null|true|false)$/i.test(plain)) throw new Error('Invalid advisory decision');
-  if (!/^[{["`]/.test(plain)) return { advisory: plain, summary: 'Prepared an advisory from the latest patient state.' };
+  if (!/^[{["`]/.test(plain)) {
+    return isStatusNotAdvisory(plain, corpus)
+      ? { advisory: null, summary: publicSummary(plain, corpus, fallback) }
+      : { advisory: plain, summary: 'Prepared an advisory from the latest patient state.' };
+  }
   const parsed = JSON.parse(plain.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
   if (!parsed || typeof parsed !== 'object' || !('advisory' in parsed) || (parsed.advisory !== null && typeof parsed.advisory !== 'string')) throw new Error('Invalid advisory decision');
-  const advisory = parsed.advisory?.trim() || null;
+  let advisory: string | null = parsed.advisory?.trim() || null;
+  // The model copied its summary into the advisory: a decision to keep monitoring, with nothing to say aloud.
+  if (advisory && isStatusNotAdvisory(advisory, corpus)) advisory = null;
   return { advisory, summary: publicSummary(parsed.summary, corpus, advisory ? 'Prepared an advisory from the latest patient state.' : fallback) };
 }

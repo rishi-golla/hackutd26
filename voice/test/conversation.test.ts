@@ -246,6 +246,9 @@ test('a question still gets an answer when the model spends its tool rounds', as
     await settle(() => requests.length >= 4 && callsTo(calls, 'addCallout').length > 0);
     assert.equal(requests[0].tools.some((t: any) => t.function.name === 'get_state'), false, 'get_state is not offered');
     assert.equal(callsTo(calls, 'addCallout')[0].args.text, 'Nothing given yet.');
+    // Three rounds of reading, then an answer: a completed review, not an unsuccessful request (live Sun ~04:58).
+    const last = callsTo(calls, 'logAgentStep').filter(c => c.args.tool === 'decision').map(c => JSON.parse(c.args.summary)).at(-1);
+    assert.equal(last.phase, 'complete');
   });
 });
 
@@ -545,5 +548,18 @@ test('a camera scene is one vision trace row and context for the next turn; noth
     await settle(() => requests.length >= 1);
     assert.match(requests[0].messages[0].content, /CAMERA \(\d+ s ago\) Medic kneeling, hands over the patient chest/);
     assert.match(requests[0].messages[0].content, /CAMERA is what the bodycam sees right now/);
+  });
+});
+
+test('a line meant for Handoff is never dropped: a DROP on "Handoff, what have we given so far?" still gets an answer', async () => {
+  const { conn, calls } = arrest();
+  await withModel([{ content: 'DROP' }, { content: 'Nothing given yet.' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Handoff, what have we given so far?', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 0);
+    assert.deepEqual(callsTo(calls, 'addCallout').map(c => c.args.text), ['Nothing given yet.']);
+    assert.equal(requests.length, 2, 'the answer-now call follows the overruled DROP');
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['Handoff, what have we given so far?'], 'kept and stored');
   });
 });

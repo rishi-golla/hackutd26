@@ -173,13 +173,13 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
         if (!inc) return j({ error: 'no active incident' });
         if (!CPR_START.test(ctx.utterance)) {
           await step(conn, 'log_event', `Refused cpr_started: the medic didn't say CPR is starting ("${ctx.utterance.slice(0, 60)}")`);
-          return j({ error: 'the medic did not say CPR or compressions are starting; do nothing' });
+          return j({ refused: true, error: 'the medic did not say CPR or compressions are starting; do nothing' });
         }
         return j((await logCprStarted(conn, ctx.utterance)) ? { ok: true, note: 'CPR start logged. Do not speak about it.' } : { error: 'CPR start already on the timeline' });
       }
       if (!['airway', 'procedure', 'finding', 'mark'].includes(kind)) {
         await step(conn, 'log_event', `Refused kind "${kind}": medications and shocks come only from the read-back or the camera`);
-        return j({ error: 'only airway, procedure, finding or mark; medications and shocks are logged by the read-back system' });
+        return j({ refused: true, error: 'only airway, procedure, finding or mark; medications and shocks are logged by the read-back system' });
       }
       if (!inc) return j({ error: 'no active incident' });
       const label = String(args.label ?? '').slice(0, 80);
@@ -187,21 +187,21 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       // A line that carries a dose is a medication statement, however garbled: the read-back owns it entirely.
       if (/\b(\d+(?:\.\d+)?\s*(mg|mcg|g|ml)|milligrams?|micrograms?|one of|a milligram)\b/i.test(ctx.utterance)) {
         await step(conn, 'log_event', `Refused "${label}": the medic's line carries a dose, so it is a medication statement`);
-        return j({ error: 'the medic stated a dose, so this is a medication statement handled by the read-back system; do nothing' });
+        return j({ refused: true, error: 'the medic stated a dose, so this is a medication statement handled by the read-back system; do nothing' });
       }
       // A "something administered / 1 mg" label is a medication (or a garbled drug name): never a procedure.
       if (/\b(administer\w*|given|gave|pushed|push|mg|mcg|milligrams?|micrograms?|dose|units?|shock\w*|defib\w*|joules?)\b/i.test(label)) {
         await step(conn, 'log_event', `Refused "${label}": looks like a medication or a garbled drug; the read-back owns those`);
-        return j({ error: 'that looks like a medication or a shock, or an unclear word; those are logged by the read-back system. If the word was unclear, do nothing.' });
+        return j({ refused: true, error: 'that looks like a medication or a shock, or an unclear word; those are logged by the read-back system. If the word was unclear, do nothing.' });
       }
       if (kind !== 'mark' && /\?\s*$/.test(ctx.utterance)) {
         await step(conn, 'log_event', `Refused "${label}": the line was a question, not a clinical fact`);
-        return j({ error: 'a question is not a finding or a procedure; log nothing for it' });
+        return j({ refused: true, error: 'a question is not a finding or a procedure; log nothing for it' });
       }
       const s = readState(conn);
       if (s.events.some(e => e.kind === kind && e.status !== 'cancelled' && sameLabel(e.label, label) && Date.now() - tsMs(e.ts) < DUPLICATE_WINDOW_MS)) {
         await step(conn, 'log_event', `Skipped "${label}": already on the timeline`);
-        return j({ error: 'already on the timeline; do not log it again' });
+        return j({ refused: true, error: 'already on the timeline; do not log it again' });
       }
       await conn.reducers.logEvent({ kind, label, sourceKind: 'voice', sourceDetail: String(args.detail ?? label).slice(0, 200) });
       await step(conn, 'log_event', `${kind}: ${label}`);
@@ -218,7 +218,7 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       if (inc.status === status) return j({ ok: true, note: `already ${status}` });
       if (!STATUS_WORDS[status].test(ctx.utterance)) {
         await step(conn, 'set_status', `Refused ${status}: the medic didn't say so ("${ctx.utterance.slice(0, 60)}")`);
-        return j({ error: `the medic did not plainly state ${status}; do nothing` });
+        return j({ refused: true, error: `the medic did not plainly state ${status}; do nothing` });
       }
       await conn.reducers.setStatus({ status, sourceKind: 'voice', sourceDetail: ctx.utterance.slice(0, 200) });
       await step(conn, 'set_status', `${inc.status} → ${status} (medic said so)`);
@@ -268,7 +268,7 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       // Only a line meant for Handoff gets an answer (§19, decision 21): background talk is documented, never answered.
       if (!ctx.addressed) {
         await step(conn, 'speak', 'Refused: the line was not meant for Handoff');
-        return j({ error: 'the line was not meant for you; stay silent and do not call speak again' });
+        return j({ refused: true, error: 'the line was not meant for you; stay silent and do not call speak again' });
       }
       const text = String(args.text ?? '');
       const ok = await ctx.policy.say(text, 1, 'answer', ctx.corpus.join('\n'), ctx.valid);
