@@ -1,6 +1,6 @@
 #!/bin/bash
-# Copy the hub + sensor program to the Pi (over the USB cable), test the sensor on real recordings, and only then
-# switch over and restart. The public link keeps running (restarting it would give the phone a new URL).
+# Copy the hub + sensor program to the Pi (USB cable, or Wi-Fi with PI_HOST=address), test the sensor on real
+# recordings, and only then switch over and restart. The public link keeps running (restarting it would give the phone a new URL).
 #   ./deploy.sh                      deploy
 #   ./deploy.sh wifi "NAME" "PASS"   also join a Wi-Fi network (e.g. your phone hotspot)
 #   ./deploy.sh setup                one-time setup of a fresh Pi: packages, I2C, tunnel, USB networking
@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")"
 PI=../chromatic/tools/pi.sh
 DST="cmx@[$($PI --ip)]"
-SSHO="-6 -q $($PI --ssh-opts)"
+SSHO="-q $($PI --ssh-opts)"
 
 if [ "$1" = setup ]; then                                     # once, on a fresh Pi (needs internet)
   scp $SSHO setup-pi.sh "$DST:/tmp/setup-pi.sh"

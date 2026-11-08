@@ -65,6 +65,12 @@ hub/deploy.sh wifi "NAME" "PASS"  # same, and join a Wi-Fi network (for example 
 The deploy ends by printing the public link (`https://….trycloudflare.com`). The services start at every boot. The
 link changes when the Pi reboots, and the newest link is always on the dashboard.
 
+**Over Wi-Fi instead of the USB cable**, set `PI_HOST` to the Pi's address, e.g. `PI_HOST=192.168.1.20 hub/deploy.sh`
+or `PI_HOST=192.168.1.20 chromatic/tools/pi.sh`. Without `captures/private/pi_key` the scripts use your own
+`~/.ssh/id_ed25519`. Add it to the Pi once with
+`ssh-copy-id -i ~/.ssh/id_ed25519.pub cmx@192.168.1.20` (it asks for the Pi's password). On Windows, run the scripts
+in Git Bash or WSL.
+
 ## 4. Flash the Chromatic (once)
 
 1. Install [ESP-IDF v5.3](https://docs.espressif.com/projects/esp-idf/en/v5.3/esp32/get-started/), then run
