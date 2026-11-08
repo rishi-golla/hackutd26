@@ -1,15 +1,14 @@
 #!/bin/bash
-# Join a school Wi-Fi (WPA2-Enterprise, PEAP/MSCHAPv2) such as CometNet with your NetID.
-#   sudo ./wifi-login.sh                 CometNet
-#   sudo ./wifi-login.sh eduroam         another network
-#   sudo ./wifi-login.sh CometNet --no-ca   skip the server certificate check (only if the normal run fails on it)
+# Join a WPA2-Enterprise Wi-Fi (PEAP/MSCHAPv2, e.g. a campus network) with a username and password.
+#   sudo ./wifi-login.sh SSID            join SSID
+#   sudo ./wifi-login.sh SSID --no-ca    skip the server certificate check (only if the normal run fails on it)
 # The password is never stored in plain text: only its MSCHAPv2 hash goes into wpa_supplicant.conf (root-only).
 set -e
-SSID=${1:-CometNet}
+SSID=${1:?usage: sudo $0 SSID [--no-ca]}
 CONF=/etc/wpa_supplicant/wpa_supplicant.conf
 [ "$(id -u)" = 0 ] || { echo "Run with sudo: sudo $0 $*"; exit 1; }
 
-read -rp "Username (NetID) for $SSID: " USER
+read -rp "Username for $SSID: " USER
 read -rsp "Password: " PASS; echo
 HASH=$(printf %s "$PASS" | iconv -t UTF-16LE | openssl md4 | awk '{print $NF}')
 unset PASS

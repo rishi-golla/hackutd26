@@ -98,7 +98,7 @@ def ratio(red, ir):
     Maxim's per-beat method (MAXREFDES117, SparkFun spo2_algorithm): per beat between two IR troughs, AC is the pulse
     height above the line joining the troughs, R = (AC_red/DC_red) / (AC_ir/DC_ir), median over the beats. Every
     gate must pass: no saturation or step, red and IR pulses correlate >= 0.9, >= 3 beats at 40-180 bpm with IR
-    heights within 20 %, per-beat R within 15 %, perfusion 0.05-5 %, R 0.2-1.0. On 2026-11-07 recordings this gave
+    heights within 20 %, per-beat R within 15 %, perfusion 0.05-5 %, R 0.2-1.0. On the recordings in testdata/ this gave
     0 readings below 95 for a healthy subject and 0 on noise; the old ratio method gave 87 and always a number."""
     red, ir = np.asarray(red, float), np.asarray(ir, float)
     if len(ir) < FS * 3 or len(red) != len(ir):

@@ -3,7 +3,7 @@
 Run it on the Pi with `python3 test_sensor.py`. deploy.sh runs it before restarting anything.
 
 The reference rate is the dominant frequency over 8 s, used only where it is unambiguous, so it is independent of
-the method under test. Results on 2026-11-07: strapped first reading 4.0 s, mean error 1.1 bpm (strapped) and
+the method under test. Current results: strapped first reading 4.0 s, mean error 1.1 bpm (strapped) and
 1.4 bpm (live), noise shown on 1 of 1200 ticks.
 """
 import json, os, sys
