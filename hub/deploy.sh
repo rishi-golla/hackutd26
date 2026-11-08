@@ -20,6 +20,8 @@ fi
 
 if [ "$1" = wifi ]; then
   $PI "sudo raspi-config nonint do_wifi_country US && sudo raspi-config nonint do_wifi_ssid_passphrase $(printf %q "$2") $(printf %q "$3") && sleep 8 && hostname -I"
+  # over Wi-Fi the Pi just left the network PI_HOST is on, so it can only be reached at its new address
+  [ -n "$PI_HOST" ] && { echo "Pi moved to $2. Run again with PI_HOST set to its new address (printed above, if it answered)."; exit; }
 fi
 
 $PI 'rm -rf /home/cmx/next && mkdir -p /home/cmx/next/hub /home/cmx/next/testdata /home/cmx/hub'
