@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~02:20 (Josh): `/hospital` shows the bodycam's live frame feed from the Pi hub** (§0.1 decision 21, H2).
+  The video tile long-polls the hub's `/frame.jpg` (about 10 frames a second, never older than 3 s), the same feed
+  as the hub's own `/dash`. The Vite dev server passes `/hub/*` through to the hub (`HUB_URL`, default
+  `http://handoff-pi:8000` over Tailscale), so the hub needs no change. The WebRTC receiver stays and wins if a
+  sender ever offers. No module changes.
 - **Sun ~01:45 (Alan): HR and SpO₂ cells show the sensor settling and ride out jitter** (§14, H3, §24.1). While
   the relay reports `acquiring`/`calibrating` (finger on, sensor settling), or HR is reading and SpO₂ isn't yet,
   the cell shows three softly breathing dots instead of "—". If a reading drops out, the last good number stays,
@@ -312,6 +317,16 @@ section and add a change-log line.
       serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam.
     - **Vision model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, hosted; `VISION_MODEL` overrides.
     - PRs #5 and #6 are closed; their descriptions and test notes are history.
+21. **The hospital's live view is the Pi hub's frame feed** (Josh, Sun ~02:20). Nobody sends WebRTC video to
+    `/hospital` yet (the phone page sends its camera to the voice worker and, as JPEG frames, to the hub). So the
+    video tile shows the hub's frames: the phone uploads about 10 a second, `/hospital` fetches each new one as it
+    arrives, and the hub never serves one older than 3 s. It's a continuous live relay, not periodic snapshots, but
+    frame-based (choppier than WebRTC over Tailscale or a tunnel).
+    - **How:** `web/src/routes/hospital/LiveVideo.tsx` long-polls `/hub/frame.jpg?after=<seq>`; `web/vite.config.ts`
+      passes `/hub/*` to the hub (`HUB_URL` in the shell or `web/.env.development.local`; default
+      `http://handoff-pi:8000`, which needs Tailscale on the hospital laptop). Works with `npm run dev` and
+      `npm run preview`; a static deploy would need the hub to allow cross-origin requests instead.
+    - **WebRTC stays:** if a bodycam sends an offer through `rtc_signal` (§22.5), its video wins while it plays.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -1250,7 +1265,7 @@ trend lines and the pulse waveform, the big spoken-callout text, and the simulat
 | ID | Requirement | Done when |
 | --- | --- | --- |
 | H1 | Status, coloured by state, top right | — |
-| H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
+| H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5). Today the source is the Pi hub's frame feed (decision 21) | Shows stale after 3 s without video |
 | H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed; measuring dots while the sensor settles | A missing reading shows "—"; a dropout keeps the last good HR/SpO₂ dimmed for at most 6 s, never longer; "Epi due" matches the bodycam to the second |
 | H4 | Event timeline, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
 | H5 | Agent trace: not on the dashboard; the agent's results (destination, alert) appear as timeline rows | Judges can see the agent act from the timeline |
@@ -1925,7 +1940,8 @@ arrest began. `count` may reset on page reload (the server tracks `countBase`).
 
 ### 22.5 WebRTC video signaling (`rtc_signal`)
 
-Live video only, never snapshots. The camera lane owns the sender; the hospital lane owns the receiver tile.
+Live video only, never snapshots. The camera lane owns the sender; the hospital lane owns the receiver tile. No
+sender exists yet; until one does, the tile shows the Pi hub's live frame feed instead (decision 21).
 
 `rtc_signal {sessionId, sender: "bodycam" | "hospital", kind: "offer" | "answer" | "ice" | "request", payload}`.
 `payload` is `JSON.stringify(description)` or `JSON.stringify(candidate)` (empty for `request`).
