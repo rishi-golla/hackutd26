@@ -75,6 +75,9 @@ export function isStatusNotAdvisory(text: string, corpus: string): boolean {
  * findings). Each entry: the words in the advisory, and the words that must then appear in the state summary.
  */
 const GROUNDED: [RegExp, RegExp][] = [
+  // Vitals words need a valid reading on the VITALS line: with the clip off the model said "SpO2 dropping to zero"
+  // (live Sun ~05:12, Maincloud, status "no finger").
+  [/\b(?:spo2|oxygen saturation|sats?|desaturat\w*|heart rate|pulse ox|tachycard\w*|bradycard\w*)\b/i, /^VITALS \((?:relay|simulated), \d+ s ago\)/m],
   [/\b(?:post-?shock|shocks?|defib\w*|shocked)\b/i, /\b(?:shock|defib)/i],
   [/\b(?:post-?arrest|post-?rosc|rosc)\b/i, /\b(?:ARREST|ROSC)\b/],
   [/\bseiz\w*/i, /\bseiz/i],

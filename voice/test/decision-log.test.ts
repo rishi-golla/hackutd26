@@ -171,7 +171,7 @@ test('overlapping proactive ticks are deduplicated while the first review is in 
 
 test('an advisory blocked by policy is not logged as queued or delivered', async () => {
   const fake = setup();
-  await withFetch((async () => response('{"advisory":"Consider heart rate 999.","summary":"Preparing an advisory."}')) as typeof fetch, async () => {
+  await withFetch((async () => response('{"advisory":"Consider rechecking the airway in 999 seconds.","summary":"Preparing an advisory."}')) as typeof fetch, async () => {
     await tick(new Brain(fake.conn, speaker, new Policy(fake.conn)));
     assert.equal(updates(fake).at(-1).phase, 'error');
     assert.match(updates(fake).at(-1).text, /did not queue/);
@@ -315,4 +315,12 @@ test('an advisory that restates a callout spoken in the last 30 s is not said ag
     assert.equal(fake.rows.callout.length, 1, 'nothing new queued');
     assert.match(updates(fake).at(-1).text, /repeated a callout just spoken/);
   });
+});
+
+test('vitals words in an advisory need a valid reading (clip off: "SpO2 dropping to zero" is invented)', async () => {
+  const { ungroundedTerm } = await import('../src/decision-log.js');
+  const noFinger = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)\nVITALS no valid reading (no finger)';
+  const valid = 'INCIDENT Medic 12 · status ON_SCENE\nPATIENT not identified yet (no record)\nVITALS (relay, 1 s ago) HR 96 · SpO2 92 (experimental)';
+  assert.equal(ungroundedTerm('Note: SpO2 dropping to zero. Consider airway and oxygen.', noFinger), 'SpO2');
+  assert.equal(ungroundedTerm('Note: oxygen saturation falling fast. Consider airway and oxygen.', valid), undefined);
 });
