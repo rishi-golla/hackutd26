@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Handoff workflow agent: W1 destination + pre-arrival alert, W4 handoff report (Nemotron, with template fallback)",
+  "description": "Handoff workflow agent: W1 destination + pre-arrival alert, W4 handoff report, W6 patient record from the EHR (Nemotron, with template fallback)",
   "scripts": {
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",

@@ -25,6 +25,13 @@ export const CONFIG = {
   /** W1 must post the alert within 20 s of the arrest (E1); W4 the report within 30 s (H7). */
   w1DeadlineMs: 14000,
   w4DeadlineMs: 27000,
+  /** W6: the record should be on screen within about 5 s of the spoken name (X3); the model gets this long. */
+  w6DeadlineMs: 8000,
+  /** W6's spoken summary is written after the record is saved, so it can take a little longer. */
+  w6SummaryTimeoutMs: 6000,
+  /** Mock FHIR R4 EHR (ehr/). */
+  ehrBaseUrl: (env.EHR_BASE_URL ?? 'http://localhost:4100/fhir').replace(/\/+$/, ''),
+  ehrTimeoutMs: Number(env.EHR_TIMEOUT_MS ?? 1500),
   timeZone: env.DISPLAY_TZ ?? 'America/Chicago',
 };
 

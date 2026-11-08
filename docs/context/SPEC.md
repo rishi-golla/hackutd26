@@ -20,6 +20,11 @@ necessarily when the decision was made.
   - **Layout:** a header with status, ETA and Generate Handoff; a fixed strip with the pre-arrival alert and "Bodycam said"; a full-width patient band with the allergy first; vitals and resuscitation rows (CPR first during an arrest); the timeline; and a side column with the live-video thumbnail (click to expand) and the agent trace.
   - **Decision 3 clarified:** Generate Handoff is the only action; view-only controls are fine.
   - **Mockup:** the §14 mockup predates this layout; the code in `web/src/routes/hospital/` is the reference.
+- **Sat ~20:00 (Rishi): W6 built in `agent/`** (patient identified or name + birth date said → EHR search →
+  `patient_record` + spoken summary, cached copy if the EHR is down). It runs in the workflow agent's process
+  because that already has the Nemotron tool loop and the trace, and an HTTPS page can't call the plain-HTTP EHR.
+  W6 is still the bodycam lane's (§0.1 decision 2); the vision trigger (ID card) isn't wired yet. See
+  `agent/README.md`.
 - **Sat ~19:05 (Josh): only Josh runs the workflow agent against Maincloud** (§0.1 decision 17). A second copy, even
   without an NVIDIA key, duplicates alerts and reports. No lock in code; the team stays mindful of it.
 - **Sat ~19:00 (Josh): agent verified with real Nemotron.** `nvidia/nemotron-3-ultra-550b-a55b`, thinking off.
@@ -237,7 +242,8 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/bodycam` and `/monitor` are placeholders; `/controls` doesn't exist yet |
 | Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
 | Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
-| Not started | W6, voice agent worker, relay SpacetimeDB sender, `/controls` |
+| Agent W6 | Built in `agent/` (bodycam lane's workflow, run in the agent process): triggers on `incident.patientRef` and on a spoken name + birth date. Vision trigger not wired. Real Nemotron untested |
+| Not started | voice agent worker, relay SpacetimeDB sender, `/controls` |
 | Pre-event prep | Enclosures were designed and printed and parts bought before the event; all software is built at the event. Say so plainly (§27) |
 
 ---
@@ -1383,7 +1389,7 @@ which supports tool calling. The agent decides for itself when to call a tool, s
 There are two parts:
 
 - **The voice agent** (real-time, new): talks with the medic and speaks proactively. Unassigned lane.
-- **Workflows** (event-triggered): W1 and W4 (hospital lane, `agent/`), W6 (bodycam lane), W2 and W3 (no owner).
+- **Workflows** (event-triggered): W1 and W4 (hospital lane, `agent/`), W6 (bodycam lane, runs in `agent/`), W2 and W3 (no owner).
   Whether they share a process with the voice agent is [OPEN].
 
 ### The voice agent
