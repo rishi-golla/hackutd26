@@ -105,11 +105,11 @@ A Nemotron turn gets 6 s; if it runs out, the brain stays silent (the rules are 
 | `get_state` | The compact state summary (below) | read-only |
 | `get_recent_transcript(n)` | Last n transcript lines | read-only |
 | `get_timeline` | Events this incident with status and sources | read-only |
-| `log_event(kind, label, detail)` | `log_event` with source `voice`; kinds `airway`, `procedure`, `finding`, `mark` only | **`med_*` and `shock` are refused**: medications and shocks come only from the read-back parser or the camera |
+| `log_event(kind, label, detail)` | `log_event` with source `voice`; kinds `airway`, `procedure`, `finding`, `mark` only. `airway` and `procedure` are then read back with "Log it?" and flagged until answered | **`med_*` and `shock` are refused**: medications and shocks come only from the read-back parser or the camera. A line ending in "?" logs nothing (questions are not findings), and the same kind and label within 10 min is skipped |
 | `set_status(status, detail)` | `set_status` with source `voice`; `arrest`, `rosc`, `en_route` only when the medic states it plainly | never `closed` |
 | `check_dose_range(drug, dose, unit)` | Fixed table: epinephrine 0.3–1 mg, amiodarone 150–300 mg; other drugs "no range on file" | deterministic |
 | `check_allergy(drug)` | Against the pulled record's allergy list | deterministic |
-| `search_ehr(name, birth_date)` | FHIR `Patient?name=&birthdate=` → matches | with several matches the model must ask, never guess (X8) |
+| `search_ehr(name, birth_date)` | FHIR `Patient?name=&birthdate=` → matches; exactly one match is pulled at once (no separate `pull_record` round) | with several matches the model must ask, never guess (X8) |
 | `pull_record(patient_id)` | `identify_patient` (method `voice`) + `$everything` + `save_patient_record` | the spoken summary is built from the record, not by the model |
 | `speak(text, priority)` | `add_callout` through the policy layer | ≤ 15 words for an answer, ≤ 8 for an unprompted advisory, no numbers the state doesn't contain |
 

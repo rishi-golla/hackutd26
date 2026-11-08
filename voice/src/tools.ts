@@ -7,7 +7,7 @@ import { CONFIG } from './config';
 import type { ToolDef } from './llm';
 import { checkAllergy, checkDoseRange } from './checks';
 import { fetchRecord, searchPatients } from './ehr';
-import { hhmm, readState, summarize } from './state';
+import { hhmm, readState, summarize, tsMs } from './state';
 import type { Policy } from './policy';
 
 export const TOOLS: ToolDef[] = [
@@ -21,12 +21,12 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'log_event',
-      description: 'Log a procedure or finding the medic stated. NOT for medications or shocks: those are logged automatically from the read-back.',
+      description: 'Log one clinical fact that was said, to the medic or not: a procedure, an airway device, a finding or a MARK note. One call per distinct fact. NOT for medications or shocks: those are logged automatically from the read-back.',
       parameters: {
         type: 'object',
         properties: {
-          kind: { type: 'string', enum: ['airway', 'procedure', 'finding', 'mark'], description: 'airway = airway device placed; procedure = IV/IO access, pulse check, etc.; finding = something observed; mark = a MARK note' },
-          label: { type: 'string', description: 'Short timeline label, e.g. "Airway placed (i-gel)", "IO access right tibia", "Pill bottle by the bed"' },
+          kind: { type: 'string', enum: ['airway', 'procedure', 'finding', 'mark'], description: 'airway = airway device placed; procedure = IV/IO access, pulse check, suction, splint, monitor, etc.; finding = something observed or reported (breathing, skin, pupils, bleeding, pain, injuries, mental status, history from a bystander, pill bottles, scene hazards); mark = a MARK note' },
+          label: { type: 'string', description: 'Short timeline label, e.g. "Airway placed (i-gel)", "IO access right tibia", "Breathing shallow", "Skin pale and sweaty", "Pill bottle by the bed"' },
           detail: { type: 'string', description: 'The medic\'s words' },
         },
         required: ['kind', 'label'],
@@ -99,7 +99,12 @@ export type ToolContext = {
   utterance: string;
 };
 
-const STATUS_WORDS: Record<string, RegExp> = {
+/** Actions are read back and confirmed like medications; findings and marks are logged quietly. */
+const CONFIRMED_KINDS = new Set(['airway', 'procedure']);
+const DUPLICATE_WINDOW_MS = 10 * 60_000;
+const sameLabel = (a: string, b: string) => a.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === b.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+export const STATUS_WORDS: Record<string, RegExp> = {
   arrest: /\b(no pulse|pulseless|cardiac arrest|in arrest|start(ing|ed)? (cpr|compressions)|begin(ning)? compressions|coding)\b/i,
   rosc: /\b(rosc|pulse (is |came )?back|got a pulse|we have a pulse|return of (spontaneous )?circulation)\b/i,
   en_route: /\b(transport\w*|en route|loading|leaving (the )?scene|rolling|heading to)\b/i,
@@ -150,6 +155,15 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
         await step(conn, 'log_event', `Refused "${label}": looks like a medication or a garbled drug; the read-back owns those`);
         return j({ error: 'that looks like a medication or a shock, or an unclear word; those are logged by the read-back system. If the word was unclear, do nothing.' });
       }
+      if (kind !== 'mark' && /\?\s*$/.test(ctx.utterance)) {
+        await step(conn, 'log_event', `Refused "${label}": the line was a question, not a clinical fact`);
+        return j({ error: 'a question is not a finding or a procedure; log nothing for it' });
+      }
+      const s = readState(conn);
+      if (s.events.some(e => e.kind === kind && e.status !== 'cancelled' && sameLabel(e.label, label) && Date.now() - tsMs(e.ts) < DUPLICATE_WINDOW_MS)) {
+        await step(conn, 'log_event', `Skipped "${label}": already on the timeline`);
+        return j({ error: 'already on the timeline; do not log it again' });
+      }
       await conn.reducers.logEvent({ kind, label, sourceKind: 'voice', sourceDetail: String(args.detail ?? label).slice(0, 200) });
       await step(conn, 'log_event', `${kind}: ${label}`);
       return j({ ok: true });
@@ -185,6 +199,11 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       try {
         const matches = await searchPatients(name, birthDate);
         await step(conn, 'search_ehr', `${name} ${birthDate}: ${matches.length} match${matches.length === 1 ? '' : 'es'}`);
+        // One match: pull it now instead of spending another tool round on pull_record (live, Sun ~02:00).
+        if (matches.length === 1 && inc) {
+          const summary = await ctx.pullRecord(matches[0].id, 'voice');
+          return remember(j({ matches, pulled: true, summary, note: 'record pulled and its summary spoken automatically; do not repeat it' }));
+        }
         return remember(j({ matches }));
       } catch (err) {
         await step(conn, 'search_ehr', `EHR unavailable: ${(err as Error).message.slice(0, 80)}`);
