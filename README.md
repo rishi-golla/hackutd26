@@ -7,7 +7,10 @@ Prototype only. All data is synthetic, and this is not a medical device.
   (decisions, lanes, contracts, rules, open questions).
 - **Backend:** [`spacetime/README.md`](spacetime/README.md). The SpacetimeDB module is live on Maincloud as
   `handoff-hackutd26`. That README explains how to publish it and how each device talks to it.
-- **Web app:** `web/`. It has three routes: `/hospital`, `/bodycam` and `/monitor`.
+- **Web app:** `web/`. It has three routes: `/hospital`, `/bodycam` and `/monitor` (becoming `/controls`).
+- **Mock EHR:** [`ehr/README.md`](ehr/README.md). FHIR R4, synthetic patients, `cd ehr && npm start`.
+- **Workflow agent (W1 alert, W4 report):** [`agent/README.md`](agent/README.md). Run one instance with
+  `cd agent && npm start`.
 
 ```bash
 cd web && npm install

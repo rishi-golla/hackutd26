@@ -177,3 +177,26 @@
   .hd__grid { grid-template-columns: 1fr; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Handoff report (H7) */
+.report {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow: auto;
+}
+.report__header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 16px; }
+.report__table { width: 100%; border-collapse: collapse; }
+.report__table th {
+  width: 28px;
+  vertical-align: top;
+  text-align: left;
+  font-size: 18px;
+  color: var(--accent);
+  padding: 8px 6px 8px 0;
+}
+.report__table td { border-top: 1px solid var(--line); padding: 8px 6px; vertical-align: top; }
+.report__text { font-size: 16px; line-height: 1.4; }
+.report__chips { text-align: right; white-space: normal; }
+.report__chips .chip { margin: 0 0 4px 4px; }

@@ -16,6 +16,21 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~19:05 (Josh): only Josh runs the workflow agent against Maincloud** (§0.1 decision 17). A second copy, even
+  without an NVIDIA key, duplicates alerts and reports. No lock in code; the team stays mindful of it.
+- **Sat ~19:00 (Josh): agent verified with real Nemotron.** `nvidia/nemotron-3-ultra-550b-a55b`, thinking off.
+  On a local DB the W1 alert landed in about 5 s and the W4 report in about 7.5 s. The real model added claims the
+  facts don't support ("male", "transporting"), so alerts and report lines now also fail on unsupported claims
+  (`agent/README.md`).
+- **Sat ~18:45 (Josh): mock EHR and the workflow agent built.**
+  - **Mock EHR:** `ehr/` is a read-only FHIR R4 server with five synthetic patients on port 4100. Two of them are
+    named Jordan Avery, to show X8.
+  - **Agent:** `agent/` is a Node SpacetimeDB client running W1 (destination + pre-arrival alert) and W4 (MIST
+    report with source ids, self-check, E4 summary).
+  - **No key:** it uses Nemotron tool calling through NVIDIA's API; without `NVIDIA_API_KEY` it uses the rule and
+    the template.
+  - **Dashboard:** `/hospital` shows the report in place of the video and tiles once it's ready.
+  - See `ehr/README.md` and `agent/README.md`.
 - **Sat ~18:30 (Alan): vision samples the live stream.** The vision model takes about one frame a second from
   the live video on the laptop (skipping a frame while the previous call is still running), instead of the phone
   sending a still every ~5 s. "Handoff, look" still grabs a frame at once. The phone uploads nothing extra and
@@ -129,6 +144,16 @@ section and add a change-log line.
 16. **The camera logs drugs it sees being given** (Alan, Sat ~18:20). Medications are logged from what the medic
     says *and* from what the camera sees. A medication seen being given is logged even if nobody says it, with
     the frame as evidence; it never gets a guessed dose. Details in §16 "Drugs the camera sees" (RB8–RB10).
+17. **Only Josh runs `agent/` against the shared database** (Josh, Sat ~19:05), on the hospital laptop. Every copy
+    of the agent watches `handoff-hackutd26`, and nothing stops two copies running at once.
+    - **A second copy duplicates everything:** two pre-arrival alerts, the destination set twice, every trace step
+      twice, two reports (the last one overwrites the other), and double NVIDIA usage.
+    - **The NVIDIA key doesn't prevent this.** Without a key the agent still runs W1 and W4 on its rule and
+      template fallback.
+    - **Testing:** to try the agent, point it at a local database (`SPACETIMEDB_HOST=ws://127.0.0.1:3000`,
+      `SPACETIMEDB_DB_NAME=<your local db>`).
+    - **No lock in code for now; the team stays mindful of it.** If it bites, add a lock (the first copy claims
+      the database).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -152,7 +177,7 @@ Conflicts resolved when this file was created (for the record):
 
 - One owner per folder. Stay inside your lane's folders.
 - **Only the hospital lane changes `spacetime/`.** Need a table, column or reducer? Ask Josh.
-- Small commits, pull often on `main`. Regenerate bindings (`cd web && npm run generate`) after each schema
+- Small commits, pull often on `main`. Regenerate bindings (`cd web && npm run generate` and `cd agent && npm run generate`) after each schema
   change, commit them, and announce it.
 - The work board (§26) is flexible: whoever is free takes the next item, but code goes into the owning lane's
   folder or with that owner's OK.
@@ -196,7 +221,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 - Code comments that cite "AGENTS.md section 0", "AGENTS.md Lanes" or "AGENTS.md 4.3" now mean §0.1, §0.2 and
   §22.4 of this file.
 
-### 0.5 Where things stand (Sat ~18:00)
+### 0.5 Where things stand (Sat ~18:50)
 
 | Area | State |
 | --- | --- |
@@ -204,8 +229,10 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Pi relay bring-up tools | Written and tested in simulation (pytest suite plus a 21-check self-test), on the `hardware` branch. Real-hardware verdicts: ask Alan |
 | Phone test page | Written (camera/zoom probe, compression-rate detector, speaker, wake lock), on the `hardware` branch. Rear camera decided |
 | SpacetimeDB module | Built and published on Maincloud as `handoff-hackutd26` (17:26): schema, reducers, §15 rules in `tick_rules` |
-| Web app | Vite + React + TS scaffold. `/hospital` dashboard first version built. `/bodycam` and `/monitor` are placeholders; `/controls` doesn't exist yet |
-| Not started | Mock EHR, agent (W1, W4), W6, voice agent worker, relay SpacetimeDB sender, `/controls` |
+| Web app | Vite + React + TS scaffold. `/hospital` dashboard built, including the report view (H7). `/bodycam` and `/monitor` are placeholders; `/controls` doesn't exist yet |
+| Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
+| Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
+| Not started | W6, voice agent worker, relay SpacetimeDB sender, `/controls` |
 | Pre-event prep | Enclosures were designed and printed and parts bought before the event; all software is built at the event. Say so plainly (§27) |
 
 ---
@@ -1387,7 +1414,7 @@ There are two parts:
 
 | Workflow | Trigger | Steps (tools) | Done when |
 | --- | --- | --- | --- |
-| W1 | Status becomes arrest or en route | `get_incident` → `choose_hospital` (capability, ETA, beds) → `set_destination` → `post_er_message` | The alert appears on the hospital dashboard within 20 s |
+| W1 | Status becomes arrest or en route | `get_incident` → `choose_hospital` (capability, ETA, beds) → `set_destination` → `post_er_message`. As built: Nemotron calls `get_incident` and `list_hospitals` and picks; the agent refuses a non-cath-lab hospital during an arrest and an alert before the destination; the rule (`choose_hospital`) and a template finish anything the model didn't | The alert appears on the hospital dashboard within 20 s |
 | W2 | Every 5 s of new transcript | `get_recent_transcript` → pull out procedures and findings (medications come from the read-back and from vision, RB8) → `log_event` (fuses with vision and the kit if built) | "One milligram epi in" becomes one event, not a duplicate |
 | W6 | A vision finding of an ID card, a spoken name and birth date in the transcript, or `incident.patientRef` set by "Identify patient"; the agent decides to search | `ehr_search` (name + birth date; several matches → ask for confirmation, never guess) → `identify_patient` → `ehr_get_record` (allergies, medications, conditions, code status) → summarize → `save_patient_record` → `add_callout` ("Record found…") | Record on screens within about 5 s of showing the card (or of the spoken name); spoken summary is facts only |
 | W3 | Optional: the ER doctor types a question in the ER chat | `get_timeline`, `get_vitals_summary` → answer in two sentences, facts and times only → `post_er_message`; unknown → "Not documented yet, asking crew" + `add_callout` | Answer within 20 s; nothing invented |
@@ -1447,6 +1474,7 @@ sequenceDiagram
   A->>S: read timeline, vitals, events, transcript, patient record
   A->>A: draft MIST report, every sentence tagged with source ids
   A->>A: self-check, drop sentences without a source
+  A->>S: post_er_message "Handoff report ready…" (E4, before closing)
   A->>S: save_report (status ready; closes the incident)
   S-->>H: report renders with source chips
 ```
@@ -1496,7 +1524,8 @@ its sources. The header always says it's a prototype. No QR code.
 | **!** | Outstanding: on warfarin per the record; family bringing the current medication list. | EHR · voice 14:09:30 |
 
 Example content from a synthetic run. In the demo, the numbers come from the judge's own CPR (D4). Shown on the
-hospital screen. Stored as JSON in `report.contentJson` (MIST lines with source ids).
+hospital screen. Stored as JSON in `report.contentJson` (MIST lines with source ids); the format and source ids are
+in `agent/README.md`. The dashboard renders it in place of the video and tiles once it's ready.
 
 ## 21. Pre-arrival alert (ER chat optional)
 
@@ -1566,7 +1595,7 @@ active get `incidentId = 0`.
 | `event` | `id`, `incidentId` (index), `ts`, `kind`, `label`, `sources` (array of `{kind, detail, ts}`), `mergedCount`, `status` | The timeline. `status`: logged, flagged, confirmed, cancelled. Merging in §18, kinds in §22.7 |
 | `timer` | `id`, `incidentId` (index), `kind` (epi or cycle), `dueAt`, `state` (running, due, cancelled) | Epi 4 min (45 s DEMO TIMING); cycle 2 min (30 s). A new `med_epinephrine` event restarts the epi timer |
 | `callout` | `id`, `incidentId`, `text`, `priority` u8, `createdAt`, `spokenAt?` | Priority 0 read-back, 1 urgent, 2 normal, 3 low. Unspoken rows older than 20 s are deleted |
-| `er_message` | `id`, `incidentId`, `direction` (to_er or from_er), `text`, `ts` | The pre-arrival alert (display-only) and the optional ER chat |
+| `er_message` | `id`, `incidentId`, `direction` (to_er or from_er), `text`, `ts` | The pre-arrival alert (display-only) and the optional ER chat W4's E4 summary is also `to_er` and starts with "Handoff report ready"; don't show or speak it as an alert |
 | `agent_step` | `id`, `incidentId`, `ts`, `workflow`, `tool`, `summary` | The agent trace |
 | `hospital` | `id` PK, `name`, `capabilities` (comma-separated), `driveMin`, `bedsFree` | Seeded, fictional: 1 Avon General (ed, 6 min, 4 beds), 2 Avon Heart Institute (ed, cath_lab, 9 min, 2 beds), 3 Northside Community (ed, 12 min, 6 beds) |
 | `patient_record` | `incidentId` PK, `patientRef`, `name`, `birthDate`, `allergies` string[], `medications` string[], `conditions` string[], `codeStatus`, `source` (EHR or cached), `updatedAt` | The record pulled from the mock EHR |
@@ -1954,7 +1983,7 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | Question | Who |
 | --- | --- |
 | **Voice STT/TTS stack:** NVIDIA hosted speech (Parakeet-class ASR, Riva/Magpie-class TTS) or Deepgram + Cartesia/ElevenLabs. Unverified: does Pipecat have NVIDIA speech integrations; is NVIDIA's hosted TTS realistic and does it stream well enough | Team |
-| **Exact Nemotron model slugs** for the agent (voice and workflows) and for the vision step (prefer a Nemotron vision model over Gemini) | Team |
+| **Exact Nemotron model slugs** for the agent (voice and workflows) and for the vision step (prefer a Nemotron vision model over Gemini). The workflow agent uses `nvidia/nemotron-3-ultra-550b-a55b`. Verified Sat ~19:00 with a real key: tool calling works. With thinking off (`chat_template_kwargs.enable_thinking=false`) the W1 alert landed in about 5 s and the W4 report in about 7.5 s on a local DB. Change it with `NEMOTRON_MODEL` | Team |
 | **Voice agent design:** the tool list (and reconciling names with the workflow tools; who owns the EHR search given W6 is the bodycam lane's), the state-summary format, the when-to-speak policy (how agent speech and `tick_rules` rows combine without double-speaking), and whether workflows share its process | Voice agent owner, with Alan |
 | **Read-back first hop:** keep the phone parser's instant "Copy" before the agent's checks? | Alan |
 | **Voice failover trigger:** what makes the bodycam switch to on-device mode, and back | Voice agent and camera lanes |
@@ -2037,6 +2066,9 @@ hackutd26/
     src/routes/hospital/        hospital lane
     src/routes/bodycam/         chest-camera lane (placeholder)
     src/routes/monitor/         placeholder from the dropped monitor page; becomes /controls (§28)
+  ehr/                          mock FHIR R4 EHR, synthetic patients, port 4100 (hospital lane; README)
+  agent/                        workflow agent W1 + W4, Nemotron with template fallback (hospital lane; README)
+    src/module_bindings/        second copy of the generated bindings (`cd agent && npm run generate`)
   docs/context/
     SPEC.md                     this file (source of truth)
     img/                        images used here
@@ -2044,7 +2076,7 @@ hackutd26/
     chatgpt-requirements-doc.md      history only
 ```
 
-Planned folders, not created yet: `ehr/` and `agent/` (hospital lane), `relay/` (relay lane),
+Planned folders, not created yet: `relay/` (relay lane),
 `web/src/routes/controls/` (unassigned), the voice agent worker (folder [OPEN]).
 
 `hardware/` is **not on `main`**. It lives on the `hardware` branch:
@@ -2064,8 +2096,8 @@ hardware/
 - Database `handoff-hackutd26` on Maincloud (published 17:26); dashboard https://spacetimedb.com/handoff-hackutd26.
   HTTP base `https://maincloud.spacetimedb.com`, TS SDK `wss://maincloud.spacetimedb.com`.
 - `spacetime/README.md` is the detailed contract and wins for exact reducer signatures; §22 summarises it.
-- Only the hospital lane publishes. After every schema change: `cd web && npm run generate`, commit the bindings,
-  announce it.
+- Only the hospital lane publishes. After every schema change: `cd web && npm run generate` and
+  `cd agent && npm run generate`, commit the bindings, announce it.
 
 ### 30.3 Cheat sheet
 
@@ -2076,6 +2108,11 @@ npm run dev            # http://localhost:5173/hospital (connects to Maincloud)
 npm run dev:https      # HTTPS for the bodycam phone (camera, mic, motion)
 npm run typecheck
 npm run generate       # regenerate TS bindings after a schema change, then commit them
+
+# Mock EHR and the workflow agent (hospital lane; run ONE agent per database)
+cd ehr && npm start                                  # http://localhost:4100/fhir
+cd agent && npm install && cp .env.example .env.local   # add NVIDIA_API_KEY (gitignored)
+npm start                                            # W1 + W4; template fallback without a key
 
 # SpacetimeDB (setup once; publishing is hospital lane only)
 curl -sSf https://install.spacetimedb.com | sh && export PATH="$HOME/.local/bin:$PATH"

@@ -6,6 +6,7 @@ import { tables, type DbConnection } from '../../module_bindings';
 import type { Event as TimelineEvent, Incident, Timer, Vitals } from '../../module_bindings/types';
 import { clock, tsMs } from '../../db/time';
 import LiveVideo from './LiveVideo';
+import ReportView from './ReportView';
 import './hospital.css';
 
 const VITALS_STALE_MS = 5000;
@@ -61,7 +62,8 @@ export default function HospitalPage() {
   const record = records.find(r => r.incidentId === incId);
   const report = reports.find(r => r.incidentId === incId);
   const alert = [...messages]
-    .filter(m => m.incidentId === incId && m.direction === 'to_er')
+    // The agent's "Handoff report ready" summary (E4) is not the pre-arrival alert.
+    .filter(m => m.incidentId === incId && m.direction === 'to_er' && !m.text.startsWith('Handoff report ready'))
     .sort((a, b) => (a.id < b.id ? 1 : -1))[0];
   const timeline = [...events].filter(e => e.incidentId === incId).sort((a, b) => (a.id < b.id ? 1 : -1));
   const trace = [...steps].filter(s => s.incidentId === incId).sort((a, b) => (a.id < b.id ? 1 : -1));
@@ -118,6 +120,10 @@ export default function HospitalPage() {
 
       <main className="hd__grid">
         <section className="hd__left">
+          {report?.status === 'ready' && report.contentJson ? (
+            <ReportView contentJson={report.contentJson} />
+          ) : (
+          <>
           <LiveVideo />
 
           <div className="tiles">
@@ -159,6 +165,8 @@ export default function HospitalPage() {
             <TimerTile label="Next epi" timer={epi} now={now} demo={incident?.demoMode} />
             <TimerTile label="Cycle" timer={cycle} now={now} demo={incident?.demoMode} />
           </div>
+          </>
+          )}
         </section>
 
         <section className="hd__right">
@@ -221,7 +229,12 @@ export default function HospitalPage() {
           </Panel>
 
           <div className="handoff">
-            <button className="handoff__button" onClick={generate} disabled={!isActive || !incident}>
+            {/* One report per incident: disabled while it's being written and once it's ready. */}
+            <button
+              className="handoff__button"
+              onClick={generate}
+              disabled={!isActive || !incident || report?.status === 'requested' || report?.status === 'ready'}
+            >
               Generate Handoff
             </button>
             <span className="muted">
