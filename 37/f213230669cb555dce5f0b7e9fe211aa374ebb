@@ -1,0 +1,25 @@
+bridge/README.md
+  s_d874ed1f7d2f19::t_de263bcc35d0c2 35-54,77-81,86,120-122
+bridge/check_vitals.py
+  s_d874ed1f7d2f19::t_1c761b2027f9ed 57-58
+bridge/hub_bridge.py
+  s_d874ed1f7d2f19::t_57a3554942bdff 19-25,28-29,31,41-47,97-133,193,197,213-224
+docs/context/SPEC.md
+  s_d874ed1f7d2f19::t_f382d04c57ebe2 19-29,360-362,620,638,640,683,2138,2192-2194,2343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "37f213230669cb555dce5f0b7e9fe211aa374ebb",
+  "prompts": {},
+  "sessions": {
+    "s_d874ed1f7d2f19": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_d874ed1f7d2f19",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
