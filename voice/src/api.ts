@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import { CONFIG, llmConfigured } from './config';
 import { step, type Conn } from './db';
 import { modelInUse } from './llm';
-import { readState, stateJson } from './state';
+import { conversationJson, readState, stateJson } from './state';
 import { parseSeen } from './seen';
 import type { Brain } from './brain';
 import type { Speaker } from './speaker';
@@ -38,6 +38,7 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
         });
       }
       if (req.method === 'GET' && url.pathname === '/state') return send(res, 200, stateJson(readState(conn)));
+      if (req.method === 'GET' && url.pathname === '/conversation') return send(res, 200, conversationJson(conn));
       if (req.method === 'POST' && url.pathname === '/transcript') {
         const body = await readJson(req);
         const text = String(body.text ?? '').trim();
@@ -87,7 +88,7 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
   wss.on('connection', ws => speaker.attach(ws));
 
   server.listen(CONFIG.apiPort, '127.0.0.1', () => {
-    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, POST /trace, GET /state, WS /mouth)`);
+    console.log(`[voice] local API on http://127.0.0.1:${CONFIG.apiPort} (POST /transcript, POST /seen, POST /say, POST /trace, GET /state, GET /conversation, WS /mouth)`);
   });
   return server;
 }

@@ -79,6 +79,35 @@ export function readState(conn: Conn): State {
   return { now, incident, destination, record, vitals, cpr, timers, events, transcript, recentSpeech, pending };
 }
 
+/**
+ * GET /conversation for the voice client's Transcript and Tools tabs: what the medic said (transcript rows), what
+ * Handoff said or has queued (callouts, rule callouts included), and the agent trace (agent_step), oldest first.
+ * The active incident, or the newest one when none is active, so the last call stays readable after it closes.
+ */
+export function conversationJson(conn: Conn, limit = 120) {
+  const incidents = [...conn.db.incident.iter()].sort(byId);
+  const inc = activeIncident(conn) ?? incidents.at(-1);
+  const of = <T extends { incidentId: bigint }>(rows: Iterable<T>) => (inc ? [...rows].filter(r => r.incidentId === inc.id) : []);
+  const lines = [
+    ...of(conn.db.transcript.iter()).map(t => ({ id: `t${t.id}`, at: tsMs(t.ts), who: 'user' as const, text: t.text })),
+    ...of(conn.db.callout.iter()).map(c => ({
+      id: `c${c.id}`,
+      at: tsMs(c.spokenAt ?? c.createdAt),
+      who: 'assistant' as const,
+      text: c.text,
+      priority: c.priority,
+      spoken: c.spokenAt !== undefined,
+    })),
+  ].sort((a, b) => a.at - b.at).slice(-limit);
+  const steps = of(conn.db.agentStep.iter()).sort(byId).slice(-limit)
+    .map(s => ({ id: Number(s.id), at: tsMs(s.ts), workflow: s.workflow, tool: s.tool, summary: s.summary }));
+  return {
+    incident: inc ? { id: Number(inc.id), unit: inc.unit, status: inc.status, active: inc.status !== 'closed' } : null,
+    lines,
+    steps,
+  };
+}
+
 const mmss = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
 
 /** The text block the model reads. About 200–300 tokens. */
