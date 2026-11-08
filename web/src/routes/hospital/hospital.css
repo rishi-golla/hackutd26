@@ -1,405 +1,251 @@
-/* Hospital dashboard. Dark, glanceable, fits one laptop screen (1440×900) without page scroll.
-   Two-tone base (deep navy + soft white) and ONE unexpected accent, electric lime: it marks the one action
-   (Generate Handoff), what just happened (a fresh callout, a new timeline row) and what's on track (live video,
-   CPR target band, a running dose timer). Red, amber are semantic only. One font (Geist), one scale
-   (12/14/16/20/24/32/48). */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400..700&display=swap');
+/* Hospital dashboard. Fits one laptop screen (1440×900) without page scroll.
+   Look: teenage engineering's "industrial catalogue" (Refero Styles), adapted for an ER screen:
+   a near-white canvas ruled by hairlines, ink type, one carbon band like a display-case wall, zero radius,
+   no shadows or gradients. Red is the only chromatic colour and only means alarm; the amber triangle is the
+   only honesty mark. One font (Geist): light weight for the big numbers, regular for everything else. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@200..600&display=swap');
 
 .hd {
-  --bg: #0a0f1c;
-  --surface: #111a2b;
-  --surface-2: #1a2539;
-  --line: #243149;
-  --text: #f2f5fa;
-  --text-2: #9ba8bf;
-  --accent: #d4ff3a;
-  --accent-hover: #e2ff7a;
-  --accent-soft: rgb(212 255 58 / 0.16);
-  --on-accent: #0a0f1c;
-  --alarm: #ff5a5f;
-  --alarm-bg: #3a1624;
-  --caution: #ffb547;
-
-  --radius: 10px;
-  --gap: 12px;
-  --gutter: 16px;
-  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --canvas: #f6f8f7;
+  --ink: #000;
+  --ink-2: #5d615f; /* secondary text; 6:1 on the canvas */
+  --rule: #e5e5e5;
+  --rule-strong: #000;
+  --carbon: #0f0e12;
+  --carbon-2: #1d1c22;
+  --on-carbon: #f6f8f7;
+  --on-carbon-2: #9a98a2;
+  --alarm: #e0201b;
+  --alarm-on-carbon: #ff5a52;
+  --amber: #f2a900;
 
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
-  background: var(--bg);
-  color: var(--text);
+  grid-template-columns: minmax(0, 1fr) 480px;
+  grid-template-rows: 64px minmax(0, 1fr);
+  grid-template-areas:
+    'header header'
+    'main band';
+  background: var(--canvas);
+  color: var(--ink);
   font-family: 'Geist', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
-/* Wide-gamut screens (the demo Mac): the lime and the alarm red go past sRGB, so they glow without a glow effect. */
 @media (color-gamut: p3) {
-  .hd {
-    --accent: color(display-p3 0.84 1 0.2);
-    --alarm: color(display-p3 1 0.3 0.33);
-  }
+  .hd { --alarm: color(display-p3 0.86 0.13 0.1); --alarm-on-carbon: color(display-p3 1 0.33 0.29); }
 }
-
 .hd *, .hd *::before, .hd *::after { box-sizing: border-box; }
-.muted { color: var(--text-2); }
+.hd p, .hd h2 { margin: 0; }
+.muted { color: var(--ink-2); }
 
-/* Small honesty notes (demo timing, simulated, cached). Plain text, not a badge. */
-.note { font-size: 12px; font-weight: 500; color: var(--text-2); white-space: nowrap; }
-.note--caution { color: var(--caution); }
+/* Lowercase labels in the secondary grey: the catalogue's quiet voice. */
+.label { font-size: 13px; font-weight: 400; color: var(--ink-2); letter-spacing: 0; }
+.dash { font-weight: 200; color: var(--rule-strong); opacity: 0.25; }
 
-/* ---- Header: who, where, status, ETA, the one action ---- */
+.caution { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.caution svg { color: var(--amber); flex: none; }
+
+/* ---- Header: who, where, ETA, the one action ---- */
 .hd__header {
+  grid-area: header;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px var(--gutter);
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  flex-wrap: wrap;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--rule-strong);
 }
-.hd__route { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-.hd__arrow { color: var(--text-2); margin: 0 8px; font-weight: 400; }
-.hd__status {
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  font-size: 16px;
-  font-weight: 600;
-}
-.hd__status--arrest { background: var(--alarm); color: #1f0508; }
-.hd__status--rosc { background: var(--accent); color: var(--on-accent); }
-.hd__elapsed { font-weight: 500; opacity: 0.8; }
+.hd__route { font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
+.hd__arrow { margin: 0 10px; font-weight: 300; color: var(--ink-2); }
 .hd__eta { font-size: 16px; }
-.hd__eta strong { font-weight: 600; }
+.hd__eta strong { font-weight: 500; }
 .hd__spacer { flex: 1; }
-.hd__conn { font-size: 12px; font-weight: 500; color: var(--caution); }
+.hd__note { font-size: 13px; color: var(--ink-2); }
+.hd__conn { font-size: 13px; color: var(--alarm); }
+.hd__report { font-size: 13px; color: var(--ink-2); }
+.hd__report.is-failed { color: var(--alarm); }
 
-.handoff { display: flex; align-items: center; gap: 12px; }
-.handoff__status { font-size: 14px; color: var(--text-2); }
-.handoff__status--failed { color: var(--alarm); }
-.handoff__button {
-  position: relative;
+/* The only button: a black block, square, like a hardware key. */
+.hd__action {
+  height: 44px;
+  padding: 0 22px;
   font: inherit;
   font-size: 16px;
-  font-weight: 600;
-  padding: 10px 20px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  background: var(--accent);
-  color: var(--on-accent);
+  font-weight: 500;
+  color: var(--canvas);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 0;
   cursor: pointer;
-  transition-property: scale, background-color, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: ease-out;
+  transition: background-color 120ms ease-out, color 120ms ease-out, translate 80ms ease-out;
   -webkit-tap-highlight-color: transparent;
 }
-.handoff__button:not(:disabled):active { scale: 0.96; box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.25); }
-.handoff__button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.handoff__button:disabled { background: var(--surface-2); color: var(--text-2); cursor: default; }
+.hd__action:not(:disabled):active { translate: 0 1px; }
+.hd__action:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.hd__action:disabled { background: transparent; color: var(--ink-2); border-color: var(--rule); cursor: default; }
+.hd__action[aria-busy='true'] { cursor: progress; color: var(--ink); border-color: var(--ink); }
 @media (hover: hover) {
-  .handoff__button:not(:disabled):hover { background-color: var(--accent-hover); }
+  .hd__action:not(:disabled):hover { background: var(--carbon-2); }
 }
-/* Writing the report: a lime beam runs round the button (progress, not decoration). */
-@property --beam {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-.handoff__button[aria-busy='true'] { color: var(--text); cursor: progress; }
-.handoff__button[aria-busy='true']::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  padding: 1.5px;
-  border-radius: inherit;
-  background: conic-gradient(from var(--beam), transparent 0 65%, var(--accent) 90%, transparent);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  animation: beam 1.8s linear infinite;
-}
-@keyframes beam { to { --beam: 360deg; } }
 
-/* ---- Comms strip: always present (alert clamped to 2 lines), so nothing jumps when a callout arrives ---- */
-.comms {
+/* ---- Left: status + the focal number, then activity ---- */
+.hd__main {
+  grid-area: main;
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: var(--gap);
-  padding: var(--gap) var(--gutter) 0;
-}
-.comms__item {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-  min-height: 56px;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  background: var(--surface);
-  transition: background-color 300ms ease-out;
-}
-.comms__label { flex: none; font-size: 14px; font-weight: 500; color: var(--text-2); }
-.comms__text { margin: 0; font-size: 16px; }
-.comms__text--voice {
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
-  color: var(--text-2);
-  transition: color 300ms ease-out;
-}
-/* A callout just spoken: lime label, full-white words, and a lime bar that drains over the 8 s it counts as fresh. */
-.comms__item--voice.is-fresh { background: var(--surface-2); }
-.comms__item--voice.is-fresh .comms__label { color: var(--accent); }
-.comms__item--voice.is-fresh .comms__text--voice { color: var(--text); }
-.comms__drain {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  background: var(--accent);
-  transform-origin: left;
-  animation: drain 8s linear forwards;
-}
-@keyframes drain { to { transform: scaleX(0); } }
-/* Long alerts stay inside the strip (full text on hover) so the screen still fits without scrolling. */
-.comms__text--clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.comms__time { color: var(--text-2); font-size: 14px; font-weight: 400; letter-spacing: 0; }
-
-/* ---- Patient band: identity, then the allergy, then the rest ---- */
-.patient {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 32px;
-  align-items: center;
-  margin: var(--gap) var(--gutter) 0;
-  padding: 12px 16px;
-  min-height: 56px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  background: var(--surface);
-}
-.patient__source { margin-left: auto; }
-.patient__who { display: flex; flex-direction: column; }
-.patient__name { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-.patient__age { font-weight: 400; color: var(--text-2); }
-.patient__meta { font-size: 12px; color: var(--text-2); }
-.patient__label { display: block; font-size: 12px; font-weight: 500; color: var(--text-2); }
-.patient__fact { min-width: 0; }
-.patient__allergy { display: flex; gap: 8px; align-items: center; padding: 6px 12px; border-radius: 8px; background: var(--surface-2); }
-.patient__allergy strong { font-size: 16px; font-weight: 600; }
-.patient__allergy.has-allergy { background: var(--alarm-bg); color: var(--alarm); }
-.patient__allergy.has-allergy .patient__label { color: var(--alarm); }
-
-/* Loading: the record is being pulled. Skeleton bars in the shape of the band, not a spinner. */
-.skeleton { display: inline-block; height: 14px; border-radius: 4px; background: var(--surface-2); }
-.skeleton--name { width: 180px; height: 20px; }
-.skeleton { animation: skeleton 1.4s ease-in-out infinite; }
-@keyframes skeleton { 50% { opacity: 0.5; } }
-
-/* ---- Main grid ---- */
-.hd__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 384px;
-  gap: var(--gap);
-  padding: var(--gap) var(--gutter) var(--gutter);
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
 }
-.hd__main, .hd__side { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+.hero { padding: 24px 32px 24px 24px; border-bottom: 1px solid var(--rule-strong); }
+.hero--slim { padding-bottom: 8px; }
+.hero--slim .status { margin-bottom: 8px; }
 
-/* Tiles. The first row is what matters now (CPR during an arrest, vitals otherwise) and gets the big numbers. */
-.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap); }
-.tile {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  background: var(--surface);
-  transition: background-color 300ms ease-out;
+.status { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+.status__word { font-size: 32px; font-weight: 500; letter-spacing: -0.02em; }
+.status__clock { font-size: 32px; font-weight: 300; color: var(--ink-2); letter-spacing: -0.02em; }
+.status--arrest .status__word,
+.status--arrest .status__clock { color: var(--alarm); }
+
+.focal { display: grid; grid-template-columns: minmax(0, 1fr); }
+.focal__label { display: flex; gap: 12px; align-items: center; }
+.focal__value {
+  font-size: 160px;
+  font-weight: 200;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+  margin: 4px 0 12px -6px;
 }
-.tile--alarm { background: var(--alarm-bg); }
-.tile__label { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; font-size: 14px; color: var(--text-2); }
-.tile__body { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
-.tile__value { font-size: 32px; font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; white-space: nowrap; }
-.tiles--lead .tile__value { font-size: 48px; line-height: 1.1; }
-.tile--alarm .tile__value { color: var(--alarm); }
-.tile__unit { font-size: 16px; font-weight: 400; color: var(--text-2); margin-left: 4px; letter-spacing: 0; }
-.tile__nodata { font-size: 20px; font-weight: 400; color: var(--text-2); letter-spacing: 0; }
-.tiles--lead .tile__nodata { font-size: 24px; }
-.tile__note { font-size: 12px; color: var(--text-2); margin-top: 4px; }
-.tile__viz { margin-top: auto; padding-top: 8px; }
+.focal.is-alarm .focal__value { color: var(--alarm); }
+.focal__note { font-size: 13px; color: var(--ink-2); margin-top: 8px; }
 
-/* Trend line / pulse waveform under a vital */
-.spark { display: block; width: 100%; height: 24px; overflow: visible; }
-.tiles--lead .spark { height: 32px; }
-.spark polyline { fill: none; stroke: var(--text-2); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
-.spark--pulse polyline { stroke: var(--text); }
-.spark--alarm polyline { stroke: var(--alarm); }
-.spark__caption { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin-top: 2px; }
-
-/* CPR rate on a 60–160 scale with the 100–120 target band */
-.band { position: relative; height: 8px; border-radius: 999px; background: var(--surface-2); }
-.band__target { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-.band__marker {
+/* CPR ruler: 60–160 /min, the 100–120 target as a filled span, a needle for the current rate */
+.ruler { position: relative; height: 36px; border-top: 1px solid var(--ink); }
+.ruler__target { position: absolute; top: -1px; height: 8px; background: var(--ink); }
+.ruler__tick { position: absolute; top: 14px; translate: -50% 0; font-size: 12px; color: var(--ink-2); }
+.ruler__tick::before { content: ''; position: absolute; left: 50%; top: -14px; width: 1px; height: 6px; background: var(--ink); }
+.ruler__needle {
   position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  translate: -50% -50%;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--surface);
-  transition: left 400ms var(--ease), background-color 200ms ease-out;
+  top: -16px;
+  width: 3px;
+  height: 24px;
+  translate: -50% 0;
+  background: var(--ink);
+  transition: left 400ms cubic-bezier(0.2, 0, 0, 1);
 }
-.band__marker.is-alarm { background: var(--alarm); box-shadow: 0 0 0 3px var(--alarm-bg); }
-.band__ticks { position: relative; height: 16px; font-size: 12px; color: var(--text-2); }
-.band__ticks span { position: absolute; top: 2px; translate: -50% 0; }
+.ruler__needle.is-alarm { background: var(--alarm); }
 
-/* Dose / cycle timer ring: drains as the interval runs out */
-.ring { flex: none; width: 44px; height: 44px; rotate: -90deg; }
-.tiles--lead .ring { width: 56px; height: 56px; }
-.ring circle { fill: none; stroke-width: 4; }
-.ring__track { stroke: var(--surface-2); }
-.ring__fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 500ms linear; }
-.ring--due .ring__fill { stroke: var(--alarm); }
+/* Live pulse / 5-min trends: plain ink lines */
+.line { display: block; width: 100%; height: 40px; overflow: visible; }
+.line polyline { fill: none; stroke: var(--ink); stroke-width: 1.25; stroke-linejoin: round; }
+.focal.is-alarm .line polyline { stroke: var(--alarm); }
+.pulse-slot { height: 40px; }
+.readout .line { height: 24px; margin-top: 6px; }
+.trend { display: block; }
 
-/* Panels */
-.panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  background: var(--surface);
-}
-.panel--grow { flex: 1; }
-.panel__title { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
-.panel__body { min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.panel__body p { margin: 4px 0; }
+/* The focal number and its two companions share one row: number + ruler on the left, a ruled column on the right. */
+.hero__grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 32px; }
+.readouts { display: grid; grid-auto-rows: 1fr; border-left: 1px solid var(--rule); }
+.readout { display: flex; flex-direction: column; justify-content: center; padding: 8px 0 8px 24px; }
+.readout + .readout { border-top: 1px solid var(--rule); }
+.readout .label { display: flex; gap: 8px; align-items: center; }
+.readout__value { font-size: 64px; font-weight: 200; line-height: 1.05; letter-spacing: -0.04em; }
+.readout.is-alarm .readout__value { color: var(--alarm); }
+.readout__note { display: block; font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 
-.timeline, .trace { list-style: none; margin: 0; padding: 0; }
-.timeline__row {
+.aside-line { margin-top: 16px; font-size: 13px; color: var(--ink-2); }
+
+/* Activity: one ruled list, newest first */
+.feed { display: flex; flex-direction: column; min-height: 0; padding: 16px 32px 0 24px; }
+.feed__empty { margin-top: 8px; }
+.feed__list { list-style: none; margin: 8px 0 0; padding: 0; overflow: auto; overscroll-behavior: contain; min-height: 0; }
+.feed__row {
   display: grid;
   grid-template-columns: 72px minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: 16px;
   align-items: baseline;
-  margin: 0 -8px;
-  padding: 8px;
-  border-radius: 6px;
-  border-bottom: 1px solid var(--line);
+  padding: 9px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 15px;
 }
-.timeline__row:last-child { border-bottom: 0; }
-/* A row that just arrived slides in on a lime wash that fades out. */
-.timeline__row.is-new { animation: row-in 2.4s var(--ease); }
-@keyframes row-in {
-  0% { opacity: 0; translate: 0 -6px; background: var(--accent-soft); }
-  12% { opacity: 1; translate: 0 0; background: var(--accent-soft); }
-  100% { background: transparent; }
-}
-.timeline__row--cancelled .timeline__label { text-decoration: line-through; color: var(--text-2); }
-.timeline__time { color: var(--text-2); font-size: 14px; }
-.timeline__label { font-size: 16px; }
-.timeline__flag { color: var(--alarm); font-weight: 600; margin-right: 8px; }
-.timeline__chips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.feed__time { font-size: 13px; color: var(--ink-2); }
+.feed__who { font-size: 13px; color: var(--ink-2); margin-right: 10px; }
+.feed__flag { color: var(--alarm); margin-right: 10px; }
+.feed__row.is-cancelled .feed__text { text-decoration: line-through; color: var(--ink-2); }
+.feed__row.is-alert .feed__text { font-weight: 500; }
+.feed__row.is-new { animation: arrive 600ms ease-out; }
+@keyframes arrive { from { opacity: 0; translate: 0 -4px; } }
+.feed__chips { display: flex; gap: 10px; }
 
-.trace li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 8px; padding: 4px 0; font-size: 14px; }
-.trace li.trace__end { padding: 0; }
-.trace__time { color: var(--text-2); }
-.trace__step { font-weight: 600; margin-right: 6px; }
-.trace__tool { font: inherit; color: var(--text-2); margin-right: 6px; }
-
-/* Source chip: hover for the evidence. */
+/* Source chip: hover for the evidence (H4). Text with a dotted rule, the convention for "more on hover". */
 .chip {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
   font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-  color: var(--text-2);
-  background: var(--surface-2);
+  color: var(--ink-2);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
   cursor: help;
-  transition: color 150ms ease-out, background-color 150ms ease-out;
+  white-space: nowrap;
 }
 @media (hover: hover) {
-  .chip:hover { color: var(--text); background: var(--line); }
+  .chip:hover { color: var(--ink); }
 }
 
-/* ---- Live video: a thumbnail that expands ---- */
+/* ---- Right: the carbon band ---- */
+.band {
+  grid-area: band;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--carbon);
+  color: var(--on-carbon);
+}
+.band .label { color: var(--on-carbon-2); }
+.band .muted { color: var(--on-carbon-2); }
+.band .caution { color: var(--on-carbon-2); }
+
 .video-slot { position: relative; aspect-ratio: 16 / 9; flex: none; }
 .video-slot__note {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 14px;
+  background: var(--carbon-2);
+  color: var(--on-carbon-2);
+  font-size: 13px;
 }
 .video {
   position: absolute;
   inset: 0;
   padding: 0;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: #05080f;
+  border: 0;
+  border-radius: 0;
+  background: #000;
   overflow: hidden;
   cursor: zoom-in;
   font: inherit;
   color: inherit;
   view-transition-name: live-video;
-  transition-property: border-color;
-  transition-duration: 150ms;
-  transition-timing-function: ease-out;
   -webkit-tap-highlight-color: transparent;
 }
-.video:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (hover: hover) {
-  .video:hover { border-color: var(--text-2); }
-  .video:hover .video__toggle { opacity: 1; }
-}
+.video:focus-visible { outline: 2px solid var(--on-carbon); outline-offset: -4px; }
 .video video { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* Text over video sits on a dark scrim so it passes contrast whatever the frame shows. */
 .video__badge,
 .video__toggle {
   position: absolute;
-  top: 8px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  top: 0;
+  padding: 6px 10px;
   font-size: 12px;
-  font-weight: 600;
-  background: rgb(0 0 0 / 0.7);
-  color: var(--text-2);
+  background: rgb(0 0 0 / 0.72);
+  color: var(--on-carbon-2);
 }
-.video__badge { left: 8px; }
-.video__toggle {
-  right: 8px;
-  display: grid;
-  place-items: center;
-  padding: 4px;
-  color: var(--text);
-  opacity: 0.8;
-  transition-property: opacity;
-  transition-duration: 150ms;
-  transition-timing-function: ease-out;
+.video__badge { left: 0; }
+.video__toggle { right: 0; display: grid; place-items: center; padding: 6px; color: var(--on-carbon); opacity: 0.85; transition: opacity 120ms ease-out; }
+.video--live .video__badge { color: var(--on-carbon); }
+.video--stale .video__badge { color: var(--amber); }
+@media (hover: hover) {
+  .video:hover .video__toggle { opacity: 1; }
 }
-.video--live .video__badge { color: var(--accent); }
-.video--stale .video__badge { color: var(--caution); }
-
 .video--expanded {
   position: fixed;
   inset: auto;
@@ -412,75 +258,74 @@
   cursor: zoom-out;
 }
 .video--expanded .video__badge,
-.video--expanded .video__toggle { top: 12px; font-size: 14px; }
-.video--expanded .video__badge { left: 12px; }
-.video--expanded .video__toggle { right: 12px; opacity: 1; }
-.video-backdrop { position: fixed; inset: 0; z-index: 30; background: rgb(5 8 15 / 0.78); }
-
-/* The thumbnail morphs into the large view (view transitions). Reduced motion: a plain cross-fade. */
-::view-transition-group(live-video) {
-  animation-duration: 250ms;
-  animation-timing-function: var(--ease, cubic-bezier(0.2, 0, 0, 1));
-}
+.video--expanded .video__toggle { font-size: 14px; }
+.video-backdrop { position: fixed; inset: 0; z-index: 30; background: rgb(15 14 18 / 0.86); }
+::view-transition-group(live-video) { animation-duration: 250ms; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
 ::view-transition-old(root),
 ::view-transition-new(root) { animation-duration: 200ms; }
 
-/* ---- Handoff report (H7): rises into the space the vitals and timeline leave ---- */
-.report {
-  flex: 1;
-  min-height: 0;
-  padding: 16px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  background: var(--surface);
-  overflow: auto;
-  overscroll-behavior: contain;
-  animation: rise 350ms var(--ease);
+/* What the bodycam just said: big while fresh, then it greys back */
+.said { padding: 20px 24px; border-bottom: 1px solid var(--carbon-2); min-height: 120px; }
+.said__text {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--on-carbon-2);
+  transition: color 400ms ease-out;
 }
-@keyframes rise { from { opacity: 0; translate: 0 12px; } }
-.report__header { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; margin-bottom: 12px; }
-.report__title { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
-.report__meta { font-size: 14px; color: var(--text-2); }
-.report__table { width: 100%; border-collapse: collapse; }
-.report__table th {
-  width: 32px;
-  vertical-align: top;
-  text-align: left;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--accent);
-  padding: 8px 8px 8px 0;
-}
-.report__table td { border-top: 1px solid var(--line); padding: 10px 8px; vertical-align: top; }
-.report__text { font-size: 16px; }
-.report__chips { text-align: right; white-space: normal; }
-.report__chips .chip { margin: 0 0 4px 4px; }
+.said.is-fresh .said__text { color: var(--on-carbon); }
+.said__text--empty { font-size: 16px; }
 
-/* Motion only where it says something; without it, every state still reads. */
+/* Patient: name, the allergy, one line for the rest */
+.patient { padding: 20px 24px; display: flex; flex-direction: column; gap: 6px; }
+.patient .label { display: flex; gap: 6px; align-items: center; }
+.patient__name { font-size: 24px; font-weight: 500; letter-spacing: -0.01em; }
+.patient__age { font-weight: 300; color: var(--on-carbon-2); }
+.patient__allergy { font-size: 16px; color: var(--on-carbon-2); }
+.patient__allergy.has-allergy { align-self: flex-start; padding: 2px 8px; margin-left: -8px; background: var(--alarm-on-carbon); color: #1a0403; font-weight: 500; }
+.patient__more { font-size: 13px; color: var(--on-carbon-2); }
+
+.skeleton { display: block; height: 14px; width: 60%; background: var(--carbon-2); animation: skeleton 1.4s ease-in-out infinite; }
+.skeleton--name { height: 24px; width: 70%; }
+@keyframes skeleton { 50% { opacity: 0.5; } }
+
+/* ---- Handoff report (H7): takes the left side when ready ---- */
+.report { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px 32px 24px 24px; animation: arrive 400ms ease-out; }
+.report__header { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding-bottom: 16px; border-bottom: 1px solid var(--rule-strong); }
+.report__title { font-size: 32px; font-weight: 500; letter-spacing: -0.02em; }
+.report__meta { flex-basis: 100%; font-size: 13px; color: var(--ink-2); }
+.report__table { width: 100%; border-collapse: collapse; }
+.report__table th { width: 40px; vertical-align: top; text-align: left; font-size: 24px; font-weight: 200; padding: 12px 0; }
+.report__table td { border-bottom: 1px solid var(--rule); padding: 14px 8px; vertical-align: top; }
+.report__text { font-size: 16px; }
+.report__chips { text-align: right; white-space: nowrap; }
+.report__chips .chip { margin-left: 10px; }
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(live-video) { animation: none; }
-  .skeleton, .comms__drain, .timeline__row.is-new, .report { animation: none; }
-  .handoff__button[aria-busy='true']::before { animation: none; background: var(--accent); }
+  .skeleton, .feed__row.is-new, .report { animation: none; }
+  .ruler__needle { transition: none; }
 }
 
 /* ---- Narrow screens: one column, page scrolls; the header (and Generate Handoff) stays on screen ---- */
 @media (max-width: 1100px) {
-  .hd { height: auto; min-height: 100vh; }
-  .hd__header { position: sticky; top: 0; z-index: 20; }
-  .comms { grid-template-columns: 1fr; }
-  .hd__grid { grid-template-columns: 1fr; }
-  .panel--grow { min-height: 240px; }
-}
-/* Phones: tiles scroll sideways instead of squeezing three numbers into one row. */
-@media (max-width: 640px) {
-  .tiles {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 72%;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    overscroll-behavior-x: contain;
+  .hd {
+    height: auto;
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas: 'header' 'main' 'band';
   }
-  .tile { scroll-snap-align: start; }
-  .tiles--lead .tile__value { font-size: 32px; }
+  .hd__header { position: sticky; top: 0; z-index: 20; background: var(--canvas); flex-wrap: wrap; height: auto; padding: 12px 16px; gap: 12px; }
+  .feed__list { max-height: 360px; }
+  .focal__value { font-size: 112px; }
+}
+@media (max-width: 640px) {
+  .hero, .feed { padding-left: 16px; padding-right: 16px; }
+  .focal__value { font-size: 88px; }
+  .readout__value { font-size: 40px; }
+  .feed__row { grid-template-columns: 56px minmax(0, 1fr); }
+  .feed__chips { grid-column: 2; }
 }
