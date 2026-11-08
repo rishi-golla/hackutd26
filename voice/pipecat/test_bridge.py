@@ -16,6 +16,7 @@ from loguru import logger
 import brain_bridge
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
+    StartFrame,
     BotStoppedSpeakingFrame,
     EndFrame,
     ErrorFrame,
@@ -34,6 +35,24 @@ from pipecat.workers.runner import WorkerRunner
 from brain_bridge import BrainBridge
 
 UP = FrameDirection.UPSTREAM
+DANGLING: list[str] = []  # Pipecat's "dangling tasks detected" warnings
+
+
+class SlowStart(FrameProcessor):
+    """Holds the StartFrame like TTS opening its gRPC stream: the bridge has started, the pipeline hasn't."""
+
+    async def process_frame(self, frame, direction):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, StartFrame):
+            await asyncio.sleep(2)
+        await self.push_frame(frame, direction)
+
+
+def assert_released(bridge: BrainBridge, what: str):
+    tasks = (bridge._watchdog, bridge._turn_hold, bridge._late_final, bridge._lost_task, bridge._mouth_task, bridge._transcript_task)
+    assert not any(t and not t.done() for t in tasks), f"{what}: bridge tasks still running: {tasks}"
+    assert bridge._session is None and bridge._ws is None, f"{what}: connection to the brain still open"
+    assert not DANGLING, f"{what}: {DANGLING}"
 
 
 class StubBrain:
@@ -292,6 +311,25 @@ async def main():
 
     await worker.queue_frame(EndFrame())
     await asyncio.wait_for(run, 5)
+    assert_released(bridge, "after EndFrame")
+    await bridge.cleanup()
+    await bridge.cleanup()
+    assert_released(bridge, "after cleanup twice")
+    print("ok  cleanup() twice is harmless")
+
+    # Cancelled before the pipeline finished starting: Pipecat pushes no CancelFrame, only cleanup() runs.
+    early = BrainBridge(f"http://127.0.0.1:{port}")
+    brain.connected.clear()
+    w3 = PipelineWorker(Pipeline([early, SlowStart()]), idle_timeout_secs=None, enable_rtvi=False)
+    r3 = WorkerRunner(handle_sigint=False)
+    await r3.add_workers(w3)
+    run3 = asyncio.create_task(r3.run())
+    await asyncio.wait_for(brain.connected.wait(), 3)  # the bridge started and holds a mouth
+    await w3.cancel()
+    await asyncio.wait_for(run3, 5)
+    assert_released(early, "cancelled while starting")
+    print("ok  cancelled before the pipeline started -> mouth and tasks released by cleanup()")
+
     await server.cleanup()
     print("all bridge tests passed")
 
@@ -299,4 +337,5 @@ async def main():
 if __name__ == "__main__":
     logger.remove()
     logger.add(sys.stderr, level="WARNING")
+    logger.add(lambda m: DANGLING.append(m.record["message"]), level="WARNING", filter=lambda r: "dangling" in r["message"])
     asyncio.run(main())

@@ -8,13 +8,15 @@ import { numbersSupported } from './llm';
 import { spoken } from './spoken';
 import { tsMs } from './state';
 
-export type SpeechKind = 'readback' | 'answer' | 'advisory' | 'record' | 'ask' | 'control' | 'vision';
+export type SpeechKind = 'readback' | 'answer' | 'advisory' | 'record' | 'ask' | 'control' | 'vision' | 'trend';
 
 const SPACING_S = 4;
 const ADVISORY_GAP_S = 15;
 /** "ask" is a reply to the medic (a clarifying question), not an unprompted advisory, so it gets room.
- *  "vision" is the answer to "Handoff, look": fixed wording from the sampler, never the model's. */
-const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20 };
+ *  "vision" is the answer to "Handoff, look": fixed wording from the sampler, never the model's.
+ *  "trend" is the brain's fixed note about a worsening vitals trend (decision 24): fixed code, not the model, so it
+ *  keeps the advisory's 15-word cap and spoken numbers but not the 15 s advisory gap (the 4 s spacing still holds). */
+const WORD_LIMIT: Record<SpeechKind, number> = { readback: 40, answer: 30, advisory: 15, record: 25, ask: 12, control: 3, vision: 20, trend: 15 };
 const DECIMAL_OR_INT = /\b\d{1,3}(?:\.\d+)?\b/g;
 
 export class Policy {
@@ -76,7 +78,7 @@ export class Policy {
       }
     }
     // Numbers are spoken in words (spec §15). Read-backs already are; answers and advisories come from the model.
-    if (kind === 'answer' || kind === 'advisory') {
+    if (kind === 'answer' || kind === 'advisory' || kind === 'trend') {
       words = words
         .replace(/\b(\d{1,2}):(\d{2})\b/g, (_m, h, m) => `${spoken(Number(h))} ${Number(m) === 0 ? 'hundred' : Number(m) < 10 ? `oh ${spoken(Number(m))}` : spoken(Number(m))}`) // 22:11 → twenty-two eleven
         .replace(/\bmcg\b/gi, 'micrograms')

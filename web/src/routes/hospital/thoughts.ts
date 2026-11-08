@@ -35,6 +35,7 @@ const TOOL_TEXT: Record<string, { now: string; done: string }> = {
   mark: { now: 'Marking the moment', done: 'Marked the moment' },
   speak: { now: 'Queueing speech', done: 'Queued speech' },
   proactive: { now: 'Considering an advisory', done: 'Considered an advisory' },
+  trend: { now: 'Watching the vitals trend', done: 'Watched the vitals trend' },
   get_state: { now: 'Reading the live state', done: 'Read the live state' },
   get_recent_transcript: { now: 'Reading the transcript', done: 'Read the transcript' },
   get_timeline: { now: 'Reading the timeline', done: 'Read the timeline' },

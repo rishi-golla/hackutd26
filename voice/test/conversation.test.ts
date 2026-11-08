@@ -432,3 +432,118 @@ test('"no" drops a half-heard medication even with no earlier read-back', async 
     assert.equal(callsTo(calls, 'logEvent').length, 0, 'the dropped half is not completed later');
   });
 });
+
+// ---- only speak when spoken to (live test Sun: the agent read out its own reasoning) -------------------------
+
+const decisions = (calls: { reducer: string; args: any }[]) =>
+  callsTo(calls, 'logAgentStep').filter(c => c.args.tool === 'decision').map(c => JSON.parse(c.args.summary));
+
+test('free text on a line not meant for Handoff is never spoken; the dashboard gets only generic status', async () => {
+  const { conn, calls } = arrest();
+  const blob = 'The medic is describing the patient to a partner. KEEP and document the skin finding; it is not meant for Handoff, so no reply is needed here.';
+  await withModel([{ content: blob }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance("He's really pale and sweaty", 'pipecat');
+    await settle(() => requests.length >= 1 && decisions(calls).length >= 2);
+    assert.equal(callsTo(calls, 'addCallout').length, 0);
+    assert.deepEqual(decisions(calls).map(d => d.phase), ['progress', 'complete']);
+    assert.match(decisions(calls)[1].text, /Reviewed the clinical update/);
+    assert.ok(callsTo(calls, 'logAgentStep').every(c => !/describing|partner|KEEP|no reply is needed/.test(c.args.summary)), 'no model words in agent_step');
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ["He's really pale and sweaty"], 'still kept');
+  });
+});
+
+test('an addressed line answered in plain free text is still spoken', async () => {
+  const { conn, calls } = arrest();
+  await withModel([{ content: 'Nothing given yet.' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Handoff, what have we given?', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 0);
+    assert.deepEqual(callsTo(calls, 'addCallout').map(c => c.args.text), ['Nothing given yet.']);
+  });
+});
+
+test('an addressed line answered with reasoning is not spoken', async () => {
+  const { conn, calls } = arrest();
+  await withModel([{ content: 'The user is asking about medications. I should check the timeline and then answer.' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Handoff, what have we given?', 'pipecat');
+    await settle(() => requests.length >= 1 && decisions(calls).length >= 2);
+    assert.equal(callsTo(calls, 'addCallout').length, 0);
+  });
+});
+
+test('speak on a line not meant for Handoff is refused as a policy decision; the line is still kept', async () => {
+  const { conn, calls } = arrest();
+  await withModel([{ tool_calls: [toolCall('speak', { text: 'He does look pale.' })] }, { content: 'SILENT' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('His skin is pale and sweaty', 'pipecat');
+    await settle(() => requests.length >= 2 && callsTo(calls, 'addTranscript').length > 0);
+    assert.equal(callsTo(calls, 'addCallout').length, 0);
+    const toolResult = requests[1].messages.find((m: any) => m.role === 'tool');
+    assert.match(toolResult.content, /"error":"the line was not meant for you/);
+    assert.ok(callsTo(calls, 'logAgentStep').some(c => c.args.tool === 'speak' && /^Refused: the line was not meant for Handoff/.test(c.args.summary)));
+    const end = decisions(calls).at(-1);
+    assert.equal(end.phase, 'complete', 'a refusal is not a failed request');
+    assert.equal(end.text, 'Reviewed the clinical update; nothing to say aloud.', 'the generic row, never the withheld words');
+    assert.ok(!decisions(calls).some(d => /Preparing a reply/.test(d.text)));
+    assert.deepEqual(callsTo(calls, 'addTranscript').map(c => c.args.text), ['His skin is pale and sweaty']);
+  });
+});
+
+test('a direct request without the name or a question mark counts as addressed', async () => {
+  const { conn, calls } = arrest();
+  await withModel([{ tool_calls: [toolCall('speak', { text: 'No record pulled yet.' })] }, { content: 'SILENT' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Can you pull up his record', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 0);
+    assert.deepEqual(callsTo(calls, 'addCallout').map(c => c.args.text), ['No record pulled yet.']);
+  });
+});
+
+test('a follow-up within 45 s of Handoff answering counts as addressed; after that it does not', async () => {
+  const { conn, calls } = arrest();
+  await withModel([
+    { content: 'I read back doses and check allergies.' },
+    { tool_calls: [toolCall('speak', { text: 'I check each drug against the record.' })] }, { content: 'SILENT' },
+    { tool_calls: [toolCall('speak', { text: 'That one too.' })] }, { content: 'SILENT' },
+  ], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    await brain.handleUtterance('Handoff, what can you do?', 'pipecat');
+    await settle(() => callsTo(calls, 'addCallout').length > 0);
+    await brain.handleUtterance('Okay and the allergies part works how', 'pipecat');
+    // The policy keeps 4 s between P1 callouts, so the second answer waits its turn.
+    await settle(() => callsTo(calls, 'addCallout').length > 1);
+    for (let i = 0; i < 50 && callsTo(calls, 'addCallout').length < 2; i++) await wait(100);
+    assert.deepEqual(callsTo(calls, 'addCallout').map(c => c.args.text), ['I read back doses and check allergies.', 'I check each drug against the record.']);
+    // 46 s later the same kind of line is background talk again.
+    for (const h of (brain as any).history) h.at -= 46_000;
+    await brain.handleUtterance('Okay and the pupils look equal now', 'pipecat');
+    await settle(() => requests.length >= 5);
+    assert.equal(callsTo(calls, 'addCallout').length, 2);
+  });
+});
+
+test('a camera scene is one vision trace row and context for the next turn; nothing is logged or stored', async () => {
+  const { conn, calls } = arrest();
+  await withModel([{ content: 'SILENT' }], async requests => {
+    const brain = new Brain(conn, stubSpeaker, new Policy(conn));
+    brain.start();
+    assert.equal(await brain.handleSeen({ type: 'scene', text: 'Medic kneeling, hands over the patient chest' }), 'scene');
+    const vision = callsTo(calls, 'logAgentStep').filter(c => c.args.tool === 'vision');
+    assert.equal(vision.length, 1);
+    assert.equal(vision[0].args.summary, 'Camera: Medic kneeling, hands over the patient chest');
+    assert.equal(callsTo(calls, 'logEvent').length, 0);
+    assert.equal(callsTo(calls, 'addTranscript').length, 0);
+    await brain.handleUtterance('His breathing is shallow', 'pipecat');
+    await settle(() => requests.length >= 1);
+    assert.match(requests[0].messages[0].content, /CAMERA \(\d+ s ago\) Medic kneeling, hands over the patient chest/);
+    assert.match(requests[0].messages[0].content, /CAMERA is what the bodycam sees right now/);
+  });
+});

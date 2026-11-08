@@ -52,8 +52,10 @@ export function startApi(conn: Conn, brain: Brain, speaker: Speaker) {
         // One vision finding (voice/pipecat/vision.py): {"type": "id_card", "name", "birthDate"} or
         // {"type": "medication", "drug", "dose"?} or {"type": "aed_pads" | "airway_device" | "iv_io"}, plus
         // optional "confidence" and "detail" (where the evidence frame is).
+        // {"type": "scene", "text": "…"} is what the camera sees right now: context for the model and one trace row,
+        // never an event or a transcript line.
         const finding = parseSeen(await readJson(req));
-        if (!finding) return send(res, 400, { error: 'not a finding: type id_card (name, birthDate YYYY-MM-DD), medication (drug, dose?), aed_pads, airway_device or iv_io' });
+        if (!finding) return send(res, 400, { error: 'not a finding: type id_card (name, birthDate YYYY-MM-DD), medication (drug, dose?), aed_pads, airway_device, iv_io, or scene (text)' });
         send(res, 202, { ok: true });
         brain.handleSeen(finding).catch(err => console.error('[voice] seen failed', err));
         return;

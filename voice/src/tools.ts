@@ -97,6 +97,8 @@ export type ToolContext = {
   valid: () => boolean;
   /** What the medic said this turn; status changes must be stated in it, not inferred. */
   utterance: string;
+  /** The line was meant for Handoff (brain.ts `isAddressed`); `speak` refuses when it wasn't. */
+  addressed: boolean;
   /** Reads an action (procedure, airway) back and asks "Log it?"; the brain owns the pending confirmation. */
   confirmAction: (kind: string, label: string) => Promise<void>;
 };
@@ -263,6 +265,11 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       }
     }
     case 'speak': {
+      // Only a line meant for Handoff gets an answer (§19, decision 21): background talk is documented, never answered.
+      if (!ctx.addressed) {
+        await step(conn, 'speak', 'Refused: the line was not meant for Handoff');
+        return j({ error: 'the line was not meant for you; stay silent and do not call speak again' });
+      }
       const text = String(args.text ?? '');
       const ok = await ctx.policy.say(text, 1, 'answer', ctx.corpus.join('\n'), ctx.valid);
       return j(ok ? { ok: true } : { error: 'dropped by the policy layer (too long, or a number not in the facts); rephrase with facts from the tools only, or stay silent' });

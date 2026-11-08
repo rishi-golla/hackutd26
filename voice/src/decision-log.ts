@@ -49,6 +49,8 @@ export function publicSummaries(corpus: string): string[] {
   if (/^PATIENT not identified yet \(no record\)$/m.test(corpus)) options.push('No patient record is available yet; monitoring the documented incident.');
   if (/^RECENT SPEECH /m.test(corpus)) options.push('Reviewed the recent callouts; no additional advisory selected.');
   if (/^INCIDENT .*· status ROSC\b/m.test(corpus)) options.push('Reviewed the recorded ROSC status; continuing to monitor.');
+  // Only when the TREND line itself says WORSENING: a rising SpO2 must not be called a worsening trend.
+  if (/^TREND .*· WORSENING$/m.test(corpus)) options.push('Reviewed the worsening vitals trend; an advisory was considered.');
   return options;
 }
 

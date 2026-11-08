@@ -6,9 +6,23 @@ evidence, and posts each finding to the brain (POST {brain}/seen, voice/README.m
 the database: an ID card becomes the W6 search, a drug being given becomes log_event(med_<drug>, source "seen")
 and the RB9/RB10 checks, AED pads / airway / IV-IO become procedure rows.
 
-"Handoff, look" (or just "look") in the medic's words grabs a frame at once and speaks what was found through
-the brain's queue, so the §15 spacing still applies. Without WebRTC video (the phone page is streaming to the
-Pi hub only) it falls back to the hub's newest frame, GET {HUB_URL}/frame.jpg, when HUB_URL is set.
+The same reply carries a one-sentence "scene" (what is happening in view). It goes to the brain as
+POST /seen {"type":"scene","text":...,"confidence":1}, which shows it to Nemotron as a "CAMERA (N s ago)" line, so
+the video informs its decisions. A scene is posted only when it changed (case and spacing ignored) and at most every
+SCENE_EVERY_S. It is never traced or spoken from here (the brain writes its own dashboard row), and it costs no
+extra model call: it rides in the per-frame call.
+
+"Handoff, look" in the medic's words grabs a frame at once and speaks what was found through the brain's queue,
+so the §15 spacing still applies. Without WebRTC video for 3 s (the phone page is streaming to the Pi hub only) it
+falls back to the hub's newest frame, GET {HUB_URL}/frame.jpg, when HUB_URL is set.
+
+Budget: at most one model call in flight and at most one per interval_s; after a 429 the unasked sampling waits
+(Retry-After, else MODEL_BUSY_HOLD_S). Lifecycle: everything the sampler starts (the hub loop, the in-flight call,
+the HTTP session) is released on EndFrame/CancelFrame AND in cleanup(), and nothing new starts after that. The
+second matters: a session cancelled before its StartFrame reached the end of the pipeline (a fast phone reconnect)
+never gets the CancelFrame from Pipecat's worker, only cleanup(), and the base cleanup() leaves create_task() tasks
+running. A leaked hub loop kept calling the model after its session ended; after a few reconnects several did at
+once and the key hit 429s.
 
 Ported from Devin's PR #6 (voice/handoff_voice/vision.py), which ran the same prompt on a self-hosted Omni; here
 the model is NVIDIA-hosted on the same nvapi- key as the rest of the worker.
@@ -32,13 +46,15 @@ from pipecat.frames.frames import CancelFrame, EndFrame, Frame, InputImageRawFra
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 PROMPT = """You see one frame from a paramedic's bodycam. Report only what is clearly visible. Return JSON only:
-{"findings": [ ... ]} where each finding is one of
+{"scene": "<one short sentence saying what is happening in view, e.g. 'medic's gloved hands over the patient's chest, syringe in the right hand'; empty if nothing is visible>", "findings": [ ... ]}
+where each finding is one of
 {"type": "id_card", "name": "<name exactly as printed>", "birth_date": "YYYY-MM-DD", "confidence": 0-1}
 {"type": "medication", "drug": "<generic name, lowercase>", "dose": "<as printed, or empty>", "being_given": true|false, "confidence": 0-1}
 {"type": "aed_pads", "confidence": 0-1}
 {"type": "airway_device", "confidence": 0-1}
 {"type": "iv_io", "confidence": 0-1}
-If nothing relevant is visible, return {"findings": []}. Never guess text you cannot read."""
+The scene describes actions and equipment only: no names, no printed text, no one but the medic and the patient.
+If nothing relevant is visible, the findings list is empty: {"scene": "...", "findings": []}. Never guess text you cannot read."""
 
 # B6: the shortcut is "Handoff, look". A bare "look" ("look at his pupils") must not trigger a camera check.
 LOOK = re.compile(r"\bhand\s?-?\s?off,?\s+look\b", re.I)
@@ -49,6 +65,22 @@ FRESH_S = {"id_card": 60.0, "medication": 20.0, "aed_pads": 600.0, "airway_devic
 # findings are traced without the picture (§24.3: no faces of bystanders in saved frames).
 KEEP_FRAME = {"id_card", "medication"}
 SPOKEN = {"aed_pads": "AED pads on.", "airway_device": "Airway device in place.", "iv_io": "I-V or I-O access in place."}
+# The scene sentence goes to the brain at most this often, and only when it changed.
+SCENE_EVERY_S = 5.0
+SCENE_MAX_CHARS = 160
+# No WebRTC video for this long: the hub's frames are used instead (when HUB_URL is set).
+HUB_FALLBACK_AFTER_S = 3.0
+# After a 429 without Retry-After, unasked sampling pauses this long (the key is shared with ASR and TTS).
+MODEL_BUSY_HOLD_S = 5.0
+MODEL_BUSY_MAX_HOLD_S = 30.0
+
+
+class ModelBusy(RuntimeError):
+    """The vision endpoint answered 429; retry_after is how long to leave it alone."""
+
+    def __init__(self, message: str, retry_after: float):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 @dataclass
@@ -75,24 +107,60 @@ def to_jpeg(frame: InputImageRawFrame, max_width: int = 960) -> bytes:
     return buf.getvalue()
 
 
-def parse_findings(content: str) -> list[dict]:
-    """The model's text → the findings list. Tolerates code fences, prose around the JSON, and a repeated object
-    (the hosted Omni answered the same JSON twice, once plain and once fenced)."""
+def _reply_object(content: str) -> dict:
+    """The JSON object in the model's text. Tolerates code fences, prose around the JSON, and a repeated object
+    (the hosted Omni answered the same JSON twice, once plain and once fenced): the first object that has
+    "findings" or "scene" wins, else the first object at all."""
     text = content.strip()
-    start = text.find("{")
-    if start < 0:
-        raise ValueError("no JSON in the reply")
-    depth = 0
-    for i in range(start, len(text)):
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-            if depth == 0:
-                data = json.loads(text[start : i + 1])
-                findings = data.get("findings", []) if isinstance(data, dict) else []
-                return [f for f in findings if isinstance(f, dict)]
-    raise ValueError("unbalanced JSON in the reply")
+    decoder = json.JSONDecoder()
+    first: dict | None = None
+    found_brace = False
+    for m in re.finditer(r"\{", text):
+        found_brace = True
+        try:
+            data, _ = decoder.raw_decode(text, m.start())
+        except ValueError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        if "findings" in data or "scene" in data:
+            return data
+        if first is None:
+            first = data
+    if first is not None:
+        return first
+    raise ValueError("unbalanced JSON in the reply" if found_brace else "no JSON in the reply")
+
+
+def clean_scene(value) -> str:
+    """The model's scene → one line for the brain: no braces, at most SCENE_MAX_CHARS; empty when not a string."""
+    if not isinstance(value, str):
+        return ""
+    text = " ".join(value.replace("{", " ").replace("}", " ").split())
+    if len(text) > SCENE_MAX_CHARS:
+        cut = text[: SCENE_MAX_CHARS - 1]
+        text = (cut.rsplit(" ", 1)[0] if " " in cut else cut).rstrip(" ,;:") + "…"
+    return text
+
+
+def parse_reply(content: str) -> tuple[list[dict], str]:
+    """The model's text → (findings, scene). The scene is "" when absent or not a string. Raises ValueError when
+    the text holds no JSON object."""
+    data = _reply_object(content)
+    findings = data.get("findings", [])
+    if not isinstance(findings, list):
+        findings = []
+    return [f for f in findings if isinstance(f, dict)], clean_scene(data.get("scene"))
+
+
+def parse_findings(content: str) -> list[dict]:
+    """The model's text → the findings list (see parse_reply)."""
+    return parse_reply(content)[0]
+
+
+def scene_key(scene: str) -> str:
+    """Two scenes are the same when they differ only in case and spacing."""
+    return " ".join(scene.lower().split())
 
 
 def to_seen(f: dict) -> dict | None:
@@ -131,16 +199,23 @@ class VisionSampler(FrameProcessor):
         super().__init__(**kwargs)
         self.cfg = cfg
         self._session: aiohttp.ClientSession | None = None
+        self._stopped = False  # set once, on EndFrame/CancelFrame or cleanup(): nothing new starts after it
         self._busy = False
         self._force = False
         self._last_start = 0.0
         self._last_frame_at = 0.0
+        self._hold_until = 0.0  # after a 429: no unasked call before this
         self._reported: dict[str, float] = {}
+        self._last_scene = ""  # scene_key() of the last scene the brain took
+        self._last_scene_at = 0.0
         self._hub_task: asyncio.Task | None = None
+        self._calls: set[asyncio.Task] = set()  # in-flight vision_call tasks (at most one; see _due)
         self.calls = 0
         self.failures = 0
         self.latencies_ms: list[float] = []
         self.findings = 0
+        self.scenes = 0
+        self.hub_fetches = 0
 
     # ---- frames ---------------------------------------------------------------------------------------------
 
@@ -173,15 +248,24 @@ class VisionSampler(FrameProcessor):
     # ---- sampling -------------------------------------------------------------------------------------------
 
     def _due(self) -> bool:
+        if self._stopped or not self._session:
+            return False
         if self._busy:
             return False  # skip frames while a call is running, so vision never falls behind (§19)
-        return self._force or time.time() - self._last_start >= self.cfg.interval_s
+        if self._force:
+            return True
+        now = time.time()
+        return now >= self._hold_until and now - self._last_start >= self.cfg.interval_s
 
     def _begin(self, source: InputImageRawFrame | bytes) -> None:
         """Claim the one-call-at-a-time slot now; encode (if needed) and call the model in a task."""
+        if self._stopped or not self._session:
+            return
         forced, self._force = self._force, False
         self._busy, self._last_start = True, time.time()
-        self.create_task(self._encode_and_analyze(source, forced), name="vision_call")
+        task = self.create_task(self._encode_and_analyze(source, forced), name="vision_call")
+        self._calls.add(task)
+        task.add_done_callback(self._calls.discard)
 
     async def _encode_and_analyze(self, source: InputImageRawFrame | bytes, forced: bool) -> None:
         try:
@@ -193,58 +277,90 @@ class VisionSampler(FrameProcessor):
         await self._analyze(jpg, forced)
 
     async def _start(self):
-        if self._session:
+        if self._session or self._stopped:
             return
         self._session = aiohttp.ClientSession()
         if self.cfg.hub_url and not self._hub_task:
             self._hub_task = self.create_task(self._hub_loop(), name="vision_hub")
 
     async def _stop(self):
-        task, self._hub_task = self._hub_task, None
-        if task and not task.done():
+        """Release everything this sampler started. Idempotent, and safe to run from process_frame and cleanup()
+        at the same time: cancellation of every task is requested before the first await, so being interrupted
+        while waiting for them cannot leave one running."""
+        self._stopped = True
+        current = asyncio.current_task()
+        tasks = [t for t in (self._hub_task, *self._calls) if t and not t.done() and t is not current]
+        self._hub_task = None
+        self._calls.clear()
+        self._busy = False
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
             await self.cancel_task(task)
-        if self._session:
-            await self._session.close()
-            self._session = None
+        session, self._session = self._session, None
+        if session and not session.closed:
+            await session.close()
+
+    async def cleanup(self):
+        """Pipecat's base cleanup() releases only the processor's own frame tasks; the hub loop, the in-flight
+        model call and the HTTP session are released here. This is the only teardown a session cancelled before
+        it finished starting gets (the worker then never pushes a CancelFrame)."""
+        await self._stop()
+        await super().cleanup()
 
     async def _hub_loop(self):
-        """No WebRTC video for 3 s: use the Pi hub's newest camera frame instead (the phone page already uploads
-        them at 10 fps). Long-polls /frame.jpg?after=<seq>; 204 means nothing new."""
-        assert self._session
+        """No WebRTC video for HUB_FALLBACK_AFTER_S: use the Pi hub's newest camera frame instead (the phone page
+        already uploads them at 10 fps). Long-polls /frame.jpg?after=<seq>; 204 means nothing new. Never fetches
+        while WebRTC video is arriving, and ends as soon as the sampler stops."""
         seq = 0
-        while True:
+        while not self._stopped:
             await asyncio.sleep(0.2)
-            if time.time() - self._last_frame_at < 3 or not self._due():
+            session = self._session
+            if self._stopped or session is None:
+                return
+            if time.time() - self._last_frame_at < HUB_FALLBACK_AFTER_S or not self._due():
                 continue
             try:
-                async with self._session.get(
+                self.hub_fetches += 1
+                async with session.get(
                     f"{self.cfg.hub_url}/frame.jpg", params={"after": seq}, timeout=aiohttp.ClientTimeout(total=8)
                 ) as r:
                     if r.status == 200:
                         jpg = await r.read()
                         seq = int(r.headers.get("X-Seq", seq))
-                        if jpg[:2] == b"\xff\xd8":
+                        # WebRTC video may have started while the long-poll waited: it wins.
+                        if jpg[:2] == b"\xff\xd8" and time.time() - self._last_frame_at >= HUB_FALLBACK_AFTER_S and self._due():
                             self._begin(jpg)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
+                if self._stopped:
+                    return
                 logger.debug(f"hub frame fetch failed: {e!r}")
                 await asyncio.sleep(2)
 
     async def _analyze(self, jpg: bytes, forced: bool):
         t0 = time.time()
         findings: list[dict] | None
+        scene = ""
         try:
-            findings = await self._ask_model(jpg)
+            findings, scene = await self._ask_model(jpg)
         except Exception as e:
-            self.failures += 1
-            logger.warning(f"vision call failed: {e!r}")
             findings = None
+            if not self._stopped:
+                self.failures += 1
+                if isinstance(e, ModelBusy):
+                    self._hold_until = time.time() + e.retry_after
+                    logger.warning(f"vision model busy (429); pausing unasked frames for {e.retry_after:g} s")
+                else:
+                    logger.warning(f"vision call failed: {e!r}")
         finally:
             ms = (time.time() - t0) * 1000
             self.calls += 1
             self.latencies_ms.append(ms)
             self._busy = False
+        if self._stopped:
+            return  # the session ended while the model was answering: nothing goes to the brain
         if findings is None:
             await self._trace("vision", f"model call failed ({self.failures} so far), {ms:.0f} ms" + (" on look" if forced else ""))
             if forced:
@@ -283,6 +399,21 @@ class VisionSampler(FrameProcessor):
             # The ID card's answer is the record summary the brain speaks; for everything else say what was seen.
             if not any(f.get("type") == "id_card" and to_seen(f) for f in kept):
                 await self._say(" ".join(spoken) if spoken else "Nothing I recognise.")
+        await self._maybe_post_scene(scene)
+
+    async def _maybe_post_scene(self, scene: str) -> None:
+        """The scene to the brain (POST /seen type "scene"): only a changed one, at most every SCENE_EVERY_S.
+        Not traced (the brain writes the dashboard row) and never spoken."""
+        if not scene or scene_key(scene) == self._last_scene:
+            return
+        now = time.time()
+        if now - self._last_scene_at < SCENE_EVERY_S:
+            return
+        self._last_scene_at = now  # a brain that is down is retried after the interval, not every frame
+        if await self._post_seen({"type": "scene", "text": scene, "confidence": 1}):
+            self._last_scene = scene_key(scene)
+            self.scenes += 1
+            logger.debug(f"scene: {scene}")
 
     def _fresh(self, kind: str, key: str) -> bool:
         return time.time() - self._reported.get(key, 0.0) >= FRESH_S.get(kind, 60.0)
@@ -300,41 +431,53 @@ class VisionSampler(FrameProcessor):
             return "vision frame (not saved)"
 
     # ---- the model and the brain ----------------------------------------------------------------------------
+    # Each of these reads self._session once: after _stop() it is None and they do nothing (no assert, so a
+    # call finishing during teardown never raises out of _analyze).
 
-    async def _ask_model(self, jpg: bytes) -> list[dict]:
-        assert self._session
+    async def _ask_model(self, jpg: bytes) -> tuple[list[dict], str]:
+        session = self._session
+        if session is None or self._stopped:
+            raise RuntimeError("vision sampler stopped")
         body = {
             "model": self.cfg.model,
             "temperature": 0,
-            "max_tokens": 200,
+            "max_tokens": 260,
             "messages": [
                 {"role": "system", "content": PROMPT},
                 {
                     "role": "user",
                     "content": [
                         {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(jpg).decode()}},
-                        {"type": "text", "text": "Findings JSON."},
+                        {"type": "text", "text": "Scene and findings JSON."},
                     ],
                 },
             ],
             **self.cfg.extra_body,
         }
-        async with self._session.post(
+        async with session.post(
             f"{self.cfg.base_url}/chat/completions",
             json=body,
             headers={"Authorization": f"Bearer {self.cfg.api_key}", "Accept": "application/json"},
             timeout=aiohttp.ClientTimeout(total=self.cfg.timeout_s),
         ) as r:
+            if r.status == 429:
+                try:
+                    retry = float(r.headers.get("Retry-After", MODEL_BUSY_HOLD_S))
+                except ValueError:
+                    retry = MODEL_BUSY_HOLD_S
+                raise ModelBusy(f"429 {(await r.text())[:160]}", min(max(retry, 1.0), MODEL_BUSY_MAX_HOLD_S))
             if r.status >= 300:
                 raise RuntimeError(f"{r.status} {(await r.text())[:160]}")
             data = await r.json()
         content = data["choices"][0]["message"].get("content") or ""
-        return parse_findings(content)
+        return parse_reply(content)
 
     async def _post_seen(self, seen: dict) -> bool:
-        assert self._session
+        session = self._session
+        if session is None or self._stopped:
+            return False
         try:
-            async with self._session.post(
+            async with session.post(
                 f"{self.cfg.brain_url}/seen", json=seen, timeout=aiohttp.ClientTimeout(total=2)
             ) as r:
                 if r.status >= 300:
@@ -347,9 +490,11 @@ class VisionSampler(FrameProcessor):
 
     async def _trace(self, tool: str, summary: str) -> None:
         """A row in agent_step (workflow voice) through the brain, so the sampler's decisions are on the record."""
-        assert self._session
+        session = self._session
+        if session is None or self._stopped:
+            return
         try:
-            async with self._session.post(
+            async with session.post(
                 f"{self.cfg.brain_url}/trace", json={"tool": tool, "summary": summary[:300]}, timeout=aiohttp.ClientTimeout(total=2)
             ) as r:
                 if r.status >= 300:
@@ -359,9 +504,11 @@ class VisionSampler(FrameProcessor):
 
     async def _say(self, text: str) -> None:
         """Speak through the brain, so the words go through its policy and the shared callout queue."""
-        assert self._session
+        session = self._session
+        if session is None or self._stopped:
+            return
         try:
-            async with self._session.post(
+            async with session.post(
                 f"{self.cfg.brain_url}/say", json={"text": text, "priority": 2, "kind": "vision"}, timeout=aiohttp.ClientTimeout(total=2)
             ) as r:
                 if r.status >= 300:

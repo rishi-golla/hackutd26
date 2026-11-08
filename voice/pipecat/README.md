@@ -29,6 +29,20 @@ and its file name goes into the event's source detail; AED pads, airway and IV/I
 (the §18 merge window, so a second epi 45 s later is a new event), procedures for 10 min. What the sampler did
 with each frame that had findings (kept, dropped under 0.7, failed) goes to the trace through `POST /trace`.
 
+- **Scene sentence (SPEC decision 24, amended Sun ~05:00).** The same reply also carries one sentence, `scene`
+  ("medic's gloved hands over the patient's chest, syringe in the right hand"), so the brain knows what the camera
+  sees. When it changes the sampler posts `{"type":"scene","text":"…"}` to the brain's `POST /seen`, at most every
+  5 s. The brain keeps it in memory for 60 s (a `CAMERA` line in its state summary, one "Camera: …" row in
+  `agent_step`); it is context, not a finding: it is posted with `confidence` 1 (the brain ignores it) and creates no
+  event. The prompt limits it to actions and equipment: no names, printed text or bystanders, since it shows on
+  `/hospital`. No extra model call: it rides in the same vision call, with `max_tokens` 260 to fit it. After a 429
+  the sampler pauses unasked sampling for the `Retry-After` time (5 s if none, at most 30 s); "Handoff, look" still
+  goes through.
+- **Cleanup (found in PR #18's live test).** Each ended WebRTC session used to leave the sampler's hub-poll task
+  running, so after reconnects several samplers hit the vision model at once (429). The sampler and `BrainBridge`
+  now release their tasks and HTTP sessions in Pipecat's `cleanup()` as well as on Cancel/End frames, and nothing
+  starts a call after a stop.
+
 - **"Handoff, look"** (B6): the sampler sees the transcript go by, grabs the next frame at once, and says what it
   found through the brain's `POST /say` ("AED pads on.", "Nothing I recognise.", "Camera check failed."). For an
   ID card it says nothing itself: the brain's "Record found…" is the answer.
@@ -43,7 +57,7 @@ with each frame that had findings (kept, dropped under 0.7, failed) goes to the 
 - **Rate limit:** 1 frame/s is up to 60 calls/min on the free tier's ~40/min (§28). Options: `VISION_INTERVAL_S=2`,
   a second key in `VISION_API_KEY`, or `VISION=off` when only the audio matters.
 - `test_vision.py`: offline checks against a stub model and a stub brain (parsing, mapping, dedupe, confidence,
-  one call at a time, look, failures).
+  one call at a time, look, failures, the scene post, cleanup on session end).
 
 ## Install
 
@@ -190,6 +204,11 @@ Verified by running (Sat ~23:20, after the merge of the two voice PRs):
 - The brain's `POST /seen` path (`cd voice && npm test`, 37 tests): camera-seen epinephrine → flagged + "Saw
   epinephrine. What dose?", a printed dose → "Confirm?", amiodarone seen → the allergy warning with no words
   spoken, an ID card → `identify_patient` (method `ID card`) → record saved and spoken, the same card again → nothing.
+
+Covered by `test_vision.py` since Sun ~05:00 (stub model and brain, no phone): the sampler's tasks and sessions
+are released on session end (`cleanup()` as well as Cancel/End frames, and no call starts after a stop), and the
+scene sentence is posted to `/seen` when it changes, at most every 5 s. Still to do: a live phone run after this
+change, to see that reconnects no longer stack samplers (no 429s) and that the scene sentences are accurate.
 
 Not verified yet: a real phone on `hub/phone.html` (found through the hub, decision 23) (the camera track into the sampler, Chrome's echo
 cancellation with the agent's voice from the chest speaker), real bodycam frames of the printed card and of a

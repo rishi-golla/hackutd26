@@ -236,3 +236,10 @@ test('JSON summaries stay parseable within the reducer client limit, including q
   await log.write('complete', 'Do not write after close');
   assert.equal(fake.rows.agentStep.length, 1);
 });
+
+test('a worsening TREND line offers the trend summary; a non-worsening movement does not', () => {
+  const trend = 'Reviewed the worsening vitals trend; an advisory was considered.';
+  assert.ok(publicSummaries('VITALS (simulated, 1 s ago) HR 165\nTREND (last 29 s) SpO2 97 → 84 · HR 96 → 165 · SpO2 falling fast, HR rising fast · WORSENING').includes(trend));
+  assert.ok(!publicSummaries('TREND (last 20 s) SpO2 90 → 95 · SpO2 rising').includes(trend), 'a rising SpO2 is never called worsening');
+  assert.ok(!publicSummaries('VITALS (simulated, 1 s ago) HR 80').includes(trend));
+});
