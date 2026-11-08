@@ -1,0 +1,25 @@
+voice/README.md
+  s_2d93df9f9b1e1d::t_526b441f05d803 90
+voice/src/brain.ts
+  s_2d93df9f9b1e1d::t_945eeb2b4a3531 18,274-284
+voice/src/tools.ts
+  s_2d93df9f9b1e1d::t_322dd32e3e9d49 28,110,114-125,155-162
+voice/test/conversation.test.ts
+  s_2d93df9f9b1e1d::t_5b4d96ada88001 223-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b70a556bcb604081dfb2d7e29a48814d7e4bd389",
+  "prompts": {},
+  "sessions": {
+    "s_2d93df9f9b1e1d": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_2d93df9f9b1e1d",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
