@@ -18,6 +18,7 @@ Talk to it from anything:   curl -d '{"from":"me","what":"say","value":"hello"}'
 import json, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs
 
 HERE = Path(__file__).resolve().parent
 DATA = Path(os.environ.get("HUB_DATA", HERE / "data"))
@@ -28,8 +29,9 @@ MAX_BODY = 4 * 1024 * 1024                               # one camera frame or m
 latest = {}                                              # what -> last message
 recent = []                                              # (seq, json line) of the last 500 messages
 seq = 0
+EPOCH = os.urandom(4).hex()                              # changes every start, so viewers notice a hub restart
 news = threading.Condition()                             # guards latest/recent/seq; wakes waiting polls
-frame = {"jpg": b"", "n": 0, "seq": 0, "said": 0.0}
+frame = {"jpg": b"", "n": 0, "seq": 0, "said": 0.0, "at": 0.0}
 new_frame = threading.Condition()
 
 LOG = open(DATA / "messages.jsonl", "a+")
@@ -44,7 +46,8 @@ for _line in LOG:                                        # restart keeps the las
 def publish(msg):
     global seq
     msg.setdefault("from", "?")
-    msg.setdefault("t", round(time.time(), 3))
+    msg["t"] = round(time.time(), 3)                     # the hub's clock, never the sender's
+    msg.pop("replay", None)                              # only the hub marks replays
     line = json.dumps(msg, allow_nan=False)
     with news:
         prev = latest.get(msg["what"])
@@ -85,7 +88,11 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         p, _, qs = self.path.partition("?")
-        after = int(qs.partition("after=")[2] or 0) if "after=" in qs else 0
+        q = parse_qs(qs)
+        try:
+            after = int(q.get("after", ["0"])[0])
+        except ValueError:
+            return self.reply(400, b'{"ok":false,"error":"after must be a number"}')
         if p in ("/", "/phone"):
             return self.reply(body=(HERE / "phone.html").read_bytes(), ctype="text/html; charset=utf-8")
         if p == "/dash":
@@ -95,21 +102,23 @@ class H(BaseHTTPRequestHandler):
                 return self.reply(body=json.dumps(latest).encode())
         if p == "/poll":
             with news:
-                if after <= 0 or after > seq or (recent and after < recent[0][0] - 1):
+                if q.get("e", [""])[0] != EPOCH or after <= 0 or after > seq or (recent and after < recent[0][0] - 1):
                     # new viewer, hub restarted, or too far behind: catch up with the latest values (never live)
-                    lines = [json.dumps({**m, "replay": True}) for m in sorted(latest.values(), key=lambda m: m["t"])]
+                    by_time = sorted(latest.values(), key=lambda m: m["t"] if isinstance(m.get("t"), (int, float)) else 0)
+                    lines = [json.dumps({**m, "replay": True}) for m in by_time]
                 else:
                     news.wait_for(lambda: seq > after, timeout=10)
                     lines = [l for s, l in recent if s > after]
                 last = seq
-            return self.reply(body=('{"seq": %d, "msgs": [%s]}' % (last, ",".join(lines))).encode())
+            body = '{"seq": %d, "e": "%s", "now": %.3f, "msgs": [%s]}' % (last, EPOCH, time.time(), ",".join(lines))
+            return self.reply(body=body.encode())
         if p == "/frame.jpg":
             with new_frame:
                 if after > frame["seq"]:                 # hub restarted: anything we have is newer
                     after = 0
                 new_frame.wait_for(lambda: frame["seq"] > after and frame["jpg"], timeout=5)
-                s, jpg = frame["seq"], frame["jpg"]
-            if s <= after or not jpg:
+                s, jpg, at = frame["seq"], frame["jpg"], frame["at"]
+            if s <= after or not jpg or time.time() - at > 3:  # nothing new, or the camera stopped: never an old image
                 return self.reply(204)
             return self.reply(body=jpg, ctype="image/jpeg", headers=[("X-Seq", str(s))])
         self.reply(404, b"not found", "text/plain")
@@ -133,13 +142,18 @@ class H(BaseHTTPRequestHandler):
                 return self.reply(400, b'{"ok":false,"error":"need JSON with a short text \\"what\\""}')
             return self.reply(body=b'{"ok":true}')
         if p == "/frame":
-            n = int(qs.partition("n=")[2] or 0)
+            try:
+                n = int(parse_qs(qs).get("n", ["0"])[0])
+            except ValueError:
+                n = 0
+            if data[:2] != b"\xff\xd8":
+                return self.reply(400, b'{"ok":false,"error":"not a JPEG"}')
             with new_frame:
-                if n > frame["n"] or frame["n"] - n > 50:        # drop late frames; a big jump back = phone restarted
-                    frame["jpg"], frame["n"] = data, n
-                    frame["seq"] += 1
+                fresh = n > frame["n"] or frame["n"] - n > 50       # drop late frames; a big jump back = phone restarted
+                if fresh:
+                    frame.update(jpg=data, n=n, seq=frame["seq"] + 1, at=time.time())
                     new_frame.notify_all()
-            if time.time() - frame["said"] > 1:                  # "camera live" at most once a second
+            if fresh and time.time() - frame["said"] > 1:          # "camera live" at most once a second
                 frame["said"] = time.time()
                 publish({"from": "phone", "what": "camera", "value": "live"})
             return self.reply(body=b'{"ok":true}')
