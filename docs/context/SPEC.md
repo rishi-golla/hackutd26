@@ -364,7 +364,10 @@ section and add a change-log line.
     - **Read back, then "Log it?"** for every action: medications and shocks (deterministic parser, §16) and
       procedures and airway devices (Nemotron's `log_event`). After an allergy or dose warning it asks "Log it
       anyway?". Findings and MARKs are logged quietly, never acknowledged out loud.
-    - **Keep or drop, then store (Josh, Sun ~03:05).** Every line the mic hears is decided before its words are
+    - **Keep or drop, then store (Josh, Sun ~03:05; fixed ~03:30).** A line nobody could judge (no API key, the
+      rate budget, a model error) is stored undecided, so nothing clinical is lost; once any tool ran the line is
+      kept (DROP only counts as Nemotron's first, tool-free answer); a kept line is stored under the incident it was
+      said in, never the next one. Every line the mic hears is decided before anything is
       written. Kept: read-backs, answers ("yes", "correction"), status phrases, a spoken identity, "Handoff,
       mark/look", and every line Nemotron keeps. Nemotron sees the line with the **voice log** (the last 10 lines
       heard in 2 min, each marked kept or dropped) and the recent conversation, and keeps a line only if it is
@@ -1829,7 +1832,8 @@ sequenceDiagram
   policy layer (decision 21).
 - Advisory, protocol wording ("Epi due", "Consider…"), never orders.
 - Never claims compression depth.
-- Every step goes to the trace (`log_agent_step`).
+- Every step goes to the trace (`log_agent_step`), except for lines the voice agent drops as room talk, which leave
+  nothing in the database (decision 21).
 - If Nemotron is slow or down, the rules still speak and the report falls back to a template filled from the
   tables.
 
@@ -1981,7 +1985,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Any | `set_status(status, sourceKind, sourceDetail)` | Any transition allowed; the source becomes the timeline chip, e.g. `("arrest", "voice", "her heart stopped")` |
 | Any | `heartbeat(device, kind)` | Keeps `device.lastSeen` fresh |
 | Bodycam | `push_cpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s (§22.4). Ignored while a demo override is on |
-| Bodycam / voice worker | `add_transcript({text})` | One row per sentence |
+| Bodycam / voice worker | `add_transcript({text})` | One row per sentence. The voice worker stores a line only after handling it, and only if it was kept (decision 21) |
 | Bodycam (W6) | `identify_patient({patientRef, method})` | method `ID card`, `voice` or `manual`; sets `incident.patientRef` and logs `patient_identified` |
 | Bodycam / agents | `log_event({kind, label, sourceKind, sourceDetail})` | Read-backs, findings, procedures (§22.7) |
 | Bodycam / agents | `set_event_status({eventId, status})` | `cancelled` on "Correction", `confirmed`, `flagged`. Cancelling an epi event cancels the epi timer |

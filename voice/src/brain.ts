@@ -1,9 +1,9 @@
 // The brain (spec §19 voice agent): what happens with each thing the medic says and each change in the tables.
 // Deterministic first (read-back, corrections, spoken identity, camera-seen drugs, W6), Nemotron for judgement.
 //
-// Every utterance is processed exactly once, from its `transcript` row: the ear's lines are written with
-// add_transcript and handled when the row comes back (so a slow database can't make us handle one twice), and
-// lines the bodycam wrote itself in degraded mode are recognised as such. Slow work (an EHR pull, a model turn)
+// Every utterance is handled exactly once. The ear's lines are decided first and stored after (decision 21): kept
+// lines are written with add_transcript once handled (the row coming back is recognised as ours and skipped),
+// dropped ones are written nowhere. Lines the bodycam wrote itself in degraded mode are handled from their row. Slow work (an EHR pull, a model turn)
 // is bound to an incident "generation" and dropped if the incident was reset or closed meanwhile.
 import type { Conn } from './db';
 import { activeIncident, step } from './db';
@@ -64,6 +64,9 @@ The rules already say "Push faster", "Resume compressions", "Epi due", "Two minu
 Return JSON only: {"advisory": null, "summary": "Reviewed the latest update; continuing to monitor."} or {"advisory": "Consider…", "summary": "A brief explanation of the advisory."}.
 The summary is a public dashboard status, not internal reasoning. Copy exactly one sentence from ALLOWED DASHBOARD SUMMARIES below; do not write a new clinical claim. Do not claim the patient is stable, infer an improvement or deterioration from a single snapshot, diagnose, or say no treatment is needed. If data is missing or stale, say that rather than assuming improvement. An advisory is 15 words or fewer, protocol wording ("Consider…", "Note:"), never an order, no numbers unless they are in the state.`;
 
+/** A line in the voice log; kept is null while it is still being decided. */
+type VoiceLine = { text: string; at: number; kept: boolean | null };
+
 type Pending = {
   eventId: bigint;
   at: number;
@@ -112,7 +115,7 @@ export class Brain {
   /** A medication statement heard in pieces, waiting for the rest (PENDING_MED_MS after the last piece). */
   private pendingMed?: PendingMed;
   /** Every line heard lately and whether it was kept: context for Nemotron's keep/drop decision. Memory only. */
-  private voiceLog: { text: string; at: number; kept: boolean }[] = [];
+  private voiceLog: VoiceLine[] = [];
   /** Recent Nemotron turns: what the medic said and what Handoff did about it. Cleared with the incident. */
   private history: { heard: string; did: string; at: number }[] = [];
 
@@ -157,17 +160,25 @@ export class Brain {
   async handleUtterance(text: string, source: string) {
     const clean = text.replace(/\s+/g, ' ').trim().slice(0, 500);
     if (!clean) return;
-    const kept = await this.processLine(clean, source);
-    this.hear(clean, kept);
-    if (!kept) return;
+    // The incident the line was said in: a kept line is stored there or nowhere, never under the next incident.
+    const gen = this.gen;
+    const incidentId = activeIncident(this.conn)?.id;
+    const line = this.hear(clean);
+    const stored = await this.processLine(clean, source, line);
+    line.kept = stored !== null;
+    if (stored === null) return;
+    if (this.stale(gen, incidentId)) {
+      console.log(`[voice] not stored (the incident changed while it was handled): "${stored.slice(0, 60)}"`);
+      return;
+    }
     // The row coming back is ours and already handled.
-    this.ownLines = this.ownLines.filter(l => Date.now() - l.at < OWN_LINE_MS);
-    this.ownLines.push({ text: clean, at: Date.now(), source });
+    const own = { text: stored.slice(0, 500), at: Date.now(), source };
+    this.ownLines = [...this.ownLines.filter(l => Date.now() - l.at < OWN_LINE_MS), own];
     try {
-      await this.conn.reducers.addTranscript({ text: clean });
+      await this.conn.reducers.addTranscript({ text: own.text });
     } catch (err) {
       console.error('[voice] add_transcript failed', err);
-      this.ownLines = this.ownLines.filter(l => l.text !== clean);
+      this.ownLines = this.ownLines.filter(l => l !== own);
     }
   }
 
@@ -180,22 +191,31 @@ export class Brain {
       this.ownLines.splice(mine, 1);
       return;
     }
-    this.hear(row.text, await this.processLine(row.text, 'transcript'));
+    const line = this.hear(row.text);
+    line.kept = (await this.processLine(row.text, 'transcript', line)) !== null;
   }
 
-  private hear(text: string, kept: boolean) {
-    this.voiceLog = [...this.voiceLog.filter(l => Date.now() - l.at < VOICE_LOG_MS), { text, at: Date.now(), kept }].slice(-VOICE_LOG_LINES);
+  /** Into the voice log as soon as it is heard (pending), so a quick follow-up is judged with it. */
+  private hear(text: string): VoiceLine {
+    const line: VoiceLine = { text, at: Date.now(), kept: null };
+    this.voiceLog = [...this.voiceLog.filter(l => Date.now() - l.at < VOICE_LOG_MS), line].slice(-VOICE_LOG_LINES);
+    return line;
   }
 
-  /** Acts on one line. Returns whether it was kept (acted on, worth storing) or dropped. */
-  private async processLine(text: string, source: string): Promise<boolean> {
+  /**
+   * Acts on one line. Returns the text to store (the line, or both halves of a stitched one), or null when dropped.
+   * Dropped: our own words, filler, and what Nemotron answers DROP. A line nobody could judge (no API key, the rate
+   * budget, a model error) is stored, so nothing clinical is lost.
+   */
+  private async processLine(text: string, source: string, self?: VoiceLine): Promise<string | null> {
     // eslint-disable-next-line no-param-reassign -- a stitched fragment may extend the line below
     const gen = this.gen;
     const lower = text.toLowerCase();
-    // Early drops (filler/echoes) leave no trace; model reviews have generic status only (decision 23).
-    const drop = (why: string) => {
+    // Early drops (filler/echoes) leave no trace in the database (decision 21), only in the worker's console;
+    // model reviews have generic status rows only (decision 24).
+    const drop = (why: string): null => {
       console.log(`[voice] dropped (${why}): "${text.slice(0, 60)}"`);
-      return false;
+      return null;
     };
     // A transcript row the bodycam wrote itself means the phone is in degraded mode (B11): its parser already
     // spoke the read-back and logged the event, and it handles its own corrections. Don't do it twice.
@@ -207,11 +227,11 @@ export class Brain {
       this.pendingMed = undefined;
       await step(this.conn, 'control', 'half-heard medication dropped (medic said "correction")');
       await this.policy.say('Cancelled.', 0, 'control');
-      return true;
+      return text;
     }
     if (control) {
       if (!phoneHandled) await this.handleControl(control);
-      return true;
+      return text;
     }
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
     const mine = norm(text);
@@ -221,15 +241,16 @@ export class Brain {
     const asked = this.lastReadback?.askedAt;
     const answer = asked && Date.now() - asked < ASK_WINDOW_MS ? parseAnswer(text) : undefined;
     if (answer && said.some(s => s === mine || s.endsWith(` ${mine}`))) return drop('our own words, not an answer');
-    if (answer === 'no' && this.pendingMed && Date.now() - this.pendingMed.at < PENDING_MED_MS && !phoneHandled) {
+    // "No" while a medication is half-heard drops the half (with or without an earlier "Log it?").
+    if (parseAnswer(text) === 'no' && this.pendingMed && Date.now() - this.pendingMed.at < PENDING_MED_MS && !phoneHandled) {
       this.pendingMed = undefined;
       await step(this.conn, 'control', 'half-heard medication dropped (medic said "no")');
       await this.policy.say('Cancelled.', 0, 'control');
-      return true;
+      return text;
     }
     if (answer && !phoneHandled) {
       await this.handleControl(answer === 'yes' ? 'confirm' : 'correction');
-      return true;
+      return text;
     }
 
     // RB5 echo guard: our own words coming back through the mic (while speaking and shortly after).
@@ -256,12 +277,12 @@ export class Brain {
     }
     if (rb && phoneHandled) {
       await step(this.conn, 'read_back', `Phone (degraded mode) already read back: "${text.slice(0, 60)}"`);
-      return true;
+      return text;
     }
     if (rb?.kind === 'medication' || rb?.kind === 'shock') {
       this.pendingMed = undefined; // a full statement supersedes any half we were collecting
       await this.handleReadback(rb, text, gen);
-      return true;
+      return text;
     }
 
     // A medication heard in pieces: the drug, the dose and the route can come in any order over several lines,
@@ -283,7 +304,7 @@ export class Brain {
       }
       if (med) {
         await this.fillMedication(med[0], med[1], text, gen);
-        return true;
+        return text;
       }
     }
 
@@ -291,7 +312,7 @@ export class Brain {
     const who = parseIdentity(text);
     if (who && CONFIG.w6) {
       await this.identifyFromNameAndDob(who.name, who.birthDate, gen, 'voice');
-      return true;
+      return text;
     }
 
     // B6 shortcuts, deterministic (no model call, one answer): "Handoff, look" is the vision sampler's job (it
@@ -299,13 +320,13 @@ export class Brain {
     const shortcut = /^\s*(?:hey\s+)?hand\s?-?\s?off[,.!]?\s+(look|mark)\b/i.exec(text)?.[1]?.toLowerCase();
     if (shortcut === 'look') {
       await step(this.conn, 'look', 'the camera check is the vision sampler\'s; no model turn');
-      return true;
+      return text;
     }
     if (shortcut === 'mark') {
       const inc = activeIncident(this.conn);
       if (!inc) {
         await step(this.conn, 'mark', 'no active incident; not logged');
-        return true;
+        return text;
       }
       try {
         await this.conn.reducers.logEvent({ kind: 'mark', label: 'MARK (voice)', sourceKind: 'voice', sourceDetail: text.slice(0, 200) });
@@ -314,7 +335,7 @@ export class Brain {
         await step(this.conn, 'log_event', `mark failed: ${(err as Error).message.slice(0, 80)}`);
       }
       await this.policy.say('Marked.', 1, 'control');
-      return true;
+      return text;
     }
 
     // Status changes the medic states plainly are set here, at once, with no model turn ("cardiac arrest" went
@@ -332,7 +353,7 @@ export class Brain {
       } catch (err) {
         await step(this.conn, 'log_event', `cpr_started failed: ${(err as Error).message.slice(0, 80)}`);
       }
-      if (wordCount <= 6) return true;
+      if (wordCount <= 6) return text;
     }
     const status = plain ? (['arrest', 'rosc', 'en_route'] as const).find(s => STATUS_PLAIN[s].test(text)) : undefined;
     if (inc && status && inc.status !== status) {
@@ -344,20 +365,23 @@ export class Brain {
       } catch (err) {
         await step(this.conn, 'set_status', `failed: ${(err as Error).message.slice(0, 80)}`);
       }
-      if (wordCount <= 6) return true;
+      if (wordCount <= 6) return text;
     }
 
     // Everything else: Nemotron reads the line with the voice log and decides to keep it (document, reply) or drop
     // it. Pure filler ("Yeah.", "Okay, so") and lone words are dropped without a model call, to save the budget.
-    if (!llmConfigured()) return acted || drop('no NVIDIA_API_KEY to judge it');
+    if (!llmConfigured()) return text; // nobody to judge it: stored, so nothing clinical is lost
     // A one- or two-word line may be the first half of a split read-back ("Administering"); keep it for stitching.
     if (wordCount < 3) this.lastFragment = { text, at: Date.now() };
-    if (FILLER.test(text) || (wordCount < 2 && !/\?/.test(text))) return acted || drop('filler');
+    if (FILLER.test(text) || (wordCount < 2 && !/\?/.test(text))) return acted ? text : drop('filler');
     const now = Date.now();
     this.llmTurnTimes = this.llmTurnTimes.filter(t => now - t < 60_000);
-    if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) return acted || drop(`rate budget: ${LLM_TURNS_PER_MIN} model turns in the last minute`);
+    if (this.llmTurnTimes.length >= LLM_TURNS_PER_MIN) {
+      console.log(`[voice] stored undecided (rate budget: ${LLM_TURNS_PER_MIN} model turns in the last minute): "${text.slice(0, 60)}"`);
+      return text;
+    }
     this.llmTurnTimes.push(now);
-    return (await this.nemotronTurn(normalizeTranscript(text), source, gen)) || acted;
+    return (await this.nemotronTurn(normalizeTranscript(text), source, gen, self)) || acted ? text : null;
   }
 
   // ---- read-back ------------------------------------------------------------------------------------------
@@ -445,11 +469,16 @@ export class Brain {
    * An action Nemotron logged (procedure or airway): read it back and ask, like a medication. The event is
    * already written and stays `logged` until the medic answers (yes → confirmed, no → cancelled).
    */
-  async confirmAction(kind: string, label: string, valid: () => boolean): Promise<void> {
+  async confirmAction(kind: string, label: string, valid: () => boolean, turnStartedAt = Date.now()): Promise<void> {
     const inc = activeIncident(this.conn);
     if (!inc) return;
     const ev = await this.findEvent(inc.id, kind, label);
     if (!ev || !valid()) return;
+    // A newer read-back asked its own "Log it?" while this turn ran: don't take over its answer. This one stays logged.
+    if (this.lastReadback && this.lastReadback.at > turnStartedAt) {
+      await step(this.conn, 'read_back', `${label} · logged, not asked (a newer read-back is waiting for its answer)`);
+      return;
+    }
     this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: false, askedAt: Date.now() };
     await step(this.conn, 'read_back', `${label} · asked "Log it?"`);
     await this.policy.say(`Copy. ${label}. Log it?`, 0, 'readback', undefined, valid);
@@ -707,7 +736,9 @@ export class Brain {
 
     const flag = async (reason: Pending['reason']) => {
       // askedAt: a bare "yes" / "no" answers the spoken "Confirm?" / "What dose?" like any read-back question.
-      this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: true, reason, drug, askedAt: Date.now() };
+      // "Confirm?" takes a bare yes / no; "What dose?" (missing_dose) doesn't: a stray "no" must not cancel what the
+      // camera saw (RB9 keeps it flagged until a dose is spoken).
+      this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: true, reason, drug, askedAt: reason === 'missing_dose' ? undefined : Date.now() };
       if (ev.status !== 'flagged' && !this.stale(gen, ev.incidentId)) {
         try {
           await this.conn.reducers.setEventStatus({ eventId: ev.id, status: 'flagged' });
@@ -747,23 +778,27 @@ export class Brain {
 
   // ---- Nemotron ---------------------------------------------------------------------------------------------
 
-  private toolContext(valid: () => boolean, utterance: string): ToolContext {
-    return { conn: this.conn, policy: this.policy, corpus: [], pullRecord: (ref, method) => this.pullRecord(ref, method), valid, utterance, confirmAction: (kind, label) => this.confirmAction(kind, label, valid) };
+  private toolContext(valid: () => boolean, utterance: string, startedAt = Date.now()): ToolContext {
+    return { conn: this.conn, policy: this.policy, corpus: [], pullRecord: (ref, method) => this.pullRecord(ref, method), valid, utterance, confirmAction: (kind, label) => this.confirmAction(kind, label, valid, startedAt) };
   }
 
   /** One Nemotron turn on a line. Returns whether it kept the line (acted, replied or SILENT) or dropped it (DROP). */
-  private async nemotronTurn(text: string, source: string, gen: number): Promise<boolean> {
-    const deadline = Date.now() + CONFIG.llmTimeoutMs;
+  private async nemotronTurn(text: string, source: string, gen: number, self?: VoiceLine): Promise<boolean> {
+    const startedAt = Date.now();
+    const deadline = startedAt + CONFIG.llmTimeoutMs;
     const incidentId = activeIncident(this.conn)?.id;
     const valid = () => !this.stale(gen, incidentId);
-    const ctx = this.toolContext(valid, text);
+    const ctx = this.toolContext(valid, text, startedAt);
     const summary = summarize(readState(this.conn));
     this.history = this.history.filter(h => Date.now() - h.at < HISTORY_MS).slice(-HISTORY_TURNS);
     ctx.corpus.push(summary, text, ...this.history.map(h => h.heard));
     // Memory goes in as plain text, not as past assistant turns: the model copied that format into its replies.
     const conversation = this.history.map(h => `- heard "${h.heard}" → you: ${h.did}`).join('\n');
     // The voice log: what was heard lately and what was kept, so a follow-up is judged with its context.
-    const voiceLog = this.voiceLog.map(l => `- [${l.kept ? 'kept' : 'dropped'}] "${l.text}"`).join('\n');
+    const voiceLog = this.voiceLog
+      .filter(l => l !== self)
+      .map(l => `- [${l.kept === null ? 'being handled' : l.kept ? 'kept' : 'dropped'}] "${l.text}"`)
+      .join('\n');
     const messages: ChatMessage[] = [
       { role: 'system', content: `${CONFIG.w6 ? SYSTEM : SYSTEM_NO_W6}\n\nLIVE STATE\n${summary}` },
       {
@@ -782,6 +817,10 @@ export class Brain {
     let spoke = false;
     const decision = new DecisionLog(this.conn, valid);
     let toolFailed = false;
+    // Once any tool ran (a record pull, a lookup, a refused call), the line is kept: DROP only counts as the first,
+    // tool-free answer. A whole-reply "DROP" only: "Drop in heart rate since ROSC" is an answer, not a decision.
+    let toolsRan = false;
+    const isDrop = (c: string) => /^\W*drop\W*$/i.test(c);
     const kept = async () => {
       const recorded = did.some(d => /^(logged|set status)/.test(d));
       const queued = did.some(d => d.startsWith('said'));
@@ -801,20 +840,21 @@ export class Brain {
         if (remaining < 800) throw new Error('voice turn deadline reached');
         const reply = await chat(messages, { tools, timeoutMs: remaining });
         if (this.stale(gen, incidentId)) {
-          console.log(`[voice] dropped (the incident changed during the turn): "${text.slice(0, 60)}"`);
-          return did.length > 0;
+          console.log(`[voice] stopped (the incident changed during the turn): "${text.slice(0, 60)}"`);
+          return toolsRan || did.length > 0;
         }
         if (reply.toolCalls.length === 0) {
           // Lightning sometimes answers in text as `speak: …` instead of calling the tool; same meaning.
           if (!reply.content.trim()) throw new Error('Empty model decision');
           const content = reply.content.trim().replace(/^(?:speak|said)\s*[:(]\s*/i, '').replace(/^["']|["')]+$/g, '').trim();
-          // DROP: no transcript or event, only a generic outcome without the dropped words (decision 23).
-          if (!spoke && !did.length && (/^drop\b/i.test(content) || /\bDROP\.?$/.test(content))) {
+          // DROP: not about this patient and not for Handoff. Nothing was done, so nothing is stored: no transcript
+          // or event, only a generic outcome without the dropped words (decision 24).
+          if (!toolsRan && !spoke && !did.length && isDrop(content)) {
             console.log(`[voice] dropped (Nemotron): "${text.slice(0, 60)}"`);
             await decision.write('complete', 'Ignored unrelated audio; continuing to monitor.');
             return false;
           }
-          if (!content || /^silent\b/i.test(content) || /\bSILENT\.?$/.test(content) || spoke) {
+          if (!content || /^silent\b/i.test(content) || /\bSILENT\.?$/.test(content) || isDrop(content) || spoke) {
             // kept, nothing to say
           } else if (/^(?:logged|set status|stayed silent|heard)\b/i.test(content)) {
             // An action note is not evidence that a tool succeeded; the log uses actual tool results below.
@@ -829,7 +869,7 @@ export class Brain {
         for (const call of reply.toolCalls) {
           if (this.stale(gen, incidentId)) {
             console.log(`[voice] stopped (the incident changed during the tool calls): "${text.slice(0, 60)}"`);
-            return did.length > 0;
+            return toolsRan || did.length > 0;
           }
           let args: Record<string, unknown> = {};
           try {
@@ -837,6 +877,7 @@ export class Brain {
           } catch {
             // the tool reports what's missing
           }
+          toolsRan = true;
           await decision.write('progress', toolProgress(call.function.name));
           // One spoken answer per line: a second speak in the same turn would talk at the medic twice.
           const result = spoke && call.function.name === 'speak'
@@ -862,15 +903,17 @@ export class Brain {
       if (addressed && !spoke && deadline - Date.now() > 800) {
         const last = await chat([...messages, { role: 'user', content: 'Answer the medic now in one or two short sentences, from the state and the tool results above. No tools.' }], { timeoutMs: deadline - Date.now() });
         const content = last.content.trim().replace(/^(?:speak|said)\s*[:(]\s*/i, '').replace(/^["']|["')]+$/g, '').trim();
-        if (content && !/^(?:silent|drop)\b/i.test(content) && valid() && await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) did.push(`said "${content}"`);
+        if (content && !/^silent\b/i.test(content) && !isDrop(content) && valid() && await this.policy.say(content, 1, 'answer', ctx.corpus.join('\n'), valid)) did.push(`said "${content}"`);
       }
       return kept();
     } catch (err) {
-      // Failures are visible as failures, even when no action completed. Never log exception text or room talk.
-      console.log(`[voice] Nemotron failed on "${text.slice(0, 60)}": ${(err as Error).message.slice(0, 100)}`);
-      await decision.write('error', 'Could not finish the review; no further decision was made. Rule callouts remain active.');
+      // No decision (timeout, API error): the line is stored undecided so nothing clinical is lost; the rules are the
+      // safety net for anything that needed saying. The failure is visible as a failure on the dashboard, with no
+      // exception text or room talk in the row (decision 24).
+      console.log(`[voice] Nemotron failed on "${text.slice(0, 60)}": ${(err as Error).message.slice(0, 100)}; line stored undecided`);
+      await decision.write('error', 'Could not finish the review; the line was kept undecided. Rule callouts remain active.');
       if (did.length) this.remember(text, did);
-      return did.length > 0;
+      return true;
     }
   }
 

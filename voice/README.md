@@ -158,7 +158,7 @@ Never raw waveforms. Numbers are copied from the tables; missing readings say so
 
 | Call | Body / messages | Notes |
 | --- | --- | --- |
-| `POST /transcript` | `{"text": "...", "source": "pipecat" \| "repl" \| "webspeech"}` → `202 {"id": "..."}` | The brain writes `add_transcript` and processes the line. Final utterances only, one sentence per call |
+| `POST /transcript` | `{"text": "...", "source": "pipecat" \| "repl" \| "webspeech"}` → `202 {"id": "..."}` | The brain handles the line first, then writes `add_transcript` only if it kept it (decision 21: room talk Nemotron drops, filler and our own words are stored nowhere). Final utterances only, one sentence per call |
 | `POST /seen` | `{"type": "id_card", "name": "AVERY, JORDAN", "birthDate": "1968-03-14"}` · `{"type": "medication", "drug": "epinephrine", "dose": "1 mg"}` (dose optional, as printed) · `{"type": "aed_pads" \| "airway_device" \| "iv_io"}`; all with optional `"confidence"` and `"detail"` (where the evidence frame is) → `202` | One vision finding at confidence ≥ 0.7. The sampler dedupes (same card or drug within 60 s, procedures within 10 min); the brain also ignores a card for the patient already identified. `400` for anything else |
 | `POST /say` | `{"text": "...", "priority": 1-3, "kind": "vision" \| "ask"}` → `202` | Fixed words from the worker (the answer to "Handoff, look": "AED pads on.", "Nothing I recognise."), through the policy layer (20 words, never a number the state doesn't have) and the shared queue |
 | `POST /trace` | `{"tool": "vision", "summary": "..."}` → `202` | A row in `agent_step` (workflow `voice`) for the worker's own decisions: findings kept or dropped under 0.7, model failures, "look" results |
@@ -232,4 +232,4 @@ mocks call those directly.
 - Nothing the medic says is logged as settled without their word: actions are read back with "Log it?" and are
   `confirmed` only when they say yes. Room talk Nemotron drops is never stored.
 - Never claims compression depth. Never speaks over the medic. Same words never queued twice (server-side).
-- Every step is in `agent_step`, workflow `voice`, so the hospital trace shows it.
+- Every step is in `agent_step`, workflow `voice`, so the hospital trace shows it; dropped lines leave no step.
