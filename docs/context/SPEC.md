@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~00:30 (Alan): two touches from Canvas UI on the hospital dashboard** (§14). The vitals are stat cards (big
+  number, small spaced monospace caption under it), and panel titles use the same caption style. Before the first
+  video frame, the live view shows a slowly floating halftone heart (Canvas UI's Dithered Object, MIT + Commons
+  Clause, copied into `web/src/routes/hospital/canvasui/` with its notice). It is lazy-loaded, so `three` only
+  downloads on `/hospital` while it shows, and it holds still under reduced motion. Adds `three` to `web/`.
 - **Sat ~23:30 (Alan): the two voice-agent PRs are merged into one worker on `main`** (§0.1 decision 20). PR #5
   (Alan: the `voice/` TypeScript brain and the Riva Pipecat worker, live-tested with a real mic) is the base. From
   Devin's PR #6 (for Rishi) came what it lacked: the **vision sampler** (now `voice/pipecat/vision.py`, same prompt,
@@ -1205,11 +1210,12 @@ is **Generate Handoff**. No demo controls here.
 
 | Left | Right |
 | --- | --- |
-| **Live view** (large): the bodycam video, click to enlarge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
-| | **Vitals:** a 2×3 grid of centred cells: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show "—" during an arrest (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds) |
+| **Live view** (large): the bodycam video, click to enlarge. Before the first frame, a halftone heart floats slowly in the panel (Canvas UI's Dithered Object, loaded only then); on stale the last frame stays under the Stale badge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
+| | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show "—" during an arrest (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds) |
 | **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
 
-Nothing explains itself on screen, and nothing moves except clocks and live values. Not on the dashboard any
+Panel titles use the same small monospace caption style. Nothing explains itself on screen, and nothing moves
+except clocks, live values and the placeholder heart before video. Not on the dashboard any
 more (the data is unchanged): route and ETA, the agent's tool-level trace, source chips (still in the report),
 trend lines and the pulse waveform, the big spoken-callout text, and the simulated / demo-timing marks.
 
