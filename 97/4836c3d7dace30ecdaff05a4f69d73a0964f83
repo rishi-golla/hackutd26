@@ -1,0 +1,40 @@
+bridge/README.md
+  h_f876d4e77222e2 96-97
+bridge/hub_bridge.py
+  h_f876d4e77222e2 30-31,86-110,134-135,172,175-180,183-188,192
+bridge/test_hub_bridge.py
+  h_f876d4e77222e2 1-34
+docs/context/SPEC.md
+  h_f876d4e77222e2 19-23,609-636,1308-1310,1568,1571-1572,1577,2172,2213
+hub/hub.py
+  h_f876d4e77222e2 34-35,151-153,161-162,164-166,168-170
+hub/phone.html
+  h_f876d4e77222e2 71,187-188,300
+hub/test_hub.py
+  h_f876d4e77222e2 1-43
+spacetime/README.md
+  h_f876d4e77222e2 46-84,141,153,179
+spacetime/src/index.ts
+  h_f876d4e77222e2 37,68,73,191-196,380-382
+spacetime/src/sessions.ts
+  h_f876d4e77222e2 1-41
+spacetime/test/test_sessions.py
+  h_f876d4e77222e2 1-75
+web/src/module_bindings/index.ts
+  h_f876d4e77222e2 58,300
+web/src/module_bindings/start_bodycam_session_reducer.ts
+  h_f876d4e77222e2 1-17
+web/src/module_bindings/types/reducers.ts
+  h_f876d4e77222e2 30,56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "974836c3d7dace30ecdaff05a4f69d73a0964f83",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
