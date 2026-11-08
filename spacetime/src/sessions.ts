@@ -1,6 +1,6 @@
 import { SenderError } from 'spacetimedb/server';
 import type { Ctx } from './schema';
-import { activeIncident, applyStatus, beginIncident, latestIncident, parseJson, recordEvent, RECORDED_UNIT, touchDevice } from './helpers';
+import { activeIncident, applyStatus, beginIncident, latestIncident, parseJson, plusSeconds, recordEvent, RECORDED_UNIT, touchDevice } from './helpers';
 
 /** Explicit patient turnover, atomic and retry-safe. The confirmation must refer to the current encounter. */
 export function startNewPatient(ctx: Ctx, json: string) {
@@ -81,6 +81,80 @@ export function importRecording(ctx: Ctx, json: string) {
   });
   recordEvent(ctx, incident.id, 'recording_imported', 'Recorded session imported; capture time not supplied', 'recording', url);
   attachRecording(ctx, JSON.stringify({ incidentId: String(incident.id), url, label }));
+}
+
+/** Source kind of every row the recording analyzer writes; a new analysis replaces only these. */
+export const RECORDING_ANALYSIS = 'recording_analysis';
+const MAX_TRACE_ROWS = 500;
+
+function traceRows(value: unknown, name: string) {
+  if (!Array.isArray(value)) throw new SenderError(`${name} must be a list`);
+  if (value.length > MAX_TRACE_ROWS) throw new SenderError(`${name} has more than ${MAX_TRACE_ROWS} rows`);
+  return value.map(row => {
+    const r = (row && typeof row === 'object' ? row : {}) as Record<string, unknown>;
+    const t = Number(r.t);
+    if (!Number.isFinite(t) || t < 0 || t > 6 * 3600) throw new SenderError(`${name}: t must be seconds into the video`);
+    return { t, r };
+  });
+}
+
+const text = (value: unknown, max: number) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
+
+function recordedIncidentFor(ctx: Ctx, data: Record<string, unknown>) {
+  if (typeof data.incidentId === 'string' && /^\d+$/.test(data.incidentId)) return ctx.db.incident.id.find(BigInt(data.incidentId)) ?? undefined;
+  if (typeof data.url !== 'string' || !data.url) throw new SenderError('incidentId or url is required');
+  for (const event of ctx.db.event.iter()) {
+    if (event.kind === 'recording_imported' && event.sources.some(source => source.detail === data.url)) {
+      return ctx.db.incident.id.find(event.incidentId) ?? undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * What a recorded video shows, from the offline analyzer (voice/pipecat/analyze_recording.py): transcript lines,
+ * seen_* / said_* events and analyzer steps, each at `t` seconds into the video (stored as import time + t).
+ * Only video-only imports accept it, and a rerun replaces the previous analysis. Never touches live care.
+ */
+export function writeRecordingTrace(ctx: Ctx, json: string) {
+  const data = parseJson(json);
+  const incident = recordedIncidentFor(ctx, data);
+  if (!incident || incident.status !== 'closed' || incident.unit !== RECORDED_UNIT) {
+    throw new SenderError('only a recorded-video import can take a recording trace');
+  }
+  const lines = traceRows(data.transcript ?? [], 'transcript');
+  const seen = traceRows(data.events ?? [], 'events');
+  const steps = traceRows(data.steps ?? [], 'steps');
+  for (const { r } of seen) {
+    if (!/^(seen|said)_[a-z_]{1,40}$/.test(text(r.kind, 50)) || !text(r.label, 200)) {
+      throw new SenderError('events need a seen_* or said_* kind and a label');
+    }
+  }
+  const id = incident.id;
+  for (const row of [...ctx.db.transcript.incidentId.filter(id)]) ctx.db.transcript.id.delete(row.id);
+  for (const row of [...ctx.db.event.incidentId.filter(id)]) {
+    if (row.sources.some(source => source.kind === RECORDING_ANALYSIS)) ctx.db.event.id.delete(row.id);
+  }
+  for (const row of [...ctx.db.agentStep.iter()]) {
+    if (row.incidentId === id && row.workflow === 'recording') ctx.db.agentStep.id.delete(row.id);
+  }
+  const at = (t: number) => plusSeconds(incident.startedAt, t);
+  for (const { t, r } of lines) {
+    const said = text(r.text, 500);
+    if (said) ctx.db.transcript.insert({ id: 0n, incidentId: id, ts: at(t), text: said });
+  }
+  for (const { t, r } of seen) {
+    ctx.db.event.insert({
+      id: 0n, incidentId: id, ts: at(t), kind: text(r.kind, 50), label: text(r.label, 200),
+      sources: [{ kind: RECORDING_ANALYSIS, detail: text(r.detail, 300) || 'recording analyzer', ts: ctx.timestamp }],
+      status: 'logged', mergedCount: 1,
+    });
+  }
+  for (const { t, r } of steps) {
+    const tool = text(r.tool, 60);
+    const summary = text(r.summary, 300);
+    if (tool && summary) ctx.db.agentStep.insert({ id: 0n, incidentId: id, ts: at(t), workflow: 'recording', tool, summary });
+  }
 }
 
 /** Encounter readings are patient history. Only unassigned preview readings expire. */

@@ -80,6 +80,13 @@ capture time. `latestIncident` and `request_report` exclude these imported encou
 call remains the report target. The hospital UI likewise excludes them from report eligibility and classic
 clinical displays.
 
+`demo_control("recording_trace", JSON {url | incidentId, transcript, events, steps})` writes what the offline
+analyzer (`voice/pipecat/analyze_recording.py`) found in such an import: `transcript: [{t, text}]`,
+`events: [{t, kind, label, detail}]` with `kind` matching `seen_*` or `said_*`, and `steps: [{t, tool, summary}]`
+(workflow `recording`). `t` is seconds into the video; rows are stored at the import's `startedAt + t`, events
+with one `recording_analysis` source. Only a closed `Recorded session` is accepted, at most 500 rows per list,
+and each call replaces the previous analysis (transcript, `recording_analysis` events, `recording` steps).
+
 ## Deployment order for camera sessions
 
 Publish the module first, preserving all existing rows (`--delete-data=never`). Then apply the session changes
@@ -121,6 +128,9 @@ H=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
 
 # vitals, about once a second. null (or leaving the key out) = no reading.
 # hr/spo2 are dropped unless status is "pulse". "simulated" is REQUIRED (true for --simulate).
+# Once a finger has been on for 2 s (status pulse/acquiring/calibrating), whatever the reading lacks (hr, spo2)
+# is filled from the `normal` scenario on a second row at the same timestamp: device "sim-fill", simulated = true,
+# only the missing fields. Nothing is filled with the finger off. The relay's row is never altered.
 curl -X POST $B/v1/database/$DB/call/push_vitals "${H[@]}" \
   -d '["relay-1", "{\"hr\":72,\"spo2\":97.5,\"temp_c\":36.4,\"status\":\"pulse\",\"simulated\":false}"]'
 
@@ -174,7 +184,7 @@ The connection is built once in `web/src/db/connection.ts`. Pages only use the h
 | Bodycam (W6) | `savePatientRecord({...})`, `addCallout({text, priority})`, `logAgentStep({workflow, tool, summary})` | |
 | Bodycam / hospital | `sendRtcSignal({sessionId, sender, kind, payload})` | WebRTC handshake, below |
 | Monitor | `monitorTap({button})` | `EPI` `AMIO` `SHOCK` `AIRWAY` `ROSC` `MARK`. A tap carries no dose: it logs "Epinephrine (tap)" and the read-back adds the dose when they merge |
-| Monitor / Patients | `demoControl({action, arg})` | `start` `new_patient` (arg JSON: `requestId`, `expectedIncidentId`) `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_start` `cpr_slow` `cpr_good` `cpr_clear` `normal` `sim_off` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS or scoped local `url`, optional `label`; empty URL removes it), `import_recording` (arg JSON: `url`, optional `label`; creates a separate closed video-only encounter) |
+| Monitor / Patients | `demoControl({action, arg})` | `start` `new_patient` (arg JSON: `requestId`, `expectedIncidentId`) `arrest` `rosc` `en_route` `arrived` `close` `reset` `cpr_start` `cpr_slow` `cpr_good` `cpr_clear` `normal` `sim_off` `epi_due_now` `identify` (arg = patient id) `demo_timing` (arg `on`/`off`), `attach_recording` (arg JSON: explicit `incidentId`, HTTPS or scoped local `url`, optional `label`; empty URL removes it), `import_recording` (arg JSON: `url`, optional `label`; creates a separate closed video-only encounter), `recording_trace` (arg JSON: analyzer output for a video-only import, see above) |
 | Any (caller not decided) | `synthesizeSeizure({active})` / HTTP `synthesize_seizure` `[true]` or `[false]` | Overrides the relay's sensor data with a hardcoded seizure. See "Synthetic seizure" below |
 | Hospital | `requestReport()` | the Generate Handoff button; works on the newest clinical incident even after close; ignores closed video-only imports |
 | Agent | `setDestination({hospitalId, etaMin})`, `erMessageOut({text})`, `saveReport({incidentId, contentJson})`, `logAgentStep(...)` | |

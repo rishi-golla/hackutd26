@@ -89,6 +89,33 @@ class SessionIntegrationTest(unittest.TestCase):
                 self.call("demo_control", ["import_recording", json.dumps({"url": url})])
         self.assertEqual(len(self.rows("SELECT id FROM incident")), 2)
 
+    def test_recording_trace_goes_only_to_a_video_import_and_a_rerun_replaces_it(self):
+        self.call("start_bodycam_session", ["bodycam-test", "still-live", "Test Unit"])
+        live = self.rows("SELECT id FROM incident")[0][0]
+        url = "/recordings/patient-01.mp4"
+        self.call("demo_control", ["import_recording", json.dumps({"url": url, "label": "Recorded patient 01"})])
+        recorded = self.rows("SELECT id FROM incident WHERE unit = 'Recorded session'")[0][0]
+        trace = {"url": url,
+                 "transcript": [{"t": 15.6, "text": "Time to begin chest compressions."}, {"t": 2, "text": "Oh no."}],
+                 "events": [{"t": 6, "kind": "seen_id_card", "label": "ID card shown to the camera", "detail": "video 0:06"}],
+                 "steps": [{"t": 6, "tool": "vision", "summary": "video 0:06: medic holds up an ID card"}]}
+        self.call("demo_control", ["recording_trace", json.dumps(trace)])
+        self.call("demo_control", ["recording_trace", json.dumps(trace)])
+        self.assertEqual(len(self.rows(f"SELECT id FROM transcript WHERE incident_id = {recorded}")), 2)
+        self.assertEqual(self.rows(f"SELECT label FROM event WHERE incident_id = {recorded} AND kind = 'seen_id_card'"),
+                         [["ID card shown to the camera"]])
+        self.assertEqual(len(self.rows(f"SELECT id FROM agent_step WHERE incident_id = {recorded}")), 1)
+        self.assertEqual(self.rows(f"SELECT id FROM event WHERE incident_id = {recorded} AND kind = 'recording_imported'") != [], True)
+        self.assertEqual(self.rows(f"SELECT id FROM transcript WHERE incident_id = {live}"), [])
+
+        for bad in [{**trace, "url": None, "incidentId": str(live)}, {**trace, "url": "/recordings/missing.mp4"},
+                    {**trace, "transcript": [{"t": -1, "text": "x"}]},
+                    {**trace, "events": [{"t": 1, "kind": "epi_given", "label": "Epinephrine"}]}]:
+            with self.assertRaises(HTTPError):
+                self.call("demo_control", ["recording_trace", json.dumps(bad)])
+        self.assertEqual(len(self.rows(f"SELECT id FROM transcript WHERE incident_id = {recorded}")), 2)
+        self.assertEqual(self.rows(f"SELECT id FROM event WHERE incident_id = {live} AND kind = 'epi_given'"), [])
+
     def test_recording_source_label_cannot_be_used_for_a_real_call(self):
         with self.assertRaises(HTTPError):
             self.call("demo_control", ["start", "Recorded session"])

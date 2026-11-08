@@ -28,13 +28,14 @@ import {
   str,
   touchDevice,
   endVitalsOverride,
+  fillMissingVitals,
   startVitalsOverride,
   startCpr,
   vitalsOverrideRow,
   writeSyntheticFrame,
 } from './helpers';
 import { runRules } from './rules';
-import { attachRecording, importRecording, shouldPruneVitals, startCameraSession, startNewPatient } from './sessions';
+import { attachRecording, importRecording, shouldPruneVitals, startCameraSession, startNewPatient, writeRecordingTrace } from './sessions';
 
 export default spacetimedb;
 
@@ -103,17 +104,21 @@ export const pushVitals = spacetimedb.reducer(
     const status = str(d.status, 'unknown');
     // Only 'pulse' means hr/spo2 are valid. Never store a stale or made-up number (spec R4).
     const valid = status === 'pulse';
+    const hr = valid ? num(d.hr) : undefined;
+    const spo2 = valid ? num(d.spo2 ?? d.spo2_exp) : undefined;
     ctx.db.vitals.insert({
       id: 0n,
       incidentId: activeIncidentId(ctx),
       ts: ctx.timestamp,
       device,
-      hr: valid ? num(d.hr) : undefined,
-      spo2: valid ? num(d.spo2 ?? d.spo2_exp) : undefined,
+      hr,
+      spo2,
       tempC: num(d.temp_c),
       status,
       simulated,
     });
+    // Once a finger has been on for ~2 s, whatever the reading lacks is filled on a separate, marked row (helpers.ts).
+    fillMissingVitals(ctx, status, hr, spo2);
   }
 );
 
@@ -385,6 +390,9 @@ export const demoControl = spacetimedb.reducer({ action: t.string(), arg: t.stri
       return;
     case 'import_recording':
       importRecording(ctx, arg);
+      return;
+    case 'recording_trace':
+      writeRecordingTrace(ctx, arg);
       return;
     case 'start':
       beginIncident(ctx, arg || 'Medic 12', 'demo');
