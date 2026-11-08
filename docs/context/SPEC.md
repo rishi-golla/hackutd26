@@ -216,7 +216,10 @@ section and add a change-log line.
    phone hotspot, then a TURN relay. (Josh, 17:42) The vision model samples about one frame a second on the laptop;
    the phone uploads no separate frames to SpacetimeDB. (Alan, ~18:30) Amended ~23:30 (decision 20): the frames
    come from the phone's WebRTC link to the voice worker (its camera track rides along with the mic), or from the
-   Pi hub's `/frame.jpg` when that link is down, not from the hospital's video.
+   Pi hub's `/frame.jpg` when that link is down, not from the hospital's video. **Amended Sun ~02:20 (decision
+   21):** no WebRTC sender to the hospital exists, so `/hospital` shows the Pi hub's live frame feed (about
+   10 frames a second, never older than 3 s) until one does; WebRTC wins when it plays. Other sections that still
+   say "WebRTC only" or "no snapshot / low-frame mode" mean this.
 2. **W6** (patient identified → EHR pull → `patient_record` + spoken summary) **belongs to the bodycam lane.**
    (Josh, 17:42) Superseded by decisions 18 and 20: the whole of W6 now runs in `voice/` (`VOICE_W6=on`): the
    vision sampler reads the ID card, the brain searches the EHR, calls `identify_patient`, pulls and saves the
@@ -341,9 +344,19 @@ section and add a change-log line.
     arrives, and the hub never serves one older than 3 s. It's a continuous live relay, not periodic snapshots, but
     frame-based (choppier than WebRTC over Tailscale or a tunnel).
     - **How:** `web/src/routes/hospital/LiveVideo.tsx` long-polls `/hub/frame.jpg?after=<seq>`; `web/vite.config.ts`
-      passes `/hub/*` to the hub (`HUB_URL` in the shell or `web/.env.development.local`; default
-      `http://handoff-pi:8000`, which needs Tailscale on the hospital laptop). Works with `npm run dev` and
-      `npm run preview`; a static deploy would need the hub to allow cross-origin requests instead.
+      passes only that path to the hub (`HUB_URL` in the shell or `web/.env.local`, read in every mode; default
+      `http://handoff-pi:8000`, which needs Tailscale on the hospital laptop). Works with `npm run dev`,
+      `dev:https` and `preview`; a static deploy would need the hub to allow cross-origin requests instead.
+    - **Honest "Live":** the hub answers a request that's behind with its newest frame, which can be up to 3 s
+      old. So the first frame after a gap (page load, reload, error) is shown under "Connecting…"/"Stale"; "Live"
+      needs a second frame within 3 s. "Stale" 3–3.5 s after the last frame (H2).
+    - **The hub's contract** (`hub/hub.py`, kgand) is now shared: `GET /frame.jpg?after=<seq>` waits up to 5 s,
+      answers 204 when nothing is newer, never serves a frame older than 3 s, and sends `X-Seq`. Don't change it
+      without telling the hospital lane.
+    - **If it fails:** the tile says "Connecting…" or "Stale". Check Tailscale on the laptop, or set `HUB_URL` to
+      the Pi's address on the hotspot. Hotspot or TURN alone don't help this path.
+    - **Lanes:** decision 20 gives "the hospital video" to the camera lane; this only picks the receiver's source,
+      in the hospital lane's tile. Camera lane's OK still to record.
     - **WebRTC stays:** if a bodycam sends an offer through `rtc_signal` (§22.5), its video wins while it plays.
 
 Conflicts resolved when this file was created (for the record):
@@ -1974,7 +1987,8 @@ sender exists yet; until one does, the tile shows the Pi hub's live frame feed i
    the tile stale after 3 s without frames and re-requests every 10 s.)
 4. Each side ignores rows from itself and from other sessions.
 
-If the peer connection can't be made: phone hotspot, then a TURN relay. No low-frame fallback.
+If the peer connection can't be made: phone hotspot, then a TURN relay. No low-frame fallback for WebRTC itself;
+until a sender exists, the tile shows the Pi hub's frame feed (decision 21).
 
 ### 22.6 Bodycam ↔ voice agent worker audio and video link
 
@@ -2033,7 +2047,7 @@ report under 30 s.
 
 | If this fails | You'll see | Keep going by |
 | --- | --- | --- |
-| Live video won't connect | "connecting…" on the video tile | Switch to the hotspot, then a TURN relay. No snapshot video |
+| Live video won't connect | "connecting…" on the video tile | Today's source is the Pi hub's frame feed (decision 21): check Tailscale on the hospital laptop, or set `HUB_URL` to the Pi's hotspot address. Once a WebRTC sender exists: the hotspot, then a TURN relay |
 | Voice agent pipeline drops (network, STT, LLM or TTS) | The agent's voice stops or lags | **Degraded mode** (B11): the phone speaks `tick_rules` callouts with on-device TTS or cached audio, the phone parser does read-backs, Web Speech does STT. Trigger: the bodycam's audio link to the worker is down (§0.1 decision 18) |
 | Phone can't reach the voice agent worker (venue Wi-Fi) | No agent voice from the start | Hotspot or TURN; degraded mode meanwhile |
 | Wi-Fi or hotspot drops | "Connecting…" in the `/hospital` event timeline header, "stale" on the live view | Clients buffer and reconnect (B9: 30 s offline loses no transcript lines); switch networks; demo controls force the next beat |
@@ -2218,7 +2232,7 @@ Short, honest answers. If the true answer is "we didn't test that", say so; judg
 | How fast is it? | Voice-to-voice is about a second (quote what we measured); sensor to screen is under a second; the record pull is a few seconds. Quote measured numbers only. |
 | Why does the voice take about a second? Why not a speech-to-speech model? | Each turn goes speech-to-text, then Nemotron with tools, then text-to-speech, all streaming; that costs roughly 0.7–1.2 s. Speech-to-speech models answer in ~0.3–0.5 s, but they can't run our model, and we wanted Nemotron calling our tools with deterministic dose and allergy checks. (If we kept the instant phone "Copy", say so.) |
 | How does it know who the patient is? | The agent reads the name and birth date off the ID card with the camera, or hears the medic say them, and decides to search the EHR. If it isn't sure, it asks. |
-| How does the live video work? | WebRTC, the same tech as video calls, straight from the phone to the hospital screen. SpacetimeDB carries the connection handshake. |
+| How does the live video work? | The phone sends about 10 camera frames a second to the Pi on the patient's side; the hospital screen pulls each new frame as it arrives and never shows one older than 3 s. (WebRTC straight from the phone is built on the receiving side; the phone side is next.) |
 | What happens without internet? | The phone falls back to on-device speech: rule callouts, read-back and cached audio keep working. Devices buffer and catch up, and real ambulances have cellular. The AI voice and the hospital link need a connection. |
 | What did you build this weekend? | All the software. We designed and printed the enclosures and bought the parts before the event. Say this plainly. |
 | Who did what? | Four of us worked across hardware, the backend and agent, the phone pages and demo controls, and the hospital dashboard and EHR, picking up whatever was next on our work board. (Say who led what, honestly.) |
