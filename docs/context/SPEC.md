@@ -16,6 +16,10 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~01:45 (Alan): HR and SpO₂ cells show the sensor settling and ride out jitter** (§14, H3, §24.1). While
+  the relay reports `acquiring`/`calibrating` (finger on, sensor settling), or HR is reading and SpO₂ isn't yet,
+  the cell shows three softly breathing dots instead of "—". If a reading drops out, the last good number stays,
+  dimmed, for up to 6 s before falling back to the dots or "—". Still under reduced motion.
 - **Sun ~01:30 (Alan): no "experimental" label on SpO₂ on the hospital dashboard** (decision 10, §5, R1, §24.1).
   SpO₂ is still treated as experimental and the caveat is said if a judge asks; it's just not on screen.
 - **Sun ~01:20 (Rishi): the bridge runs on the real Pi against Maincloud** (`bridge/`; no contract changes).
@@ -1235,7 +1239,7 @@ is **Generate Handoff**. No demo controls here.
 | Left | Right |
 | --- | --- |
 | **Live view** (large): the bodycam video, click to enlarge. Before the first frame, a halftone heart floats slowly in the panel (Canvas UI's Dithered Object, loaded only then); on stale the last frame stays under the Stale badge. When the report is ready it opens here, with a Live view / Report switch | **Status:** the status word, centred, on a tint of the status colour (soft red arrest, blue on scene / en route, green ROSC) |
-| | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show "—" during an arrest (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds) |
+| | **Vitals:** a 2×3 grid of centred stat cards (big number, small spaced monospace caption under it, after canvasui.dev): heart rate, SpO₂, temperature, CPR rate, next epi, elapsed. HR and SpO₂ show three breathing dots while the sensor settles (relay status `acquiring`/`calibrating`, or SpO₂ not in yet), hold the last good number dimmed through a dropout of up to 6 s, then fall back to the dots or "—"; they show "—" during an arrest (§9); CPR rate and next epi show "—" outside one. Out-of-range values in soft red (§15 thresholds) |
 | **Event timeline:** newest first, time and label; flagged events in soft red; the alert sent to the ER is a row. **Generate Handoff** (the only action) sits in this panel's header | **Patient** ("from EHR" or "cached copy" in the title): name and age, the allergy on a soft red tint, then code status, medications, history |
 
 Panel titles use the same small monospace caption style. Nothing explains itself on screen, and nothing moves
@@ -1247,7 +1251,7 @@ trend lines and the pulse waveform, the big spoken-callout text, and the simulat
 | --- | --- | --- |
 | H1 | Status, coloured by state, top right | — |
 | H2 | Continuous live video from the bodycam with a "live / stale" indicator; on stale it asks the bodycam for a fresh offer (§22.5) | Shows stale after 3 s without video |
-| H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed | A missing reading shows "—", never a stale number; "Epi due" matches the bodycam to the second |
+| H3 | Vitals grid: heart rate, SpO₂, temperature, CPR rate, next epi, elapsed; measuring dots while the sensor settles | A missing reading shows "—"; a dropout keeps the last good HR/SpO₂ dimmed for at most 6 s, never longer; "Epi due" matches the bodycam to the second |
 | H4 | Event timeline, newest first; source chips with evidence on hover live in the report (§20) | Every demo event appears; the epi event has its read-back source in the report (a second, `seen`, only if the camera-drugs stretch is built) |
 | H5 | Agent trace: not on the dashboard; the agent's results (destination, alert) appear as timeline rows | Judges can see the agent act from the timeline |
 | H6 | Pre-arrival alert, display-only, as a timeline row (a typed ER chat is optional) | Alert appears within 20 s of the arrest |
@@ -2013,7 +2017,8 @@ report under 30 s.
 ### 24.1 Honesty (judges will probe this)
 
 - All patient data is synthetic. The EHR is a mock. Hospitals are fictional. Not a medical device.
-- A missing reading shows "—" (no data). Never show a stale or made-up number.
+- A missing reading shows "—" (no data). Never show a made-up number. The one exception is short and visible: a
+  heart rate or SpO₂ that drops out keeps its last good value, dimmed, for at most 6 s (sensor jitter), then goes.
 - SpO₂ is experimental. The hospital dashboard no longer labels it (decision 10), so say it out loud if asked: fingertip oxygen readings are less accurate on darker skin, a known problem
   with pulse oximeters.
 - No compression-depth claims.

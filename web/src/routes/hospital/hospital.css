@@ -150,6 +150,18 @@
 .metric__value--none { color: var(--text-3); }
 .metric__unit { margin-left: 6px; font-size: 14px; font-weight: 400; letter-spacing: 0; color: var(--text-2); }
 .metric.is-alarm .metric__value { color: var(--alarm); }
+/* A held reading (a brief dropout): the last good number, dimmed until a fresh one arrives or HOLD_MS passes. */
+.metric__value { transition: opacity 200ms ease-out; }
+.metric__value.is-held { opacity: 0.5; }
+/* Measuring: finger on, sensor settling. Three dots that breathe in turn, sized to sit where the number goes. */
+.measuring { display: inline-flex; align-items: center; gap: 10px; height: 52px; }
+.measuring i { width: 10px; height: 10px; border-radius: 50%; background: var(--text-2); animation: measuring 1.2s ease-in-out infinite; }
+.measuring i:nth-child(2) { animation-delay: 0.2s; }
+.measuring i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes measuring { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .measuring i { animation: none; opacity: 0.6; }
+}
 
 /* ---- Event timeline ---- */
 .panel--timeline { grid-area: timeline; }
