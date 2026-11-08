@@ -1,0 +1,7 @@
+Modified version of ModRetro's Chromatic MCU firmware, licensed under the GNU GPL v3 (see LICENSE).
+
+Changed in 2026:
+- components/xp: console commands, a Bluetooth heart-rate and SpO2 receiver (xp_blehr.c) and
+  start-at-power-on (xp_boot.c).
+- components/medic: the vitals screen and its QR page (vitals.c).
+- main/main.c: opens the vitals overlay at start.
