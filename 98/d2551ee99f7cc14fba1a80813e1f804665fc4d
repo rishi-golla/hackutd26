@@ -1,0 +1,46 @@
+.gitignore
+  h_f876d4e77222e2 30-32
+docs/context/SPEC.md
+  h_f876d4e77222e2 19-23,664-675,1628-1629,2270
+spacetime/README.md
+  h_f876d4e77222e2 61-71,166,168
+spacetime/src/helpers.ts
+  h_f876d4e77222e2 24-27,30-33,235
+spacetime/src/index.ts
+  h_f876d4e77222e2 37,383-385
+spacetime/src/sessions.ts
+  h_f876d4e77222e2 3,17,21-23,26-34,44-61
+spacetime/test/test_sessions.py
+  h_f876d4e77222e2 73-96
+web/src/routes/controls/ControlsPage.tsx
+  h_f876d4e77222e2 10,97,269,272,274-275,278
+web/src/routes/hospital/CareLog.tsx
+  h_f876d4e77222e2 17
+web/src/routes/hospital/HospitalPage.tsx
+  h_f876d4e77222e2 18,94
+web/src/routes/hospital/LogsPage.tsx
+  h_f876d4e77222e2 34,36
+web/src/routes/hospital/PatientPage.tsx
+  h_f876d4e77222e2 50,75-76,81,118-119
+web/src/routes/hospital/PatientsPage.tsx
+  h_f876d4e77222e2 16,22,36-37,44
+web/src/routes/hospital/TracingPage.tsx
+  h_f876d4e77222e2 37,43-45,52
+web/src/routes/hospital/recordings.ts
+  h_f876d4e77222e2 1,5-17,27-29
+web/src/routes/hospital/useHospital.ts
+  h_f876d4e77222e2 9,32-33,124-126,148-149,164
+web/test/recordings.test.ts
+  h_f876d4e77222e2 4,18-19,26-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "98d2551ee99f7cc14fba1a80813e1f804665fc4d",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
