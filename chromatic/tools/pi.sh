@@ -3,6 +3,7 @@
 #   pi.sh [command]     run a command (or open a shell) on the Pi
 #   pi.sh --ip          print the Pi's address
 #   pi.sh --dst         print user@address as scp wants it
+#   pi.sh --ssh-opts    print the ssh/scp options, one per line (paths may contain spaces)
 # PI_HOST=<address or name> uses the Pi on Wi-Fi (get it with `hostname -I` on the Pi). Without it, a Mac finds the
 # Pi on the USB link (en7); its address there changes every boot.
 # The SSH key defaults to captures/private/pi_key next to this tools/ folder; set PI_KEY to use another.
@@ -15,7 +16,7 @@ elif [ "$(uname)" = Darwin ]; then
   IP=$(ping6 -c 2 -i 0.5 ff02::1%en7 2>/dev/null | grep -o 'fe80::[0-9a-f:]*%en7' | grep -v "$(ifconfig en7 | grep -o 'fe80::[0-9a-f:]*' | head -1)%" | head -1)
 fi
 [ "$1" = --ip ] && { echo "$IP"; exit; }
-[ "$1" = --ssh-opts ] && { echo "-i $KEY -o UserKnownHostsFile=$HOSTS -o StrictHostKeyChecking=accept-new"; exit; }
+[ "$1" = --ssh-opts ] && { printf '%s\n' -i "$KEY" -o "UserKnownHostsFile=$HOSTS" -o StrictHostKeyChecking=accept-new; exit; }
 if [ -z "$IP" ]; then
   if [ "$(uname)" = Darwin ]; then
     echo "Pi not found on USB (en7). Plug its USB-C port into the Mac and wait ~45 s, or set PI_HOST to its Wi-Fi address." >&2

@@ -10,10 +10,11 @@ set -e
 cd "$(dirname "$0")"
 PI=../chromatic/tools/pi.sh
 DST=$($PI --dst)
-SSHO="-q $($PI --ssh-opts)"
+SSHO=(-q)
+while IFS= read -r o; do SSHO+=("$o"); done < <($PI --ssh-opts)
 
 if [ "$1" = setup ]; then                                     # once, on a fresh Pi (needs internet)
-  scp $SSHO setup-pi.sh "$DST:/tmp/setup-pi.sh"
+  scp "${SSHO[@]}" setup-pi.sh "$DST:/tmp/setup-pi.sh"
   $PI 'sudo bash /tmp/setup-pi.sh && rm /tmp/setup-pi.sh'
   exit
 fi
@@ -25,9 +26,9 @@ if [ "$1" = wifi ]; then
 fi
 
 $PI 'rm -rf /home/cmx/next && mkdir -p /home/cmx/next/hub /home/cmx/next/testdata /home/cmx/hub'
-scp $SSHO hub.py common.js phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/next/hub/"
-scp $SSHO ../chromatic/pi/{pi_oximeter,max30102,pi_hr_sensor,test_sensor}.py ../chromatic/pi/cmx-oximeter.service "$DST:/home/cmx/next/"
-scp $SSHO ../chromatic/pi/testdata/*.json "$DST:/home/cmx/next/testdata/"
+scp "${SSHO[@]}" hub.py common.js phone.html dash.html link.sh handoff-hub.service handoff-link.service "$DST:/home/cmx/next/hub/"
+scp "${SSHO[@]}" ../chromatic/pi/{pi_oximeter,max30102,pi_hr_sensor,test_sensor}.py ../chromatic/pi/cmx-oximeter.service "$DST:/home/cmx/next/"
+scp "${SSHO[@]}" ../chromatic/pi/testdata/*.json "$DST:/home/cmx/next/testdata/"
 $PI 'cd /home/cmx/next && python3 -W ignore test_sensor.py' || { echo "Sensor test failed: nothing deployed."; exit 1; }
 $PI 'cp /home/cmx/next/*.py /home/cmx/ && cp -r /home/cmx/next/testdata /home/cmx/ && cp /home/cmx/next/hub/* /home/cmx/hub/ &&
      sudo cp /home/cmx/hub/handoff-*.service /home/cmx/next/cmx-oximeter.service /etc/systemd/system/ &&
