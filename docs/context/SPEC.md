@@ -16,6 +16,11 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sat ~18:20 (Alan): the camera logs drugs it sees being given.** If the vision model sees a medication
+  being given (the vial or syringe label plus the push, injection or nebuliser), it logs a medication event with
+  the frame as evidence, even when nobody says it. Inside the merge window it fuses with the spoken read-back.
+  Seen-but-not-said doses stay flagged until the dose is spoken, and the dose and allergy checks still run. See
+  §0.1 decision 16, §16 (RB8–RB10), §18, §19 Vision, §22.7.
 - **Sat ~18:15 (Josh): synthetic seizure.** New reducer `synthesize_seizure(active)` replaces the relay's sensor
   data (HR, SpO₂, temperature, waveform) with a hardcoded seizure (`spacetime/src/scenarios.ts`) so the healthy
   teammate can look like they're deteriorating. New table `vitals_override`. Rule alarms now use separate event
@@ -116,6 +121,9 @@ section and add a change-log line.
     closing the incident or reset ends it. It covers the deterioration beat; it does **not** settle the
     mock-arrest pulse question (§28). Where it's called from is [OPEN] (§28). The data is hardcoded on purpose,
     to be tuned later.
+16. **The camera logs drugs it sees being given** (Alan, Sat ~18:20). Medications are logged from what the medic
+    says *and* from what the camera sees. A medication seen being given is logged even if nobody says it, with
+    the frame as evidence; it never gets a guessed dose. Details in §16 "Drugs the camera sees" (RB8–RB10).
 
 Conflicts resolved when this file was created (for the record):
 
@@ -355,12 +363,12 @@ buffering.
 | SpO₂ | Relay, **experimental**. Always label it |
 | Temperature | Relay 18B20 probe, every 2 s |
 | CPR rate, count, pauses | Bodycam motion sensor. **No depth claims.** Override: "CPR slow / CPR good" on `/controls` |
-| Medication logging | Voice read-back plus the camera reading the vial label (no taps); the med kit adds a source if built |
+| Medication logging | Voice read-back plus the camera seeing the drug given (label and the push), fused into one event; a drug seen but not said is still logged (RB8). No taps; the med kit adds a source if built |
 | Medication read-back | The voice agent, with deterministic dose and allergy tools. Degraded mode: the phone-side parser and on-device voice. Phone first hop is [OPEN] (§16) |
 | Callouts (CPR, timers, vitals) | The voice agent decides when to speak, inside the §15 policy. `tick_rules` in SpacetimeDB is the safety net and the degraded-mode source. Mac speakers are the last fallback |
 | Patient identification | Vision model reads the ID card (name + birth date), or the medic says them; the agent decides to search the EHR. Fallback: "Identify patient" on `/controls` |
 | Patient record | W6 (bodycam lane) pulls it from the mock FHIR R4 EHR; every field marked "from EHR" (or "cached") |
-| Scene understanding | Vision on a frame every ~5 s and on "Handoff, look": AED pads, airway device, IV/IO, vial label, ID card. Logged only at confidence ≥ 0.7 |
+| Scene understanding | Vision on a frame every ~5 s and on "Handoff, look": AED pads, airway device, IV/IO, a medication being given (label + action), ID card. Logged only at confidence ≥ 0.7 |
 | Timeline marks | Relay MARK button, voice "Handoff, mark" |
 | Destination, ETA, pre-arrival alert | Agent W1 (`choose_hospital` from the seeded hospitals); the alert is display-only |
 | Handoff report | Agent W4, MIST format; drops any sentence without a source; template fallback |
@@ -1209,6 +1217,28 @@ replace it; the parser and voice stay the same.
 - **Kit cross-check** (only if the med kit is built; agent, after the fact): voice says amiodarone but the kit saw
   the EPI vial lifted → a quiet flag on the dashboard.
 
+### Drugs the camera sees
+
+Medications are logged from what the camera sees as well as from what the medic says.
+
+- **What counts as "given":** the vision model reads the drug on a vial or syringe label (and the dose if it's
+  printed, e.g. a prefilled "1 mg/10 mL" syringe) **and** sees it being given: a push into an IV/IO line, an
+  injection, or a nebuliser mask going on. A vial that is only held or drawn up is not a dose; its label alone
+  just adds a `label` source to a spoken dose inside the merge window (§18).
+- **Seen and said:** the camera finding fuses with the read-back event inside the merge window. One event, with
+  chips for read-back and `seen`.
+- **Seen, not said:** the event is still logged with the frame as evidence (label = the drug name, status
+  `flagged`). The dose comes only from the label; it is never guessed. The voice agent asks once, "Saw
+  epinephrine. What dose?" (P2, 8 words or fewer, keeps the 4 s spacing). A spoken dose within 30 s merges in and
+  confirms it. Otherwise the event stays flagged, and the report says "dose not stated".
+- **Safety checks still run:** a drug the camera sees goes through the same deterministic `check_allergy` and
+  `check_dose_range` tools. Seeing amiodarone given to a patient with an amiodarone allergy triggers the RB7
+  warning even if nobody spoke.
+- **Timing:** a push lasts a few seconds and frames come every ~5 s, so a frame can miss it. "Handoff, look"
+  forces a frame at once. Raising the frame rate during `arrest` is [OPEN] (cost and latency, §28).
+- **Props:** dummy vials and syringes carry large printed labels, e.g. "EPINEPHRINE 1 mg · DEMO", so the camera
+  can read them at chest distance.
+
 | ID | Requirement | Done when |
 | --- | --- | --- |
 | RB1 | Detects medication statements (verb + drug + dose), ignores questions and plans | 9 of 10 test sentences trigger; 0 of 10 questions do |
@@ -1218,6 +1248,9 @@ replace it; the parser and voice stay the same.
 | RB5 | Echo guard | The read-back never creates a second event |
 | RB6 | Shows a big read-back card on the bodycam screen and a "read back" chip on the hospital timeline | Visible on both within 1 s |
 | RB7 | Allergy check against the pulled record, deterministic (`check_allergy` tool; the same check on the phone): if the drug matches a recorded allergy, the read-back says so and asks for confirm or correction | The amiodarone line triggers the warning |
+| RB8 | Logs a medication the camera sees being given (label + action, confidence ≥ 0.7), with the frame as evidence, even if nobody says it | Giving the "EPINEPHRINE 1 mg · DEMO" syringe in silence, then "Handoff, look", logs an epinephrine event with a `seen` chip within about 3 s |
+| RB9 | Seen but not said: logged as `flagged` with no guessed dose; the agent asks "Saw epinephrine. What dose?" once; a spoken dose within 30 s merges and confirms it | Report shows "dose not stated" until a dose is spoken; never an invented number |
+| RB10 | Drugs the camera sees run the same deterministic allergy and dose checks (RB4, RB7) | The camera seeing amiodarone given to Jordan Avery triggers the allergy warning with no words spoken |
 
 ## 17. Pulling the patient's record (EHR)
 
@@ -1287,8 +1320,8 @@ From either of the first two, the agent decides to call `ehr_search`. No QR code
 
 ## 18. Event fusion
 
-The same intervention can arrive from several places: the medic says it, the camera reads the label, and the med
-kit can add the vial lift. Handoff keeps one event and attaches every source, which is what makes the report
+The same intervention can arrive from several places: the medic says it, the camera sees it given (or reads the
+label), and the med kit can add the vial lift. Handoff keeps one event and attaches every source, which is what makes the report
 trustworthy.
 
 Example: VOICE "administering one milligram epi IO" (read back) at 14:04:31, then LABEL (camera reads
@@ -1299,7 +1332,8 @@ The first source opens the window; a later report of the same `kind` inside it a
 As built: the window is 60 s, or 20 s with DEMO TIMING on, so two demo epi doses 45 s apart stay separate.
 Cancelled events never merge. The merged event keeps the more specific (longer) label. Real epinephrine doses are
 minutes apart, so a real second dose never falls inside the window. The med kit (lifting the vial) can add a third
-source. Event kinds and source chips: §22.7.
+source. A drug the camera sees given but nobody says is still its own event (one `seen` chip, `flagged` until a
+dose is spoken, RB9). Event kinds and source chips: §22.7.
 
 ## 19. AI agent
 
@@ -1347,7 +1381,7 @@ There are two parts:
 | Workflow | Trigger | Steps (tools) | Done when |
 | --- | --- | --- | --- |
 | W1 | Status becomes arrest or en route | `get_incident` → `choose_hospital` (capability, ETA, beds) → `set_destination` → `post_er_message` | The alert appears on the hospital dashboard within 20 s |
-| W2 | Every 5 s of new transcript | `get_recent_transcript` → pull out procedures and findings (medications are already read back and logged) → `log_event` (fuses with vision and the kit if built) | "One milligram epi in" becomes one event, not a duplicate |
+| W2 | Every 5 s of new transcript | `get_recent_transcript` → pull out procedures and findings (medications come from the read-back and from vision, RB8) → `log_event` (fuses with vision and the kit if built) | "One milligram epi in" becomes one event, not a duplicate |
 | W6 | A vision finding of an ID card, a spoken name and birth date in the transcript, or `incident.patientRef` set by "Identify patient"; the agent decides to search | `ehr_search` (name + birth date; several matches → ask for confirmation, never guess) → `identify_patient` → `ehr_get_record` (allergies, medications, conditions, code status) → summarize → `save_patient_record` → `add_callout` ("Record found…") | Record on screens within about 8 s of showing the card (about 3 s after "Handoff, look" or the spoken name); spoken summary is facts only |
 | W3 | Optional: the ER doctor types a question in the ER chat | `get_timeline`, `get_vitals_summary` → answer in two sentences, facts and times only → `post_er_message`; unknown → "Not documented yet, asking crew" + `add_callout` | Answer within 20 s; nothing invented |
 | W4 | Generate Handoff (a `report` row with status `requested`), or status arrived | gather → draft MIST → self-check drops any sentence without a source → `save_report` → `post_er_message` | No uncited claims in the report |
@@ -1425,9 +1459,12 @@ sequenceDiagram
 ### Vision
 
 - Checks a frame every 5 s and on "Handoff, look".
-- Looks for AED pads on, an airway device, IV/IO, vial label text, and an ID card (it reads the printed name and
+- Looks for AED pads on, an airway device, IV/IO, a medication being given (the label's drug, and dose if
+  printed, plus the push, injection or nebuliser), vial label text, and an ID card (it reads the printed name and
   birth date).
 - Returns a finding and a confidence; only 0.7 or higher is logged, with the frame kept as evidence.
+- A medication finding becomes `log_event({kind: "med_<drug>", sourceKind: "seen"})`, runs `check_allergy` and
+  `check_dose_range`, and fuses with the read-back inside the merge window (RB8–RB10, §18).
 - Model: prefer a Nemotron vision model; exact slug [OPEN]. Frame path and evidence storage [OPEN] (§28).
 
 ## 20. Handoff report
@@ -1444,7 +1481,7 @@ its sources. The header always says it's a prototype. No QR code.
 | | Pill bottle found by the bed (MARK). | MARK 14:06:02 · voice 14:06:04 · frame #14 |
 | **S** | Arrest 14:02. ROSC 14:11. After ROSC: HR 104 (live), SpO₂ 93 (experimental), temperature 36.4 °C. | relay HR · relay SpO₂ · relay temp |
 | **T** | CPR 14:02–14:11, average rate 111/min, longest pause 7 s. | bodycam motion |
-| | Epinephrine 1 mg IO at 14:04 and 14:08. | voice · label |
+| | Epinephrine 1 mg IO at 14:04 and 14:08. | read-back · seen |
 | | Airway: i-gel at 14:05. | voice · frame |
 | **!** | Outstanding: on warfarin per the record; family bringing the current medication list. | EHR · voice 14:09:30 |
 
@@ -1678,7 +1715,7 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
 - Others: `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`,
   `status_<status>`. Rules also write `cpr_coached`, `cpr_paused`, `vitals_alarm_hr` and `vitals_alarm_spo2`
   (a merged alarm shows the newest number). `synthesize_seizure` writes `simulation` and `simulation_end`.
-- `sourceKind` is the chip: `voice`, `read-back`, `label`, `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
+- `sourceKind` is the chip: `voice`, `read-back`, `label`, `seen` (the camera saw it given), `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
 
 ### 22.8 Browser clients (TS SDK)
@@ -1909,6 +1946,7 @@ measure · that it measures compression depth · that it diagnoses or decides tr
 | **Exact Nemotron model slugs** for the agent (voice and workflows) and for the vision step (prefer a Nemotron vision model over Gemini) | Team |
 | **Voice agent design:** the tool list (and reconciling names with the workflow tools; who owns the EHR search given W6 is the bodycam lane's), the state-summary format, the when-to-speak policy (how agent speech and `tick_rules` rows combine without double-speaking), and whether workflows share its process | Voice agent owner, with Alan |
 | **Read-back first hop:** keep the phone parser's instant "Copy" before the agent's checks? | Alan |
+| **Vision frame rate during `arrest`:** raise it from one every ~5 s to one every ~2 s so a drug push isn't missed (RB8)? Costs more vision calls and latency | Camera lane |
 | **Voice failover trigger:** what makes the bodycam switch to on-device mode, and back | Voice agent and camera lanes |
 | **Voice agent worker folder and owner** (unassigned lane) | Team |
 | **Audio-link signaling:** the framework's own, or `rtc_signal` with a new sender (contract change, hospital lane) | Voice agent owner, Josh |
