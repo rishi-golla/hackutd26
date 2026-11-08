@@ -1,0 +1,24 @@
+voice/README.md
+  h_f876d4e77222e2 90,105,112
+voice/src/brain.ts
+  h_f876d4e77222e2 12,18,43-44,76-80,103-104,177-182,224-225,229-244,269-286,311-349,627,710-714,766-771
+voice/src/readback.ts
+  h_f876d4e77222e2 57-58,63-90,130-154,162-163,180-182,268-284,286-287,289-295
+voice/src/tools.ts
+  h_f876d4e77222e2 109,208-212
+voice/test/conversation.test.ts
+  h_f876d4e77222e2 171-235
+voice/test/readback.test.ts
+  h_f876d4e77222e2 3,46-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb3b9f35dfce9eb60b41f754f2beeed003878d04",
+  "prompts": {},
+  "humans": {
+    "h_f876d4e77222e2": {
+      "author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
