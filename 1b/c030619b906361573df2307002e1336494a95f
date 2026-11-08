@@ -1,0 +1,25 @@
+web/src/routes/hospital/OpsPage.tsx
+  s_6ca725d5fed06e::t_54756520188f63 6,74
+web/src/routes/hospital/PatientPage.tsx
+  s_6ca725d5fed06e::t_ee18cb9c5409eb 8,106,139
+web/src/routes/hospital/PatientsPage.tsx
+  s_6ca725d5fed06e::t_94a0c50d391581 5,89
+web/src/routes/hospital/ui.tsx
+  s_6ca725d5fed06e::t_ea088529e2db83 92-99,125-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1bc030619b906361573df2307002e1336494a95f",
+  "prompts": {},
+  "sessions": {
+    "s_6ca725d5fed06e": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_6ca725d5fed06e",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
