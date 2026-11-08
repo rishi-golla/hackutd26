@@ -132,6 +132,9 @@ setInterval(() => {
   canvas.toBlob((b) => post('/frame?n=' + (++n), b).then((r) => dot('dCam', r.ok ? 'on' : 'off'), () => dot('dCam', 'off')).finally(() => { inFlight--; }), 'image/jpeg', 0.65);
 }, 100);
 
+// The camera only works on https. Opened over plain http (e.g. http://handoff-pi:8000), move to the public link.
+if (!isSecureContext) fetch('/state').then((r) => r.json()).then((s) => { if (s.link?.value) location.replace(s.link.value + location.pathname); }).catch(() => {});
+
 function stopped() { running = false; $('start').disabled = false; $('start').textContent = 'Start'; }
 
 $('start').onclick = async () => {
