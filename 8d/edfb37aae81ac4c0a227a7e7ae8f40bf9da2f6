@@ -1,0 +1,19 @@
+docs/context/SPEC.md
+  s_742501b3562981::t_8e61beea859bf5 19-27,375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8dedfb37aae81ac4c0a227a7e7ae8f40bf9da2f6",
+  "prompts": {},
+  "sessions": {
+    "s_742501b3562981": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_742501b3562981",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
