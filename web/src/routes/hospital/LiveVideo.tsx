@@ -1,9 +1,12 @@
 // Live video from the bodycam over WebRTC. Live stream only, never snapshots (AGENTS.md section 0).
 // Signaling goes through the rtc_signal table; protocol in spacetime/README.md.
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useSpacetimeDB, useTable } from 'spacetimedb/react';
 import { tables, type DbConnection } from '../../module_bindings';
 import type { RtcSignal } from '../../module_bindings/types';
+
+// Loaded on demand so three.js stays out of the bundle every other page (bodycam, controls) downloads.
+const HeartPlaceholder = lazy(() => import('./HeartPlaceholder'));
 
 const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 const STALE_MS = 3000; // H2: "stale" after 3 s without video
@@ -26,6 +29,8 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
   const lastFrameAt = useRef(0);
   const lastRequestAt = useRef(0);
   const [state, setState] = useState<VideoState>('connecting');
+  // Whether any frame has ever arrived. The placeholder heart is only for before that, never over a frozen frame.
+  const [hadFrame, setHadFrame] = useState(false);
 
   const send = (sessionId: string, kind: string, payload: string) => {
     const conn = getConnection() as DbConnection | null;
@@ -117,6 +122,7 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
         lastFrameAt.current = Date.now();
       }
       const sinceFrame = Date.now() - lastFrameAt.current;
+      if (lastFrameAt.current !== 0) setHadFrame(true);
       if (lastFrameAt.current === 0) setState('connecting');
       else setState(sinceFrame > STALE_MS ? 'stale' : 'live');
       if ((lastFrameAt.current === 0 || sinceFrame > STALE_MS) && Date.now() - lastRequestAt.current > REREQUEST_MS) {
@@ -138,6 +144,12 @@ export default function LiveVideo({ expanded, onToggle }: { expanded: boolean; o
       aria-label={expanded ? 'Minimize live video' : 'Expand live video'}
     >
       <video ref={videoRef} autoPlay playsInline muted />
+      {/* Before the first frame ever arrives. On stale the last frame stays up, under the Stale badge (H2). */}
+      {!hadFrame && (
+        <Suspense fallback={null}>
+          <HeartPlaceholder />
+        </Suspense>
+      )}
       <span className="video__badge">
         {state === 'live' ? 'Live' : state === 'stale' ? 'Stale' : 'Connecting…'}
       </span>

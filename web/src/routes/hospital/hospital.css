@@ -14,6 +14,7 @@
   --text-3: #7a7a7a;
   --alarm: #f2a0a0; /* a soft red: reads as a warning without shouting */
   --alarm-tint: rgb(242 160 160 / 0.12);
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace; /* captions only */
 
   height: 100vh;
   display: grid;
@@ -50,7 +51,7 @@
 .panel__head { display: flex; align-items: center; gap: 16px; padding: 16px 24px 8px; }
 .panel__head .panel__title { padding: 0; flex: 1; }
 .panel__problem { font-size: 14px; color: var(--alarm); }
-.panel__title { padding: 20px 24px 8px; font-size: 14px; font-weight: 500; color: var(--text-2); }
+.panel__title { padding: 20px 24px 8px; font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); }
 .empty { padding: 4px 24px; color: var(--text-3); }
 
 /* ---- Live view (or the report) ---- */
@@ -116,7 +117,7 @@
 .status--on_scene, .status--en_route { background: rgb(96 140 255 / 0.12); border-color: rgb(96 140 255 / 0.35); color: #b9ccff; }
 .status--arrest { background: var(--alarm-tint); border-color: rgb(242 160 160 / 0.35); color: var(--alarm); }
 .status--rosc { background: rgb(110 220 160 / 0.12); border-color: rgb(110 220 160 / 0.35); color: #a6e9c4; }
-.status__word { font-size: 36px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.status__word { font-size: 40px; font-weight: 500; letter-spacing: -0.03em; line-height: 1.1; }
 
 /* The one action, in the event timeline's header */
 .action {
@@ -140,13 +141,14 @@
 
 /* ---- Vitals: every live metric, an even 2×3 grid of centred cells ---- */
 .panel--data { grid-area: data; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); }
-.metric { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; }
+/* Stat-card style (from canvasui.dev): the number first, a small spaced monospace caption under it. */
+.metric { display: flex; flex-direction: column-reverse; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; }
 .metric:nth-child(odd) { border-right: 1px solid var(--border); }
 .metric:nth-child(-n + 4) { border-bottom: 1px solid var(--border); }
-.metric__label { font-size: 14px; color: var(--text-2); }
-.metric__value { font-size: 44px; font-weight: 400; line-height: 1; letter-spacing: -0.02em; }
+.metric__label { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); }
+.metric__value { font-size: 52px; font-weight: 500; line-height: 1; letter-spacing: -0.035em; }
 .metric__value--none { color: var(--text-3); }
-.metric__unit { margin-left: 6px; font-size: 15px; letter-spacing: 0; color: var(--text-2); }
+.metric__unit { margin-left: 6px; font-size: 14px; font-weight: 400; letter-spacing: 0; color: var(--text-2); }
 .metric.is-alarm .metric__value { color: var(--alarm); }
 
 /* ---- Event timeline ---- */
@@ -179,3 +181,6 @@
   }
   .panel--live { aspect-ratio: 16 / 9; }
 }
+
+/* Placeholder heart in the live view before the first frame (HeartPlaceholder.tsx) */
+.heart { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
