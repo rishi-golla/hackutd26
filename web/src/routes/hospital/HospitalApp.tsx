@@ -70,7 +70,6 @@ export default function HospitalApp() {
           ); })}
         </nav>
         <div className="top__end">
-          <span className="top__note">Demo · synthetic patient data</span>
           <a className="round" href="/hospital/classic" title="Classic dashboard" aria-label="Classic dashboard"><Icon name="monitor" /></a>
           <div className="theme" role="group" aria-label="Theme">
             <button type="button" aria-pressed={!dark} aria-label="Light mode" onClick={() => setDark(false)}><Icon name="sun" /></button>

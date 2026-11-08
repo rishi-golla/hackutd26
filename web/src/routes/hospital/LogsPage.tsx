@@ -3,6 +3,7 @@ import { go } from './HospitalApp';
 import { Icon, patientLine, SpokenTranscript, StatusPill, Timeline } from './ui';
 import type { HospitalData } from './useHospital';
 import { CareLog, VitalsLog } from './CareLog';
+import { unitLabel } from './recordings';
 
 type LogCategory = 'care' | 'vitals' | 'transcript' | 'agent';
 
@@ -31,9 +32,9 @@ export default function LogsPage({ data }: { data: HospitalData }) {
         <select id="log-patient" value={data.incident ? String(data.incident.id) : ''} disabled={!data.calls.length}
           onChange={e => go('/hospital/logs', BigInt(e.target.value))}>
           <option value="" disabled>{data.calls.length ? 'Select a patient' : 'No patients yet'}</option>
-          {data.calls.map(({ incident, record, recording }) => (
+          {data.calls.map(({ incident, record, recording, recordingOnly }) => (
             <option key={String(incident.id)} value={String(incident.id)}>
-              {patientLine(record) ?? recording?.label ?? 'Not identified'} · {incident.unit} · Call {String(incident.id)}
+              {patientLine(record) ?? (recordingOnly ? recording?.label : undefined) ?? 'Not identified'} · {unitLabel(incident)} · Call {String(incident.id)}
             </option>
           ))}
         </select>
@@ -68,7 +69,7 @@ export default function LogsPage({ data }: { data: HospitalData }) {
           {!data.incident ? <p className="empty">{!data.isActive ? 'Connecting to patient logs…' : new URLSearchParams(window.location.search).has('incident') ? 'Patient encounter not found. Choose a patient above.' : 'Choose a patient to view their logs.'}</p>
             : category === 'care' ? <CareLog key={String(data.incident.id)} events={data.timeline.filter(row => row.kind === 'event')} />
               : category === 'vitals' ? <VitalsLog key={String(data.incident.id)} rows={data.recordedVitals} />
-            : category === 'transcript' ? <SpokenTranscript lines={data.spoken} />
+            : category === 'transcript' ? <SpokenTranscript lines={data.spoken} videoStart={data.videoStart} />
               : !timelineData.timeline.length && !timelineData.live.length ? <p className="empty">{category === 'agent' ? 'No agent activity recorded for this call.' : 'No care events recorded for this call.'}</p>
                 : <Timeline key={String(data.incident.id)} data={timelineData} />}
         </div>

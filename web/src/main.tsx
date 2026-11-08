@@ -24,7 +24,6 @@ function Route() {
   return (
     <main className="index">
       <h1>Handoff</h1>
-      <p>Prototype · synthetic data · not a medical device</p>
       <ul>
         <li><a href="/hospital">/hospital</a> — hospital dashboard</li>
         <li><a href="/bodycam">/bodycam</a> — chest bodycam</li>

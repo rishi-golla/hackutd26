@@ -41,6 +41,9 @@ const TOOL_TEXT: Record<string, { now: string; done: string }> = {
   get_timeline: { now: 'Reading the timeline', done: 'Read the timeline' },
   // voice/pipecat/vision.py
   vision: { now: 'Looking through the bodycam', done: 'Looked through the bodycam' },
+  // voice/pipecat/analyze_recording.py (recorded videos)
+  asr: { now: 'Transcribing the session', done: 'Transcribed the session' },
+  transcript_events: { now: 'Reading the transcript for actions', done: 'Read the transcript for actions' },
   // agent/ W1 and W4
   plan: { now: 'Hospital workflow plan', done: 'Hospital workflow plan' },
   get_incident: { now: 'Reading the incident', done: 'Read the incident' },
@@ -223,7 +226,7 @@ export function liveThoughts(thoughts: Thought[], now: number): Set<Thought> {
 export function agentLabel(t: Thought): string {
   const usedModel =
     t.agent === 'vision' || t.model;
-  return `${usedModel ? 'Nemotron' : 'Agent'} · ${t.agent}`;
+  return `${usedModel ? 'Nemotron' : 'Agent'} · ${t.agent === 'recording' ? 'session review' : t.agent}`;
 }
 
 /** One step as a sentence: the plain verb phrase and the step's own summary as the detail. */
@@ -234,7 +237,8 @@ export function stepSentence(s: AgentStep, tense: 'now' | 'done'): { phrase: str
     : { phrase: update.text, detail: '' };
   const text = TOOL_TEXT[s.tool];
   // The summary is the detail; the speech line's "P1 answer: " prefix is bookkeeping.
-  const detail = s.summary.trim().replace(/^P\d \w+: /, '');
+  const summary = s.workflow === 'recording' ? s.summary.replace(/\b(the )?recording\b/gi, 'the session') : s.summary;
+  const detail = summary.trim().replace(/^P\d \w+: /, '');
   if (!text || /\b(?:failed|refused|unavailable|not logged|not pulled|not found|no active incident|dropped|stopped|skipped)\b/i.test(detail)) return { phrase: detail, detail: '' };
   // Historical guarded read-back fallback: the standard read-back played, not Nemotron's wording.
   if (s.tool === 'nemotron_readback' && !detail.startsWith('Nemotron read it back')) return { phrase: 'Used the standard read-back', detail: detail.replace(/^Used the standard read-back\s*/, '') };

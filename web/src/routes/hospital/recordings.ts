@@ -2,9 +2,25 @@ import type { Event, Incident } from '../../module_bindings/types';
 
 export type Recording = { url: string; label: string };
 
+/** The label the voice worker gives the phone's own recording of a call (voice/src/recording.ts). */
+export const SESSION_VIDEO_LABEL = 'Session video';
+
+/** Display names for imported sessions, keyed by the label they were imported with. */
+const SESSION_NAMES: Record<string, string> = { 'Recorded patient 01': 'Joshua Kim' };
+
 /** Mirrors the module's reserved source marker; these encounters never participate in live care. */
 export function isRecordedEncounter(incident?: Pick<Incident, 'unit' | 'status'>) {
   return incident?.status === 'closed' && incident.unit === 'Recorded session';
+}
+
+/** The import's own bookkeeping rows (video attached, session imported) are not care and never show as events. */
+export function isCareEvent(event: Pick<Event, 'kind'>) {
+  return event.kind !== 'session_recording' && event.kind !== 'recording_imported';
+}
+
+/** What the dashboard calls an encounter's unit: imported sessions read as a previous session. */
+export function unitLabel(incident?: Pick<Incident, 'unit' | 'status'>) {
+  return isRecordedEncounter(incident) ? 'Previous session' : incident?.unit;
 }
 
 export function parseRecordingUrl(value: string): string | undefined {
@@ -24,7 +40,8 @@ export function recordingFor(events: readonly Event[]): Recording | undefined {
   try {
     const value = JSON.parse(source?.detail ?? '');
     if (typeof value.url !== 'string' || !value.url) return undefined;
-    const label = typeof value.label === 'string' && value.label.trim() ? value.label : 'Session recording';
+    const raw = typeof value.label === 'string' && value.label.trim() ? value.label : 'Previous session';
+    const label = SESSION_NAMES[raw] ?? raw;
     const url = parseRecordingUrl(value.url);
     return url ? { url, label } : undefined;
   } catch { return undefined; }

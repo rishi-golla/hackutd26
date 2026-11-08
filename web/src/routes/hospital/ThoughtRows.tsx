@@ -2,6 +2,7 @@
 // to each new step with a short crossfade; a finished thought is one row that expands to its steps.
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { clock } from '../../db/time';
+import { Stamp } from './Stamp';
 import { agentLabel, decisionUpdate, headline, stepSentence, type Thought } from './thoughts';
 
 const SWAP_MS = 200; // the outgoing copy's CSS animation is 140 ms
@@ -25,7 +26,7 @@ export function LiveThought({ thought }: { thought: Thought }) {
 }
 
 /** A finished thought: one row named by its most telling step; click to see every step. */
-export function ThoughtRow({ thought, open, onToggle, active = false }: { thought: Thought; open: boolean; onToggle: () => void; active?: boolean }) {
+export function ThoughtRow({ thought, open, onToggle, active = false, videoStart }: { thought: Thought; open: boolean; onToggle: () => void; active?: boolean; videoStart?: number }) {
   const { phrase, detail } = stepSentence(headline(thought), active ? 'now' : 'done');
   const label = agentLabel(thought);
   const many = thought.steps.length > 1;
@@ -40,7 +41,7 @@ export function ThoughtRow({ thought, open, onToggle, active = false }: { though
   );
   return (
     <li className="thought">
-      <span className="timeline__time">{new Date(thought.startMs).toLocaleTimeString([], { hour12: false })}</span>
+      <span className="timeline__time">{videoStart === undefined ? new Date(thought.startMs).toLocaleTimeString([], { hour12: false }) : <Stamp t={thought.startMs} videoStart={videoStart} />}</span>
       <div className="thought__body">
         {many ? (
           <button type="button" className="thought__line thought__line--button" aria-expanded={open} onClick={onToggle}>

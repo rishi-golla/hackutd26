@@ -6,8 +6,9 @@ import { tables, type DbConnection } from '../../module_bindings';
 import type { AgentStep, ErMessage, Event, Hospital, Incident, PatientRecord, Report, Timer, Vitals } from '../../module_bindings/types';
 import { tsMs } from '../../db/time';
 import { groupThoughts, liveThoughts, type Thought } from './thoughts';
-import { isRecordedEncounter, recordingFor, type Recording } from './recordings';
-import { CPR_STALE_MS, etaMinutes, NONE, readingOf, REPORT_SLOW_MS, selectVitals, VITALS_STALE_MS, type Reading } from './vitals';
+import { isCareEvent, isRecordedEncounter, recordingFor, type Recording } from './recordings';
+import { sessionDetails } from './sessionDetails';
+import { CPR_STALE_MS, etaMinutes, latestReading, NONE, readingOf, REPORT_SLOW_MS, selectVitals, VITALS_STALE_MS, type Reading } from './vitals';
 
 export function useNow(intervalMs = 500) {
   const [now, setNow] = useState(Date.now());
@@ -66,9 +67,6 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
   const open = !!incident && incident.status !== 'closed';
   const activeId = sorted.find(i => i.status !== 'closed')?.id;
   const canShowLive = isActive && open && incident?.id === activeId;
-  const record = records.find(r => r.incidentId === incId);
-  const report: Report | undefined = reports.find(r => r.incidentId === incId);
-  const destination = hospitals.find(h => h.id === incident?.destinationId);
 
   // H5: the agents' steps grouped into thoughts; at most two live lines, newest first.
   const incSteps: AgentStep[] = useMemo(() => steps.filter(s => s.incidentId === incId), [steps, incId]);
@@ -76,10 +74,17 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
   const liveSet = isActive && incident?.status !== 'closed' ? liveThoughts(thoughts, now) : new Set<Thought>();
   const live = thoughts.filter(t => liveSet.has(t)).reverse().slice(0, 2);
 
-  const incEvents: Event[] = events.filter(e => e.incidentId === incId && e.status !== 'cancelled');
-  const recording = recordingFor(incEvents);
-  const recordedVitals = useMemo(() => selectVitals(vitalsRows, incId), [vitalsRows, incId]);
-  const incMessages: ErMessage[] = messages.filter(m => m.incidentId === incId).sort((a, b) => tsMs(a.ts) - tsMs(b.ts));
+  const sessionEvents: Event[] = events.filter(e => e.incidentId === incId && e.status !== 'cancelled');
+  const recording = recordingFor(sessionEvents);
+  const incEvents = sessionEvents.filter(isCareEvent);
+  const details = sessionDetails(incident, recording);
+  const record = records.find(r => r.incidentId === incId) ?? details?.record;
+  const report: Report | undefined = reports.find(r => r.incidentId === incId) ?? details?.report;
+  const destination = hospitals.find(h => h.id === incident?.destinationId) ?? details?.destination;
+  const savedVitals = useMemo(() => selectVitals(vitalsRows, incId), [vitalsRows, incId]);
+  const recordedVitals = savedVitals.length || !details ? savedVitals : details.vitals;
+  const savedMessages: ErMessage[] = messages.filter(m => m.incidentId === incId).sort((a, b) => tsMs(a.ts) - tsMs(b.ts));
+  const incMessages = savedMessages.length || !details ? savedMessages : details.messages;
 
   // The care timeline, newest first: events, the alert the agent sent the ER, and the agents' finished thoughts.
   const timeline: TimelineRow[] = [
@@ -103,17 +108,18 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
   // Patient and Tracing never fall back to those hardware-preview readings.
   const vitalsNewest: Vitals[] = useMemo(() => selectVitals(vitalsRows, open ? incId : liveOperation ? 0n : undefined),
     [vitalsRows, open, incId, liveOperation]);
-  const latestVitals = vitalsNewest[0];
+  const latestVitals = latestReading(vitalsNewest);
   const v = latestVitals !== undefined && now - tsMs(latestVitals.ts) < VITALS_STALE_MS ? latestVitals : undefined;
   const inArrest = incident?.status === 'arrest';
   const blankInArrest = inArrest && !v?.simulated;
-  const hr: Reading = blankInArrest ? NONE : readingOf(vitalsNewest, r => r.hr, now);
-  const spo2: Reading = blankInArrest ? NONE : readingOf(vitalsNewest, r => r.spo2, now);
+  const lastDetail = details && !vitalsNewest.length ? details.vitals[0] : undefined;
+  const hr: Reading = lastDetail ? { kind: 'live', value: lastDetail.hr } : blankInArrest ? NONE : readingOf(vitalsNewest, r => r.hr, now);
+  const spo2: Reading = lastDetail ? { kind: 'live', value: lastDetail.spo2 } : blankInArrest ? NONE : readingOf(vitalsNewest, r => r.spo2, now);
   const cpr = cprRows.find(c => c.incidentId === incId);
   const cprFresh = cpr !== undefined && (cpr.source === 'override' || now - tsMs(cpr.updatedAt) < CPR_STALE_MS);
   const cprRate = inArrest && cprFresh && cpr.compressing ? cpr.rate : undefined;
   const epi: Timer | undefined = timers.find(t => t.incidentId === incId && t.kind === 'epi' && t.state !== 'cancelled');
-  const vitalsAt = latestVitals ? tsMs(latestVitals.ts) : undefined;
+  const vitalsAt = latestVitals ? tsMs(latestVitals.ts) : lastDetail ? tsMs(lastDetail.ts) : undefined;
 
   const elapsedS = incident ? ((open ? now : tsMs(incident.updatedAt)) - tsMs(incident.startedAt)) / 1000 : 0;
   const etaMin = incident ? etaMinutes(incident.status, incident.etaAt, now) : undefined;
@@ -142,26 +148,29 @@ export function useHospital(selected?: bigint | null, liveOperation = false) {
   // Every incident as a call, for Live Operations.
   const calls: CallSummary[] = sorted.map(i => {
     const evs = events.filter(e => e.incidentId === i.id && e.status !== 'cancelled');
+    const callRecording = recordingFor(evs);
     return {
       incident: i,
-      record: records.find(r => r.incidentId === i.id),
-      recording: recordingFor(evs),
+      record: records.find(r => r.incidentId === i.id) ?? sessionDetails(i, callRecording)?.record,
+      recording: callRecording,
       recordingOnly: isRecordedEncounter(i),
       destination: hospitals.find(h => h.id === i.destinationId),
-      latest: [...evs].sort(byNewest)[0],
+      latest: evs.filter(isCareEvent).sort(byNewest)[0],
       flagged: evs.filter(e => e.status === 'flagged').length,
     };
   });
 
   // The newest activity across every call, for the Live Operations feed.
   const activity = [
-    ...events.filter(e => e.status !== 'cancelled').map(e => ({ key: `e${e.id}`, t: tsMs(e.ts), incidentId: e.incidentId, text: e.label, flagged: e.status === 'flagged' })),
+    ...events.filter(e => e.status !== 'cancelled' && isCareEvent(e)).map(e => ({ key: `e${e.id}`, t: tsMs(e.ts), incidentId: e.incidentId, text: e.label, flagged: e.status === 'flagged' })),
     ...messages.filter(m => m.direction === 'to_er' && !m.text.startsWith('Handoff report ready')).map(m => ({ key: `m${m.id}`, t: tsMs(m.ts), incidentId: m.incidentId, text: `Alert to ER: ${m.text}`, flagged: false })),
   ].sort((a, b) => b.t - a.t).slice(0, 12);
 
   return {
     isActive, now, incident, open, canShowLive, hasLiveCall: isActive && activeId !== undefined, canGenerate, record, report, destination, thoughts, live, liveSet, timeline, spoken,
-    events: incEvents, messages: incMessages, steps: incSteps, recording, recordingOnly, recordedVitals,
+    events: incEvents, messages: incMessages, steps: incSteps, recording, recordingOnly, recordedVitals, crewUnit: details?.crewUnit,
+    // A video-only import's rows are stamped import time + seconds into the video (recording_trace).
+    videoStart: recordingOnly && incident ? tsMs(incident.startedAt) : undefined,
     hr, spo2, tempC: v?.tempC, vitalsAt, sensorStatus: v?.status, vitalsSimulated: !!v?.simulated, cprRate, cprSimulated: cpr?.source === 'override', epi, inArrest, elapsedS, etaMin,
     reportReady, writing, generate, reportProblem, calls, activity, unitOf: (id: bigint) => sorted.find(i => i.id === id)?.unit,
   };

@@ -1,8 +1,11 @@
 // Small building blocks shared by the hospital pages.
 import { useState, type ReactNode } from 'react';
 import type { PatientRecord } from '../../module_bindings/types';
+import { FromRecording, Stamp } from './Stamp';
 import { LiveThought, ThoughtRow } from './ThoughtRows';
 import type { HospitalData, SpokenLine } from './useHospital';
+
+export { FromRecording, Stamp };
 import { ageOn, epiText, isDue, STATUS_TEXT, statusTone, type Reading } from './vitals';
 
 // Lucide icons (ISC), the one icon set on the dashboard.
@@ -125,17 +128,20 @@ export function PatientFacts({ record, patientRef }: { record?: PatientRecord; p
   );
 }
 
-export function SpokenTranscript({ lines }: { lines: SpokenLine[] }) {
+export function SpokenTranscript({ lines, videoStart }: { lines: SpokenLine[]; videoStart?: number }) {
   if (!lines.length) return <p className="empty">No transcript recorded for this call.</p>;
   return (
+    <>
+      {videoStart !== undefined && <p className="said__source"><FromRecording videoStart={videoStart} /></p>}
     <ol className="said">
       {lines.map(line => (
         <li key={line.key} className={line.who === 'handoff' ? 'said--agent' : undefined}>
-          <span className="said__time">{time(line.t)}</span>
+          <span className="said__time"><Stamp t={line.t} videoStart={videoStart} /></span>
           <div><b>{line.who === 'medic' ? 'Paramedic' : 'Handoff'}</b><p>{line.text}{line.queued && <span className="muted"> (queued, not spoken yet)</span>}</p></div>
         </li>
       ))}
     </ol>
+    </>
   );
 }
 
@@ -153,10 +159,10 @@ export function Timeline({ data, limit }: { data: HospitalData; limit?: number }
     <ol className="timeline">
       {data.live.map(t => <LiveThought key={t.key} thought={t} />)}
       {rows.map(e => e.kind === 'thought' ? (
-        <ThoughtRow key={e.key} thought={e.thought} active={data.liveSet.has(e.thought)} open={open.has(e.key)} onToggle={() => toggle(e.key)} />
+        <ThoughtRow key={e.key} thought={e.thought} active={data.liveSet.has(e.thought)} open={open.has(e.key)} onToggle={() => toggle(e.key)} videoStart={data.videoStart} />
       ) : (
         <li key={e.key} className={e.flagged ? 'is-alarm' : undefined}>
-          <span className="timeline__time">{time(e.t)}</span>
+          <span className="timeline__time"><Stamp t={e.t} videoStart={data.videoStart} /></span>
           <span className="timeline__text">{e.text}{e.flagged && <span className="tag tag--amber">awaiting confirmation</span>}</span>
         </li>
       ))}

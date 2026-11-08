@@ -3,7 +3,7 @@
 import type { Timestamp } from 'spacetimedb';
 
 /** Structural shapes of the rows these helpers read (the generated row types carry more fields). */
-type VitalsRow = { ts: Timestamp; device: string; status: string; hr?: number; spo2?: number };
+type VitalsRow = { ts: Timestamp; device: string; status: string; hr?: number; spo2?: number; simulated?: boolean };
 type TimerRow = { state: string; dueAt: Timestamp };
 type EventRow = { ts: Timestamp; kind: string };
 
@@ -65,8 +65,14 @@ export function etaMinutes(status: string, etaAt: Timestamp | undefined, now: nu
     : undefined;
 }
 
-export type Reading = { kind: 'live' | 'held' | 'measuring' | 'none'; value?: number };
+export type Reading = { kind: 'live' | 'held' | 'measuring' | 'none'; value?: number; simulated?: boolean };
 export const NONE: Reading = { kind: 'none' };
+/** The module's fill-in rows: what a relay reading lacked, written at the same timestamp as that reading. */
+export const FILL_DEVICE = 'sim-fill';
+/** The newest row that is a reading in its own right (relay or scenario), not a fill-in. */
+export function latestReading<R extends { device: string }>(rows: readonly R[]): R | undefined {
+  return rows.find(r => r.device !== FILL_DEVICE) ?? rows[0];
+}
 
 /** Explicit scope: incident 0 is the live hardware preview, never a historical patient's measurements. */
 export function selectVitals<R extends { id: bigint; incidentId: bigint }>(rows: readonly R[], incidentId: bigint | undefined): R[] {
@@ -81,14 +87,15 @@ export function selectVitals<R extends { id: bigint; incidentId: bigint }>(rows:
  * none — finger off, a sensor fault, or the relay silent.
  */
 export function readingOf<R extends VitalsRow>(rows: R[], pick: (r: R) => number | undefined, now: number): Reading {
-  const latest = rows[0];
+  const latest = latestReading(rows);
   const fresh = latest !== undefined && now - tsMs(latest.ts) < VITALS_STALE_MS;
   // The module keeps the relay's hr/spo2 only on 'pulse' rows; a scenario's numbers (the arrest's HR 0) are kept as written.
+  // A sim-fill row written with the latest reading (same timestamp) counts as that reading's number, marked simulated.
   const good = rows.find(r => pick(r) !== undefined);
-  if (good && fresh && good === latest) return { kind: 'live', value: pick(good) };
+  if (good && fresh && (good === latest || tsMs(good.ts) === tsMs(latest.ts))) return { kind: 'live', value: pick(good), simulated: good.simulated };
   // Hold only bridges a gap in one source: a scenario taking over from the real clip (or ending) never carries
   // the other's number across.
-  if (good && good.device === latest?.device && now - tsMs(good.ts) < HOLD_MS) return { kind: 'held', value: pick(good) };
+  if (good && good.device === latest?.device && now - tsMs(good.ts) < HOLD_MS) return { kind: 'held', value: pick(good), simulated: good.simulated };
   if (fresh && (MEASURING_STATUS.has(latest.status) || latest.status === 'pulse')) return { kind: 'measuring' };
   return NONE;
 }
