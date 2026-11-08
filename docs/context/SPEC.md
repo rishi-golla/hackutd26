@@ -37,6 +37,17 @@ necessarily when the decision was made.
   long names fuzzily, and the brain asks "Say again the drug." instead of guessing. Room chatter: stricter VAD,
   a relevance gate before Nemotron, 20 turns/min. Interrupted read-backs are not replayed. Details in
   `voice/README.md`.
+- **Sat ~22:00 (Josh): Pi vitals reach SpacetimeDB through `bridge/`** (reviewed and rebased onto `main` Sun ~00:30, Alan).
+  - **Why:** the relay's finger sensor (`chromatic/pi/pi_oximeter.py`) posts to kgand's hub (`hub/hub.py` on the Pi),
+    not to SpacetimeDB.
+  - **What it does:** `bridge/hub_bridge.py` long-polls the hub and calls `push_vitals` once a second, plus `mark`
+    per MARK press. Hub state → relay status: `live`→`pulse`, `no_finger`→`no finger`, `saturated`→`saturated`,
+    `sensor_error`→`sensor error` (a new status word, added to §22.3), everything else→`acquiring`.
+  - **Honesty:** it never forwards stale or replayed values, and sends `simulated: false`.
+  - **Not forwarded:** waveform and temperature (the hub doesn't carry them), and R5's 2 s hold → `toggle_incident`
+    (the sensor publishes presses only; a hub `hold` message from the chromatic lane has to come first).
+  - **How it runs:** a systemd service on the Pi (`bridge/deploy.sh`); the hub and sensor code are unchanged.
+    One bridge per hub.
 - **Sat ~21:40 (Alan): the Chromatic handheld is built, QR page included; open** (§28). The 19:31 meeting parked
   the ModRetro handheld and kept "no QR codes". After the meeting, kgand's 20:59 commit on `main` (`chromatic/`)
   turned the Chromatic into a Bluetooth vitals screen with a QR page that encodes a short readable summary. Whether
@@ -289,6 +300,7 @@ Conflicts resolved when this file was created (for the record):
 | --- | --- | --- | --- |
 | **Hospital node** | Josh | `spacetime/` (module, seed, `tick_rules`), `web/` scaffold + `web/src/db/` (connection + bindings) + `web/src/routes/hospital/`, `ehr/` (mock FHIR R4 server), `agent/` (W1, W4), report route | H1–H5, H7, H9, W1, W4, X2, E1 (display-only; H6 is a row in the event timeline), §15 rules, §22 |
 | **Relay** | relay owner | `relay/` (Pi sender, LCD1602 with OLED fallback, temperature probe), hardware | R1–R8, L1–L3 |
+| **Bridge** (hub → SpacetimeDB) | Josh | `bridge/` (forwards the Pi hub's vitals and MARK presses to `push_vitals` / `mark`; doesn't change `hub/` or `chromatic/`) | R3 (vitals only, no waveform), R4, R5 (short press only; the 2 s hold isn't forwarded) |
 | **Chest camera** | camera owner | `web/src/routes/bodycam/` (the planned page), `hub/phone.html` (today's bodycam page: hub uploads plus the `?voice=` link to the worker), WebRTC video sender to the hospital, CPR detector | B1–B11 (phone side), RB1–RB7 (phone side, degraded mode) |
 | **Voice agent worker** | Alan | `voice/` (brain, mocks, Pipecat worker with the vision sampler) | §19 voice agent and §19 Vision, the agent side of B3/B5/B6/B10, §15 when-to-speak policy, RB1–RB5 and RB7 on the agent path, RB8–RB10, W2, W6 (`VOICE_W6`), X1 (spoken name and ID card), X3, X4, X7, X8 |
 | **Unassigned** | team decides | `/controls` demo-controls page (`web/src/routes/controls/`; the code still has it as `web/src/routes/monitor/`, rename pending, §28), Devpost/video | D1, H8; W3 (optional) has no owner yet |
@@ -351,7 +363,8 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Mock EHR | Built: `ehr/`, FHIR R4, five synthetic patients, port 4100 (X2) |
 | Agent W1 + W4 | Built: `agent/`, Nemotron tool calling with the rule/template fallback. Real Nemotron untested until a key is added (`agent/.env.local`) |
 | Voice agent worker | Built and merged to `main` (Sat ~23:30, decision 20): `voice/` brain with read-back + checks, corrections, W6 (spoken name, ID card and `patientRef`), camera-seen drugs, Nemotron turns with tools, local API; `voice/mock/` terminal bodycam, relay pusher and §7 storyboard runner; `voice/pipecat/` Riva STT/TTS worker with the vision sampler (hosted Nemotron Omni), `/api/ice`, the phone page served and the hub proxied. Live-tested with a real mic (~22:15); vision verified on a synthetic ID card with a key; a real phone on `hub/phone.html?voice=` is the next test |
-| Not started | relay SpacetimeDB sender, `/controls`, the `web/` bodycam page (today the Pi hub's `hub/phone.html` is the bodycam: hub uploads, voice link, no WebRTC video to `/hospital` yet), W3 |
+| Relay → SpacetimeDB | `bridge/hub_bridge.py` forwards the Pi hub's vitals (1/s) and MARK presses. Tested against the real `hub.py` and a local SpacetimeDB; not yet on the Pi against Maincloud. No waveform, temperature or 2 s hold yet |
+| Not started | `/controls`, the `web/` bodycam page (today the Pi hub's `hub/phone.html` is the bodycam: hub uploads, voice link, no WebRTC video to `/hospital` yet), W3 |
 | Pre-event prep | Enclosures were designed and printed and parts bought before the event; all software is built at the event. Say so plainly (§27) |
 
 ---
@@ -1809,6 +1822,8 @@ camelCase (`conn.reducers.pushCpr({...})`).
 
 Every call is `POST /v1/database/<db>/call/<reducer>` with the arguments as a JSON array. Relay reducers take
 `[device, json]`, where `json` is a JSON **string**. Vitals about once a second, waveform in 200 ms batches.
+As built, the Pi's sensor posts to its hub, and `bridge/hub_bridge.py` makes these calls (`push_vitals` 1/s, `mark` per
+press). The hub has no waveform or temperature, so neither is sent yet. See `bridge/README.md`.
 
 ```bash
 B=https://maincloud.spacetimedb.com; DB=handoff-hackutd26
@@ -1853,7 +1868,8 @@ curl -X POST $B/v1/database/$DB/sql -H "Authorization: Bearer $TOKEN" \
 
 - About 25 Hz. `ir`/`red` are the mean of `n` raw samples, so the pulse **waveform** is `ir` over time.
 - `hr` and `spo2_exp` are `null` unless a beat was seen in the last 5 s. `status`: `calibrating`, `no finger`,
-  `saturated`, `acquiring`, `pulse` (only `pulse` means `hr` is valid).
+  `saturated`, `acquiring`, `pulse`, `sensor error` (the sensor isn't answering; sent by `bridge/`). Only `pulse`
+  means `hr` is valid.
 - `event` is `press`, `release` or `hold`. Short press = MARK; hold 2 s = start or end the incident.
 - `ts` is the **Pi's monotonic clock**, not wall time. Stamp arrival time on the receiver for anything that must
   line up with video or transcript. `seq` lets you detect drops.

@@ -45,6 +45,9 @@ spacetime publish handoff-local --server local --module-path . --yes
 
 ## Relay (HTTP, no SDK)
 
+On the Pi these calls are made by `bridge/hub_bridge.py`, which forwards the sensor readings from kgand's hub
+(`hub/hub.py`); see `bridge/README.md`. The examples below are the same calls, for testing by hand.
+
 Every call is `POST /v1/database/<db>/call/<reducer>`, with the arguments as a JSON array. Relay reducers take
 `[device, json]`, where `json` is a JSON **string**.
 
