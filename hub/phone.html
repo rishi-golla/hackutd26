@@ -69,11 +69,12 @@ const status = {
   live: 'Reading', no_finger: 'Place finger', settling: 'Hold still…', moving: 'Hold still', weak: 'Press firmer',
   noisy: 'Hold still, press firmly', measuring: 'Measuring…', saturated: 'Press lighter', sensor_error: 'Check sensor',
 };
-let stream = null, recorder = null, facing = 'environment', running = false, lastMsg = 0, hrAt = 0;
+let stream = null, recorder = null, facing = 'environment', running = false, lastMsg = 0, hrAt = 0, stAt = 0;
 
 const dot = (id, state) => { $(id).className = 'dot ' + state; };
 const hint = (text, err) => { $('hint').hidden = !text; $('hint').textContent = text || ''; $('hint').classList.toggle('err', !!err); };
-const post = (path, body, json) => fetch(path, { method:'POST', body, headers: json ? { 'Content-Type':'application/json' } : {} });
+const post = (path, body, json) => fetch(path, { method:'POST', body, signal: AbortSignal.timeout(10000),
+  headers: json ? { 'Content-Type':'application/json' } : {} });       // a dead link must not hold an upload slot forever
 const send = (what, value) => post('/send', JSON.stringify({ from:'phone', what, value }), true).catch(() => {});
 
 function speak(text) {
@@ -83,20 +84,24 @@ function speak(text) {
 }
 
 // Live messages: long-poll, so each answer is a normal response that any https tunnel passes straight through.
-// Replays (sent when the page connects) are history, never live values.
+// Replays (sent when the page connects) and backlog are history, never live values. e = the hub's start id.
 (async () => {
-  let after = 0;
+  let after = 0, e = '';
   for (;;) {
     try {
-      const d = await (await fetch('/poll?after=' + after, { cache: 'no-store' })).json();
-      lastMsg = Date.now();
+      const r = await fetch(`/poll?after=${after}&e=${e}`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      after = d.seq; e = d.e; lastMsg = Date.now();
       for (const m of d.msgs) {
-        if (m.replay) continue;
-        if (m.what === 'say' && running) { speak(m.value); send('said', m.value); }
-        if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); }
-        if (m.what === 'state') $('o2').textContent = status[m.value] || m.value;
+        try {
+          if (m.replay) continue;
+          if (m.what === 'say' && running && d.now - m.t < 10) { speak(m.value); send('said', m.value); }
+          if (d.now - m.t > 4) continue;
+          if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); }
+          if (m.what === 'state') { $('o2').textContent = status[m.value] || m.value; stAt = Date.now(); }
+        } catch (err) { console.error(err); }        // one bad message must not stall the rest
       }
-      after = d.seq;
     } catch (_) { await new Promise((r) => setTimeout(r, 1000)); }
   }
 })();
@@ -104,6 +109,7 @@ function speak(text) {
 setInterval(() => {
   dot('dHub', Date.now() - lastMsg < 12000 ? 'on' : 'off');   // a poll answers at least every 10 s
   if (Date.now() - hrAt > 5000) $('hr').textContent = '—';     // never show an old number
+  if (Date.now() - stAt > 5000) $('o2').textContent = '—';     // the sensor program stopped reporting
   $('vHr').classList.toggle('off', $('hr').textContent === '—');
 }, 1000);
 

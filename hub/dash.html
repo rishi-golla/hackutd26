@@ -82,7 +82,7 @@
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const seen = {};
-let frameAt = 0, lastMsg = 0, hrAt = 0;
+let frameAt = 0, lastMsg = 0, hrAt = 0, stAt = 0;
 
 // What the sensor's state means for the person holding it.
 const status = {
@@ -106,7 +106,7 @@ function feed(m) {
   const key = JSON.stringify(m.value);
   if (quiet.has(m.what) || (seen[m.what] === key && m.what !== 'say' && m.what !== 'said')) return;
   seen[m.what] = key;
-  const text = (words[m.what] || ((v) => `${m.from}: ${m.what} ${v}`))(m.value);
+  const text = (Object.hasOwn(words, m.what) ? words[m.what] : (v) => `${m.from}: ${m.what} ${v}`)(m.value);
   if (!text) return;
   const li = document.createElement('li');
   li.innerHTML = '<time></time><span></span>';
@@ -116,25 +116,29 @@ function feed(m) {
   if ($('feed').children.length > 60) $('feed').lastChild.remove();
 }
 
-function handle(m) {
+function handle(m, now) {
   feed(m);
   if (m.what === 'link') $('link').textContent = ` · phone: ${m.value}`;
-  if (m.replay) return;                                         // history, never a live value
+  if (m.replay || now - m.t > 4) return;                        // history or backlog, never a live value
   if (m.what === 'hr') { $('hr').textContent = m.value || '—'; hrAt = Date.now(); if (m.value) $('vHr').style.setProperty('--beat', 60 / m.value + 's'); }
-  if (m.what === 'state') $('o2').textContent = status[m.value] || m.value;
+  if (m.what === 'state') { $('o2').textContent = status[m.value] || m.value; stAt = Date.now(); }
   if (m.what === 'finger') $('dFinger').className = 'dot ' + (m.value === 'on' ? 'on' : 'warn');
   if (m.what === 'camera') frameAt = Date.now();
 }
 
 // Live messages: long-poll, so each answer is a normal response that any https tunnel passes straight through.
+// e = the hub's start id, so a restarted hub sends a fresh catch-up instead of half a history.
 (async () => {
-  let after = 0;
+  let after = 0, e = '';
   for (;;) {
     try {
-      const d = await (await fetch('/poll?after=' + after, { cache: 'no-store' })).json();
-      lastMsg = Date.now();
-      d.msgs.forEach(handle);
-      after = d.seq;
+      const r = await fetch(`/poll?after=${after}&e=${e}`, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      after = d.seq; e = d.e; lastMsg = Date.now();
+      for (const m of d.msgs) {
+        try { handle(m, d.now); } catch (err) { console.error(err); }   // one bad message must not stall the rest
+      }
     } catch (_) { await sleep(1000); }
   }
 })();
@@ -146,7 +150,7 @@ function handle(m) {
   let shown = 0, url = null;
   for (;;) {
     try {
-      const r = await fetch('/frame.jpg?after=' + shown, { cache: 'no-store' });
+      const r = await fetch('/frame.jpg?after=' + shown, { cache: 'no-store', signal: AbortSignal.timeout(9000) });
       if (r.status !== 200) { if (r.status !== 204) await sleep(1000); continue; }   // 204 = no new frame in 5 s
       shown = +r.headers.get('X-Seq');
       if (url) URL.revokeObjectURL(url);
@@ -159,7 +163,8 @@ function handle(m) {
 
 setInterval(() => {
   $('dHub').className = 'dot ' + (Date.now() - lastMsg < 12000 ? 'on' : '');   // a poll answers at least every 10 s
-  if (Date.now() - hrAt > 5000) { $('hr').textContent = '—'; $('dFinger').className = 'dot'; }   // never an old number
+  if (Date.now() - hrAt > 5000) $('hr').textContent = '—';     // never an old number
+  if (Date.now() - stAt > 5000) $('o2').textContent = '—';     // the sensor program stopped reporting
   $('vHr').classList.toggle('off', $('hr').textContent === '—');
   const live = Date.now() - frameAt < 3000;
   $('dCam').className = 'dot ' + (live ? 'on' : '');
