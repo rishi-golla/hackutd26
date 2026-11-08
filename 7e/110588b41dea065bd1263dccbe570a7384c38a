@@ -1,0 +1,21 @@
+.claude/agents/spec-checker.md
+  s_01faa73c301f81::t_8f716893bc20fb 51
+docs/context/SPEC.md
+  s_01faa73c301f81::t_1d116d84d47a75 19-27,240-241,284-305,845,1304-1306,1327-1331,1393-1396,1447,1570-1571,1670-1671
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e110588b41dea065bd1263dccbe570a7384c38a",
+  "prompts": {},
+  "sessions": {
+    "s_01faa73c301f81": {
+      "agent_id": {
+        "tool": "devin",
+        "id": "s_01faa73c301f81",
+        "model": "unknown"
+      },
+      "human_author": "rishi-golla <rishigolla.123@gmail.com>"
+    }
+  }
+}
