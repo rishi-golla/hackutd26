@@ -100,7 +100,9 @@ export default function HospitalPage() {
   const cprFresh = cpr !== undefined && (cpr.source === 'override' || now - tsMs(cpr.updatedAt) < CPR_STALE_MS);
   const rate = inArrest && cprFresh && cpr.compressing ? cpr.rate : undefined;
   // CPR assistance (decision 21): % of recent compressions on the phone's metronome beat; undefined = no data.
-  const onBeat = rate !== undefined && cpr && cpr.source !== 'override' && cpr.assist ? cpr.onBeatPct : undefined;
+  // Only while the phone's push_cpr_assist is fresh (the same 3 s the rules use): never a stale percentage.
+  const assistFresh = !!cpr?.assistAt && now - tsMs(cpr.assistAt) < CPR_STALE_MS;
+  const onBeat = rate !== undefined && cpr && cpr.source !== 'override' && cpr.assist && assistFresh ? cpr.onBeatPct : undefined;
   const epi = timers.find(t => t.incidentId === incId && t.kind === 'epi' && t.state !== 'cancelled');
 
   const elapsed = incident ? (now - tsMs(incident.startedAt)) / 1000 : 0;

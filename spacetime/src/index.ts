@@ -258,10 +258,11 @@ export const pushCpr = spacetimedb.reducer(
 );
 
 /**
- * CPR assistance on the chest phone (SPEC decision 18), sent next to push_cpr about twice a second.
- * assist = the phone is coaching (metronome + its own cues; the server's CPR callouts then stay quiet but are
- * logged). bpm = metronome tempo, 0 = off. onBeatPct / phaseErrMs = timing vs the beat, undefined = no data.
- * A separate reducer so push_cpr's contract (used by other lanes) doesn't change.
+ * CPR assistance on the chest phone (SPEC decision 21), sent right after push_cpr about twice a second over HTTP from
+ * hub/phone.html. assist = the metronome is on (false while it waits for the finger sensor). bpm = metronome tempo,
+ * 0 = off. onBeatPct / phaseErrMs = timing vs the beat, undefined = no data. The phone speaks nothing itself: the
+ * §15 rules turn this into "Place the finger sensor" / "Follow the beat" callouts. A separate reducer so push_cpr's
+ * contract (used by other lanes) doesn't change.
  */
 export const pushCprAssist = spacetimedb.reducer(
   { assist: t.bool(), bpm: t.f32(), onBeatPct: t.option(t.f32()), phaseErrMs: t.option(t.f32()) },

@@ -7,7 +7,7 @@ export const ON_BEAT_MS = 120;
 /**
  * The detector marks the deepest point of each compression (measured on synthetic motion: within ±15 ms at
  * 50–100 Hz sensor rates, 100–120/min), and the beat means "bottom of the compression now". So the default offset
- * is 0; the 10 s calibration learns the rescuer's own habit.
+ * is 0. calibrate() can learn the rescuer's own habit (tested, not wired into the phone page yet).
  */
 export const DEFAULT_OFFSET_MS = 0;
 

@@ -38,11 +38,6 @@ export class Metronome {
     this.timer = null;
   }
 
-  /** Quieter while something is being spoken, so the words are heard; the beat never stops. */
-  duck(on: boolean): void {
-    this.master.gain.setTargetAtTime(on ? 0.25 : 1, this.ctx.currentTime, 0.03);
-  }
-
   /** AudioContext time → performance.now() seconds at which that sound leaves the speaker. */
   toPerfSeconds(ctxTime: number): number {
     const ts = this.ctx.getOutputTimestamp?.();

@@ -30,8 +30,6 @@ type Candidate = {
   priority: number;
   repeatS: number;
   onFire?: () => void;
-  /** Log the event but don't queue the words: the phone's CPR assistance is already coaching (one voice). */
-  silent?: boolean;
 };
 
 export function runRules(ctx: Ctx, inc: IncidentRow): void {
@@ -50,15 +48,6 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
   const cpr = ctx.db.cprState.incidentId.find(inc.id);
   const cprFresh = !!cpr && (cpr.source === 'override' || secondsBetween(cpr.updatedAt, now) < CPR_FRESH_S);
   const rate = cprFresh && cpr!.compressing ? cpr!.rate : undefined;
-  // The phone's CPR assistance speaks its own cues (Faster / Slower / Resume compressions); the server still logs
-  // the events for the timeline and the report but stays quiet, so the medic hears one voice. Under the demo
-  // override the phone keeps only the beat, so the server speaks the rate and pause cues as usual.
-  const phoneCoaching =
-    cprFresh &&
-    cpr!.assist &&
-    cpr!.source !== 'override' &&
-    !!cpr!.assistAt &&
-    secondsBetween(cpr!.assistAt, now) < CPR_FRESH_S;
 
   if (held(ctx, inc, 'cpr_slow', inArrest && rate !== undefined && rate < 100, 5)) {
     candidates.push({
@@ -66,8 +55,7 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
       text: 'Push faster',
       priority: 1,
       repeatS: 10,
-      silent: phoneCoaching,
-      onFire: () => cprEvent(ctx, inc, `CPR rate low (${Math.round(rate!)}/min), coached`, rate!, 'Push faster', cpr!.source, phoneCoaching),
+      onFire: () => cprEvent(ctx, inc, `CPR rate low (${Math.round(rate!)}/min), coached`, rate!, 'Push faster', cpr!.source),
     });
   }
   if (held(ctx, inc, 'cpr_fast', inArrest && rate !== undefined && rate > 120, 5)) {
@@ -76,8 +64,7 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
       text: 'Slow down',
       priority: 2,
       repeatS: 10,
-      silent: phoneCoaching,
-      onFire: () => cprEvent(ctx, inc, `CPR rate high (${Math.round(rate!)}/min), coached`, rate!, 'Slow down', cpr!.source, phoneCoaching),
+      onFire: () => cprEvent(ctx, inc, `CPR rate high (${Math.round(rate!)}/min), coached`, rate!, 'Slow down', cpr!.source),
     });
   }
   // No compressions for 10 s. Only when the bodycam is actually reporting (no data = no claim).
@@ -91,11 +78,41 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
       text: 'Resume compressions',
       priority: 1,
       repeatS: 10,
-      silent: phoneCoaching,
       onFire: () => {
         const s = Math.round(pauseS);
         recordEvent(ctx, inc.id, 'cpr_paused', `Compressions paused ${s} s`, 'motion', `no compressions for ${s} s`);
-        recordEvent(ctx, inc.id, 'cpr_paused', `Compressions paused ${s} s`, ...coachChip(phoneCoaching, 'Resume compressions'));
+        recordEvent(ctx, inc.id, 'cpr_paused', `Compressions paused ${s} s`, 'callout', 'Resume compressions');
+      },
+    });
+  }
+
+  // ---- CPR assistance on the phone (decision 21). The phone plays the beat and measures; the cues are spoken from
+  // this queue like every other callout. `assistAt` is the phone's last push_cpr_assist: no phone, no claim.
+  const phoneArmed =
+    inArrest && !!cpr && cpr.source !== 'override' && !!cpr.assistAt && secondsBetween(cpr.assistAt, now) < CPR_FRESH_S;
+  // In an arrest the phone's beat waits only for the finger sensor, so armed but not assisting = waiting for it.
+  if (held(ctx, inc, 'cpr_sensor', phoneArmed && !cpr!.assist, 3)) {
+    candidates.push({
+      key: 'cpr_sensor',
+      text: 'Place the finger sensor',
+      priority: 2,
+      repeatS: 20,
+      // Own kind, so it never merges with (and hides) a rate cue in the timeline (§18).
+      onFire: () => recordEvent(ctx, inc.id, 'cpr_sensor', 'CPR assistance waiting for the finger sensor', 'callout', 'Place the finger sensor'),
+    });
+  }
+  // Right rate, but the compressions miss the metronome beat.
+  const onBeat = phoneArmed && cpr!.assist && rate !== undefined && rate >= 100 && rate <= 120 ? cpr!.onBeatPct : undefined;
+  if (held(ctx, inc, 'cpr_offbeat', onBeat !== undefined && onBeat < 60, 5)) {
+    candidates.push({
+      key: 'cpr_offbeat',
+      text: 'Follow the beat',
+      priority: 2,
+      repeatS: 15,
+      onFire: () => {
+        const label = `CPR off the beat (${Math.round(onBeat!)}% on beat), coached`;
+        recordEvent(ctx, inc.id, 'cpr_offbeat', label, 'motion', `${Math.round(onBeat!)}% on beat`);
+        recordEvent(ctx, inc.id, 'cpr_offbeat', label, 'callout', 'Follow the beat');
       },
     });
   }
@@ -161,17 +178,9 @@ export function runRules(ctx: Ctx, inc: IncidentRow): void {
     candidates.push({ key: 'finger_off', text: 'Check finger sensor', priority: 3, repeatS: 60 });
   }
 
-  // ---- Silent candidates (the phone is coaching): log the event on the usual repeat, queue no words.
-  for (const c of candidates) {
-    if (c.silent && canRepeat(ctx, inc, c.key, c.repeatS, now)) {
-      setLastFired(ctx, inc, c.key, now);
-      c.onFire?.();
-    }
-  }
-
   // ---- Pick at most one callout this tick.
   const ready = candidates
-    .filter(c => !c.silent && canRepeat(ctx, inc, c.key, c.repeatS, now))
+    .filter(c => canRepeat(ctx, inc, c.key, c.repeatS, now))
     .sort((a, b) => a.priority - b.priority);
   if (ready.length === 0 || !spacingFree(ctx, now)) return;
 
@@ -246,20 +255,12 @@ function hadPulse(ctx: Ctx, inc: IncidentRow) {
   return !!ctx.db.ruleState.key.find(stateKey(inc, 'had_pulse'));
 }
 
-function cprEvent(ctx: Ctx, inc: IncidentRow, label: string, rate: number, words: string, source: string, byPhone = false) {
+function cprEvent(ctx: Ctx, inc: IncidentRow, label: string, rate: number, words: string, source: string) {
   // A demo override is not a measurement: cite it as "demo" and mark the label SIMULATED.
   const override = source === 'override';
   const lbl = override ? `${label} (SIMULATED)` : label;
   recordEvent(ctx, inc.id, 'cpr_coached', lbl, override ? 'demo' : 'motion', `${Math.round(rate)}/min`);
-  recordEvent(ctx, inc.id, 'cpr_coached', lbl, ...coachChip(byPhone, words));
-}
-
-/**
- * The chip names who coached (decision 18): the server's spoken callout, or the phone. The phone runs its own
- * timers, so the server doesn't claim which words the phone said, only that its own callout was muted.
- */
-function coachChip(byPhone: boolean, words: string): [string, string] {
-  return byPhone ? ['phone coaching', `server callout "${words}" muted`] : ['callout', words];
+  recordEvent(ctx, inc.id, 'cpr_coached', lbl, 'callout', words);
 }
 
 /** Each alarm has its own kind so an HR alarm and an SpO₂ alarm never merge into one event. */

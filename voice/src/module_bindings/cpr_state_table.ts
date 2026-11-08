@@ -24,4 +24,11 @@ export default __t.row({
   rateSum: __t.f64().name("rate_sum"),
   rateSamples: __t.u32().name("rate_samples"),
   longestPauseS: __t.f32().name("longest_pause_s"),
+  assist: __t.bool(),
+  bpm: __t.f32(),
+  onBeatPct: __t.option(__t.f32()).name("on_beat_pct"),
+  phaseErrMs: __t.option(__t.f32()).name("phase_err_ms"),
+  onBeatSum: __t.f64().name("on_beat_sum"),
+  onBeatSamples: __t.u32().name("on_beat_samples"),
+  assistAt: __t.option(__t.timestamp()).name("assist_at"),
 });

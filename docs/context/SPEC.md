@@ -16,6 +16,19 @@ decided: don't treat them as settled and don't silently pick one; ask, or add th
 Newest first. Times are Saturday Nov 7, Central time. "~" means the time the spec page was updated, not
 necessarily when the decision was made.
 
+- **Sun ~01:45 (Josh): CPR assistance runs in `hub/phone.html`** (§0.1 decision 21).
+  - **What it does:** once the incident is in `arrest` and the finger sensor reports a finger, the phone plays a
+    110/min metronome, detects compressions from its motion sensor (the `hardware` branch's tested detector,
+    ported) and measures how many land on the beat (within 120 ms, last 8). It speaks nothing itself.
+  - **Cues:** two new §15 rules, "Place the finger sensor" and "Follow the beat", join "Push faster", "Slow down"
+    and "Resume compressions". All go through the callout queue, so the voice worker speaks them: one voice.
+  - **Contract:** a new reducer `push_cpr_assist(assist, bpm, onBeatPct?, phaseErrMs?)`, and `cpr_state` gains
+    seven columns with defaults (the data migrates). `push_cpr` is unchanged. **All three binding copies** (`web/`,
+    `agent/`, `voice/`) are regenerated in the same change: an SDK client with old bindings misreads the wider
+    `cpr_state` rows, so pull before Maincloud is republished. The page itself calls Maincloud over plain HTTPS.
+  - **Files:** source and tests in `web/src/cpr/` (`npm run test:cpr`), bundled into `hub/cpr.js`
+    (`npm run build:hub-cpr`); a CPR card in `hub/phone.html`; `hub.py` serves `/cpr.js`; `hub/deploy.sh` copies it.
+  - **Hospital side:** the CPR rate caption adds "% on beat"; the report adds the average.
 - **Sun ~01:30 (Alan): no "experimental" label on SpO₂ on the hospital dashboard** (decision 10, §5, R1, §24.1).
   SpO₂ is still treated as experimental and the caveat is said if a judge asks; it's just not on screen.
 - **Sun ~01:20 (Rishi): the bridge runs on the real Pi against Maincloud** (`bridge/`; no contract changes).
@@ -308,6 +321,19 @@ section and add a change-log line.
       serve the page itself with the hub proxied (`HUB_URL`) so one https URL carries the bodycam.
     - **Vision model:** `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`, hosted; `VISION_MODEL` overrides.
     - PRs #5 and #6 are closed; their descriptions and test notes are history.
+21. **CPR assistance runs in the phone page, and speaks through the callout queue** (Josh, Sun ~01:45).
+    - **Where:** `hub/phone.html` loads `hub/cpr.js`, which is built from `web/src/cpr/` (detector, metronome,
+      beat check, state machine, HTTP client). Josh owns `web/src/cpr/` and the CPR card in the page.
+    - **Start:** it runs while the incident status is `arrest`, which the voice worker sets when the medic says
+      "starting CPR" (or the demo's simulated arrest). The page reads the status from Maincloud once a second.
+    - **Finger-sensor gate:** the beat starts only once the sensor reports a finger (the hub's `state`, fresh and not
+      `no_finger` or `sensor_error`). Once running, taking the finger off never stops the beat.
+    - **On the phone:** the 110/min Web Audio metronome, compression detection on the same clock, and the on-beat
+      check (within 120 ms, last 8 compressions). The page tap (Start) unlocks sound and motion.
+    - **One voice:** the phone speaks nothing. It pushes `push_cpr` + `push_cpr_assist` twice a second, and the
+      §15 rules queue the cues; the voice worker speaks them like every callout, so cues land about 1–2 s after the
+      rule fires and are silent if the voice worker is down (no degraded-mode speech in `hub/phone.html` yet).
+    - **Demo CPR override:** the rate and pause cues come from the override as before; the beat keeps playing.
 
 Conflicts resolved when this file was created (for the record):
 
@@ -326,13 +352,14 @@ Conflicts resolved when this file was created (for the record):
 | **Hospital node** | Josh | `spacetime/` (module, seed, `tick_rules`), `web/` scaffold + `web/src/db/` (connection + bindings) + `web/src/routes/hospital/`, `ehr/` (mock FHIR R4 server), `agent/` (W1, W4), report route | H1–H5, H7, H9, W1, W4, X2, E1 (display-only; H6 is a row in the event timeline), §15 rules, §22 |
 | **Relay** | relay owner | `relay/` (Pi sender, LCD1602 with OLED fallback, temperature probe), hardware | R1–R8, L1–L3 |
 | **Bridge** (hub → SpacetimeDB) | Josh | `bridge/` (forwards the Pi hub's vitals and MARK presses to `push_vitals` / `mark`; doesn't change `hub/` or `chromatic/`) | R3 (vitals only, no waveform), R4, R5 (short press only; the 2 s hold isn't forwarded) |
-| **Chest camera** | camera owner | `web/src/routes/bodycam/` (the planned page), `hub/phone.html` (today's bodycam page: hub uploads plus the `?voice=` link to the worker), WebRTC video sender to the hospital, CPR detector | B1–B11 (phone side), RB1–RB7 (phone side, degraded mode) |
+| **Chest camera** | camera owner | `web/src/routes/bodycam/` (the planned page), `hub/phone.html` (today's bodycam page: hub uploads plus the `?voice=` link to the worker), WebRTC video sender to the hospital | B1–B3, B5–B11 (phone side), RB1–RB7 (phone side, degraded mode) |
+| **CPR assistance** | Josh | `web/src/cpr/` (source + tests) and its bundle `hub/cpr.js`. In other lanes' files, with their owners' OK: the CPR card and two one-line hooks in `hub/phone.html` (camera lane), `/cpr.js` in `hub/hub.py`'s file list and `hub/deploy.sh`'s copy list (hub, kgand) | B4, the CPR rows of §15 (decision 21) |
 | **Voice agent worker** | Alan | `voice/` (brain, mocks, Pipecat worker with the vision sampler) | §19 voice agent and §19 Vision, the agent side of B3/B5/B6/B10, §15 when-to-speak policy, RB1–RB5 and RB7 on the agent path, RB8–RB10, W2, W6 (`VOICE_W6`), X1 (spoken name and ID card), X3, X4, X7, X8 |
 | **Unassigned** | team decides | `/controls` demo-controls page (`web/src/routes/controls/`; built by Alan Sun ~01:00, owner still open, §28), Devpost/video | D1, H8; W3 (optional) has no owner yet |
 
 - One owner per folder. Stay inside your lane's folders.
 - **Only the hospital lane changes `spacetime/`.** Need a table, column or reducer? Ask Josh.
-- Small commits, pull often on `main`. Regenerate bindings (`cd web && npm run generate` and `cd agent && npm run generate`) after each schema
+- Small commits, pull often on `main`. Regenerate bindings (`npm run generate` in `web/`, `agent/` and `voice/`) after each schema
   change, commit them, and announce it.
 - The work board (§26) is flexible: whoever is free takes the next item, but code goes into the owning lane's
   folder or with that owner's OK.
@@ -344,7 +371,7 @@ Exact arguments are in §22 and `spacetime/README.md`.
 | Caller | Reducers it calls | Subscribes to |
 | --- | --- | --- |
 | Relay (HTTP) | `push_vitals`, `push_waveform`, `mark`, `toggle_incident` (2 s hold). Today the caller is `bridge/`, which makes only `push_vitals` and `mark` | `incident` (optional) |
-| Bodycam (TS SDK) | `push_cpr`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; `add_transcript` (degraded mode; see the voice row); `identify_patient` after reading the ID card (the pull runs in `voice/`) | `callout` (unspoken; spoken by the phone only while the audio link to the voice worker is down), `rtc_signal`, `patient_record`, `incident` |
+| Bodycam (TS SDK; CPR assistance in `hub/phone.html` over HTTP: `push_cpr`, `push_cpr_assist`, reads `incident`) | `push_cpr`, `send_rtc_signal`, `identify_patient`, `log_event`, `set_event_status`, `mark`, `callout_spoken`, `heartbeat`; `add_transcript` (degraded mode; see the voice row); `identify_patient` after reading the ID card (the pull runs in `voice/`) | `callout` (unspoken; spoken by the phone only while the audio link to the voice worker is down), `rtc_signal`, `patient_record`, `incident` |
 | Controls `/controls` (TS SDK) | `demo_control`, `synthesize_seizure` (Seizure button, Alan Sun ~01:00) | `incident`, `cpr_state`, `vitals_override`, `patient_record` |
 | Hospital + agent (TS SDK) | `send_rtc_signal`, `set_destination`, `er_message_out`, `log_agent_step`, `request_report`, `save_report` | everything |
 | Voice agent worker `voice/` (TS SDK) | `add_transcript`, `add_callout`, `callout_spoken`, `log_event`, `set_event_status`, `set_status`, `identify_patient`, `save_patient_record`, `log_agent_step`, `heartbeat` (device `voice`). Never W1/W4 reducers | `incident`, `vitals`, `cpr_state`, `timer`, `event`, `patient_record`, `callout`, `transcript`, `hospital`, `device`, `er_message`, `agent_step`, `report`, `vitals_override` |
@@ -1000,7 +1027,7 @@ agent.
 | --- | --- | --- |
 | Camera | Live video (WebRTC, peer to peer to `/hospital`); the same camera also rides on the link to the voice worker | Video: the hospital page, handshake in `rtc_signal`. Vision: the worker's sampler takes ~1 frame/s from its link (§19, decision 20) |
 | Microphone | WebRTC audio to the voice agent worker, echo cancellation on. Degraded mode: Web Speech API, continuous, restarts itself on end or error, one row per sentence | Voice agent worker → `transcript`. Degraded mode: `add_transcript` from the phone |
-| Motion sensor | CPR detector (existing, self-tested): band-pass, peak timing → rate, count, paused | `cpr_state`, written twice a second (`push_cpr`) |
+| Motion sensor | CPR detector (self-tested, in `web/src/cpr/`): band-pass, peak timing → rate, count, paused; plus timing against the metronome beat (decision 21) | `cpr_state`, written twice a second (`push_cpr`, `push_cpr_assist`) |
 | Speaker | Plays the voice agent's audio. Degraded mode: phone read-backs first, then `callout` rows by priority, one at a time, with on-device TTS or cached audio | `callout_spoken` after a rule callout is spoken |
 
 **Screen (mockup), readable at arm's length:**
@@ -1280,6 +1307,8 @@ band: 100–120/min.
 | Arrest and CPR rate under 100 for 5 s | "Push faster" | P1 | 10 s |
 | Arrest and CPR rate over 120 for 5 s | "Slow down" | P2 | 10 s |
 | Arrest and no compressions for 10 s | "Resume compressions" | P1 | 10 s |
+| Arrest, the phone's CPR assistance is armed but waiting for the finger sensor, for 3 s (decision 21) | "Place the finger sensor" | P2 | 20 s |
+| Arrest, rate 100–120 but under 60 % of compressions on the metronome beat, for 5 s (decision 21) | "Follow the beat" | P2 | 15 s |
 | Two-minute cycle elapsed | "Two minutes. Rhythm check, switch compressors." | P2 | once per cycle |
 | Epi timer due (4 min default, 3–5 settable; 45 s in demo mode) | "Epi due" | P2 | 60 s |
 | Not in arrest, SpO₂ under 90 for 10 s | "Oxygen saturation eighty-eight" | P2 | 30 s |
@@ -1296,7 +1325,8 @@ As built in `spacetime/src/rules.ts`: one callout per tick at most, lowest prior
 counts every queued callout except P0; CPR data counts only if the bodycam reported in the last 3 s (or a demo
 override is on); vitals count only if the relay reported in the last 5 s with status `pulse`; vitals alarms run in
 `on_scene`, `rosc` and `en_route`; "Check finger sensor" needs 5 s of `no finger` after a pulse was seen in this
-incident; unspoken callouts older than 20 s are deleted so stale words are never spoken; a fired CPR or vitals
+incident; the two CPR-assistance rules need a `push_cpr_assist` from the last 3 s (`cpr_state.assistAt`) and no
+override (armed but `assist` false = waiting for the sensor); unspoken callouts older than 20 s are deleted so stale words are never spoken; a fired CPR or vitals
 rule also writes a timeline event (cited as `demo` and labelled "(SIMULATED)" when it came from an override or
 simulated data, §28). The "ER acknowledged" callout does not exist.
 
@@ -1788,7 +1818,7 @@ active get `incidentId = 0`.
 | `device` | `id` PK, `kind`, `lastSeen` | Who's connected and when last seen (`heartbeat`, and relay/bodycam writes) |
 | `vitals` | `id`, `incidentId` (index), `ts`, `device`, `hr?`, `spo2?`, `tempC?`, `status`, `simulated` | About once a second. `hr`/`spo2` stored only when `status` is `pulse`. Kept 30 min |
 | `waveform` | `id`, `incidentId`, `ts`, `device`, `samples` f32[], `rateHz`, `simulated` | Raw `ir` batches, about 5 per second, up to 200 samples each. Kept 30 s |
-| `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples` |
+| `cpr_state` | `incidentId` PK, `rate?`, `count`, `sinceLastS`, `paused`, `compressing`, `source` (motion or override), `updatedAt`, `cycleStartedAt?`, `countBase`, `rateSum`, `rateSamples`, `longestPauseS`, `assist`, `bpm`, `onBeatPct?`, `phaseErrMs?`, `onBeatSum`, `onBeatSamples`, `assistAt?` | One row per incident. Compressions this arrest = `count − countBase`; average rate = `rateSum / rateSamples`; average % on the beat = `onBeatSum / onBeatSamples` (counted only in an arrest, while compressing, with beat data, not under an override). The last seven are written by `push_cpr_assist` (decision 21) |
 | `transcript` | `id`, `incidentId` (index), `ts`, `text` | One row per sentence, up to 500 characters |
 | `rtc_signal` | `id`, `ts`, `sessionId`, `sender`, `kind`, `payload` | WebRTC video handshake (§22.5). Keyed by session, not incident. Kept 10 min |
 | `event` | `id`, `incidentId` (index), `ts`, `kind`, `label`, `sources` (array of `{kind, detail, ts}`), `mergedCount`, `status` | The timeline. `status`: logged, flagged, confirmed, cancelled. Merging in §18, kinds in §22.7 |
@@ -1830,6 +1860,7 @@ camelCase (`conn.reducers.pushCpr({...})`).
 | Any | `set_status(status, sourceKind, sourceDetail)` | Any transition allowed; the source becomes the timeline chip, e.g. `("arrest", "voice", "her heart stopped")` |
 | Any | `heartbeat(device, kind)` | Keeps `device.lastSeen` fresh |
 | Bodycam | `push_cpr({rate?, count, sinceLastS, paused, compressing})` | About 2×/s (§22.4). Ignored while a demo override is on |
+| Bodycam (CPR assistance, HTTP) | `push_cpr_assist({assist, bpm, onBeatPct?, phaseErrMs?})` | About 2×/s, right after `push_cpr` (§22.4); no-op until a `cpr_state` row exists |
 | Bodycam / voice worker | `add_transcript({text})` | One row per sentence |
 | Bodycam (W6) | `identify_patient({patientRef, method})` | method `ID card`, `voice` or `manual`; sets `incident.patientRef` and logs `patient_identified` |
 | Bodycam / agents | `log_event({kind, label, sourceKind, sourceDetail})` | Read-backs, findings, procedures (§22.7) |
@@ -1914,10 +1945,17 @@ The detector in `hardware/software/phone/` (on the `hardware` branch) reads
 `{rate, count, sinceLast, paused, compressing}` (rate is the median interval of recent compressions; `paused`
 after a gap). Self-tests in `dsp_selftest.js`.
 
-The bodycam sends it about twice a second as
-`pushCpr({ rate, count, sinceLastS: sinceLast, paused, compressing })`. `rate` may be undefined. Before the first
-compression, send `sinceLastS` = seconds since the page started; the server caps pauses at the time since the
-arrest began. `count` may reset on page reload (the server tracks `countBase`).
+The port in `web/src/cpr/dsp.ts` keeps the algorithm unchanged, with the same self-tests (`cd web && npm run
+test:cpr`). CPR assistance (decision 21, `hub/cpr.js` in `hub/phone.html`) sends about twice a second, over HTTP,
+in this order: `push_cpr [rate?, count, sinceLastS, paused, compressing]`, then
+`push_cpr_assist [assist, bpm, onBeatPct?, phaseErrMs?]`.
+- `rate` may be undefined. Before the first compression, `sinceLastS` = seconds since the page started; the
+  server caps pauses at the time since the arrest began. `count` may reset on page reload (the server tracks
+  `countBase`).
+- `assist` = the metronome is on (mode active or paused; false while waiting for the finger sensor); `bpm` 0 = off.
+- `onBeatPct` = % of the last ~8 compressions within 120 ms of the beat; `phaseErrMs` = mean signed error
+  (+ = late). Both are none ("no data", never 0 %) while not compressing, and reset after a pause.
+- The page also runs `SELECT id, status FROM incident WHERE status != 'closed'` once a second (newest = active).
 
 ### 22.5 WebRTC video signaling (`rtc_signal`)
 
@@ -1961,7 +1999,7 @@ If the peer connection can't be made: phone hotspot, then a TURN relay. No low-f
 - Medications: `med_<generic name>`, e.g. `med_epinephrine`, `med_amiodarone`, `med_naloxone`. A new
   `med_epinephrine` event starts the epi timer.
 - Others: `shock`, `airway`, `mark`, `finding`, `procedure`, `patient_identified`, `destination`,
-  `status_<status>`. Rules also write `cpr_coached`, `cpr_paused`, `vitals_alarm_hr` and `vitals_alarm_spo2`
+  `status_<status>`. Rules also write `cpr_coached`, `cpr_paused`, `cpr_sensor`, `cpr_offbeat` (decision 21), `vitals_alarm_hr` and `vitals_alarm_spo2`
   (a merged alarm shows the newest number). `synthesize_seizure` writes `simulation` and `simulation_end`.
 - `sourceKind` is the chip: `voice`, `read-back`, `label`, `seen` (the camera saw it given), `tap`, `MARK`, `motion`, `callout`, `EHR`, `ID card`,
   `agent`, `relay`, `demo`. `sourceDetail` is the evidence text, such as the transcript line.
@@ -2275,6 +2313,7 @@ hackutd26/
     src/routes/hospital/        hospital lane
     src/routes/bodycam/         chest-camera lane (placeholder)
     src/routes/controls/        /controls demo-controls page (D1, H8; owner open, §28)
+    src/cpr/                    CPR assistance source + tests (decision 21); `npm run build:hub-cpr` → hub/cpr.js
   ehr/                          mock FHIR R4 EHR, synthetic patients, port 4100 (hospital lane; README)
   agent/                        workflow agent W1 + W4, Nemotron with template fallback (hospital lane; README)
     src/module_bindings/        second copy of the generated bindings (`cd agent && npm run generate`)

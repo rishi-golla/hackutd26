@@ -85,7 +85,7 @@ const cprState = table(
     rateSum: t.f64(),
     rateSamples: t.u32(),
     longestPauseS: t.f32(),
-    /** The phone's CPR assistance is running (metronome + its own cues); the server's CPR callouts stay quiet. */
+    /** The phone's CPR assistance is running: metronome on (decision 21). False while it waits for the finger sensor. */
     assist: t.bool().default(false),
     /** Metronome tempo (/min); 0 = no metronome. */
     bpm: t.f32().default(0),
@@ -96,7 +96,7 @@ const cprState = table(
     /** Running totals over the current arrest, for the report (average % on the beat). */
     onBeatSum: t.f64().default(0),
     onBeatSamples: t.u32().default(0),
-    /** Last push_cpr_assist: `assist` only counts while this is fresh, so a phone that went away can't mute the server. */
+    /** Last push_cpr_assist. The CPR-assistance rules (§15) only trust `assist` while this is under 3 s old. */
     assistAt: t.option(t.timestamp()).default(undefined),
   }
 );
