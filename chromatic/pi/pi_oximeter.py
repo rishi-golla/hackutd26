@@ -22,10 +22,10 @@ from pi_hr_sensor import Adv, App, Chr, Svc, BUS, PROPS, GATT_MGR, ADV_MGR   # n
 
 VLOG = open("/home/cmx/vitals.jsonl", "a")
 LED = 0x24
-HOLD_S = 3.0
-# Button light ring, common + to 3.3 V, so a color is on when its pin is LOW. Wired: GPIO22 lights blue, GPIO24 red
-# (checked by eye on 2026-11-07); the green leg on GPIO23 is not connected.
-BLUE, RED = 22, 24                               # keep showing the last good HR through short glitches
+HOLD_S = 3.0                               # keep showing the last good HR through short glitches
+# Button light ring, common + to 3.3 V, so a color is on when its pin is LOW. Only red and blue light: red is GPIO24,
+# blue is GPIO22 or GPIO23 depending on the rewiring, so both are driven together (the green element does not light).
+BLUE, RED = [22, 23], 24
 
 
 # Hub (hub.py on this Pi): every reading also goes there, so the phone and dashboard see it. Never blocks the sensor.
@@ -133,7 +133,7 @@ def main():
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)    # MARK button: pin 11 to ground (pin 9)
-    GPIO.setup([BLUE, RED], GPIO.OUT, initial=GPIO.HIGH)
+    GPIO.setup(BLUE + [RED], GPIO.OUT, initial=GPIO.HIGH)
     st = {"m": None, "err": 0, "got_at": time.time(), "R": [], "I": [], "o2": [], "finger": False, "base": 15000.0, "ac_ok": [],
           "hist": [], "recent": [], "last_ok": 0.0, "hr": 0, "state": None, "linked": False, "btn": False,
           "marks": 0, "mark_at": 0.0, "unsub_at": None, "dev_at": 0.0}
@@ -279,7 +279,7 @@ def main():
     finally:
         if st["m"]:
             st["m"].close()
-        GPIO.output([BLUE, RED], GPIO.HIGH)
+        GPIO.output(BLUE + [RED], GPIO.HIGH)
 
 
 if __name__ == "__main__":
