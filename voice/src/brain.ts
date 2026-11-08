@@ -117,6 +117,8 @@ type Pending = {
 
 /** How long a bare "yes" / "no" counts as the answer to "Log it?". */
 const ASK_WINDOW_MS = 30_000;
+/** P2/P3 callouts (rule timers, notes) wait this long after a question so the answer isn't talked over (live Sun ~06:00). */
+const ASK_HOLD_MS = 8_000;
 /** The voice log Nemotron sees to judge a new line: the last lines heard, kept or dropped. */
 const VOICE_LOG_LINES = 10;
 const VOICE_LOG_MS = 2 * 60_000;
@@ -515,6 +517,7 @@ export class Brain {
     // routine dose stays `logged`. "Yes" → confirmed, "no" → cancelled.
     if (out.flagged && ev.status !== 'flagged') await this.conn.reducers.setEventStatus({ eventId: ev.id, status: 'flagged' });
     this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: out.flagged, reason: out.reason, drug: rb.drug, askedAt: Date.now() };
+    this.speaker.holdLow?.(ASK_HOLD_MS);
   }
 
   /**
@@ -532,6 +535,7 @@ export class Brain {
       return;
     }
     this.lastReadback = { eventId: ev.id, at: Date.now(), flagged: false, askedAt: Date.now() };
+    this.speaker.holdLow?.(ASK_HOLD_MS);
     await step(this.conn, 'read_back', `${label} · asked "Log it?"`);
     await this.policy.say(`Copy. ${label}. Log it?`, 0, 'readback', undefined, valid);
   }
@@ -584,6 +588,7 @@ export class Brain {
     }
     await this.policy.say(word === 'correction' ? 'Cancelled.' : 'Logged.', 0, 'control');
     this.lastReadback = undefined;
+    this.speaker.releaseLow?.();
   }
 
   // ---- W6: who is the patient -------------------------------------------------------------------------------
